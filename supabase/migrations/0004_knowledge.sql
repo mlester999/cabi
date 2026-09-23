@@ -60,12 +60,12 @@ set search_path = ''
 as $$
   with query as (select websearch_to_tsquery('english', left(p_query, 500)) as value)
   select c.id, d.title, d.canonical_url, c.content,
-    (ts_rank_cd(c.search_vector, query.value) + greatest(similarity(d.title, p_query), 0) * 0.35)::real,
+    (ts_rank_cd(c.search_vector, query.value) + greatest(public.similarity(d.title, p_query), 0) * 0.35)::real,
     d.fetched_at
   from public.knowledge_chunks c
   join public.knowledge_documents d on d.id = c.document_id
   cross join query
-  where d.status = 'active' and (c.search_vector @@ query.value or similarity(d.title, p_query) > 0.15 or c.content ilike '%' || replace(left(p_query, 120), '%', '') || '%')
+  where d.status = 'active' and (c.search_vector @@ query.value or public.similarity(d.title, p_query) > 0.15 or c.content ilike '%' || replace(left(p_query, 120), '%', '') || '%')
   order by 5 desc
   limit least(greatest(p_limit, 1), 10);
 $$;
