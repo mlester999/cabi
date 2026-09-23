@@ -1,7 +1,7 @@
 "use client";
 
 import { explorerAddressUrl } from "@/lib/wallet/client";
-import { fallbackCpuContractAddress, fallbackCpuTradeUrl } from "@/lib/wallet/public-defaults";
+import { fallbackCpuContractAddress, fallbackCpuDescription, fallbackCpuTradeUrl } from "@/lib/wallet/public-defaults";
 import { ArrowUpRight, Check, Clock3, Copy, Network, ShieldCheck } from "lucide-react";
 import { useState } from "react";
 
@@ -18,6 +18,7 @@ import type { PublicWalletConfig } from "@/lib/wallet/config";
 export function CupStage({ settings, wallet }: { settings: { cpuStatus: "PRELAUNCH" | "LIVE" }; wallet: PublicWalletConfig }) {
   const [copied, setCopied] = useState(false);
   const cpu = wallet.cpu;
+  const description = cpu.description.trim() || fallbackCpuDescription;
   const contractAddress = cpu.contractAddress || fallbackCpuContractAddress;
   const clankTradeUrl = cpu.clankTradeUrl || fallbackCpuTradeUrl;
   const chain = cpu.chainId == null ? undefined : wallet.chains.find((candidate) => candidate.id === cpu.chainId && candidate.enabled);
@@ -62,9 +63,20 @@ export function CupStage({ settings, wallet }: { settings: { cpuStatus: "PRELAUN
         )}
       </div>
 
-      {cpu.description ? (
-        <p className="mt-4 max-w-[52rem] text-[13px] leading-6 text-[#a8a3b3] sm:text-sm sm:leading-7">{cpu.description}</p>
-      ) : null}
+      <div className="mt-5 grid gap-3 md:grid-cols-[minmax(0,1.45fr)_minmax(13rem,.7fr)]">
+        <div className="rounded-[22px] border border-violet-200/[0.10] bg-violet-300/[0.035] p-4 sm:p-5">
+          <p className="text-[10px] font-semibold uppercase tracking-[.16em] text-violet-200/80">About ${cpu.ticker || "CPU"}</p>
+          <p className="mt-2 max-w-3xl text-[13px] leading-6 text-[#b9b3c6] sm:text-sm sm:leading-7">{description}</p>
+        </div>
+        <div className="rounded-[22px] border border-white/[0.06] bg-white/[0.02] p-4 sm:p-5">
+          <p className="text-[10px] font-semibold uppercase tracking-[.16em] text-[#706a7d]">Cabi system</p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <span className="rounded-full border border-violet-200/[0.12] bg-violet-300/[0.06] px-2.5 py-1 text-[10px] font-medium text-violet-100">Companion project</span>
+            <span className="rounded-full border border-emerald-300/[0.12] bg-emerald-300/[0.05] px-2.5 py-1 text-[10px] font-medium text-emerald-100">Prelaunch mode</span>
+          </div>
+          <p className="mt-3 text-[11px] leading-5 text-[#777180]">Official token details are published by the owner.</p>
+        </div>
+      </div>
 
       {live && contractAddress && chain ? (
         <div className="mt-6 grid gap-3 sm:grid-cols-2">

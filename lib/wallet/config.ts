@@ -4,7 +4,7 @@ import { getAddress, isAddress } from "viem";
 import { z } from "zod";
 
 import { getServiceClient } from "@/lib/db/supabase";
-import { fallbackCpuContractAddress, fallbackCpuTradeUrl } from "@/lib/wallet/public-defaults";
+import { fallbackCpuContractAddress, fallbackCpuDescription, fallbackCpuTradeUrl } from "@/lib/wallet/public-defaults";
 
 export type SupportedChainConfig = {
   id: number;
@@ -45,7 +45,7 @@ export const defaultCpuConfig: CpuTokenConfig = {
   explorerUrl: "",
   xUrl: "",
   websiteUrl: "",
-  description: "Cabi's community token, built for the Cat Partner Unit ecosystem.",
+  description: fallbackCpuDescription,
 };
 
 export const defaultChainConfig = { chains: [] as SupportedChainConfig[], primaryChainId: null as number | null };
@@ -180,7 +180,7 @@ export async function getWalletProductConfig(): Promise<PublicWalletConfig> {
     explorerUrl: cpuRow.block_explorer_url ?? "",
     xUrl: cpuRow.x_url ?? "",
     websiteUrl: cpuRow.website_url ?? "",
-    description: cpuRow.description ?? "",
+    description: cpuRow.description?.trim() || fallbackCpuDescription,
   } : defaultCpuConfig);
   const candidate = {
     ...(chains.success ? chains.data : defaultChainConfig),

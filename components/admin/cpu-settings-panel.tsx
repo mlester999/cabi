@@ -4,6 +4,7 @@ import { Plus, RotateCcw, Save, Trash2 } from "lucide-react";
 import { FormEvent, useEffect, useState } from "react";
 
 import { Banner, Header } from "@/components/admin/ai-settings-panel";
+import { fallbackCpuDescription } from "@/lib/wallet/public-defaults";
 
 type Chain = {
   id: number;
@@ -43,7 +44,7 @@ const emptyValue: Value = {
     explorerUrl: "",
     xUrl: "",
     websiteUrl: "",
-    description: "Cabi's community token, built for the Cat Partner Unit ecosystem.",
+    description: fallbackCpuDescription,
   },
 };
 

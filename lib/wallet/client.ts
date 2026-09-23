@@ -1,5 +1,7 @@
 import { getAddress, isAddress } from "viem";
 
+import { fallbackCpuDescription } from "@/lib/wallet/public-defaults";
+
 export type PublicChain = {
   id: number;
   name: string;
@@ -73,7 +75,7 @@ export const emptyPublicWalletConfig: PublicWalletConfig = {
     explorerUrl: "",
     xUrl: "",
     websiteUrl: "",
-    description: "Cabi's community token, built for the Cat Partner Unit ecosystem.",
+    description: fallbackCpuDescription,
   },
 };
 

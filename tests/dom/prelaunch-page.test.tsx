@@ -11,7 +11,7 @@ import { WalletProvider } from "@/components/wallet/wallet-provider";
 import { defaultPrelaunchSettings } from "@/lib/site/prelaunch-shared";
 import type { PrelaunchSettings } from "@/lib/site/prelaunch-shared";
 import type { PublicWalletConfig } from "@/lib/wallet/client";
-import { fallbackCpuContractAddress, fallbackCpuTradeUrl } from "@/lib/wallet/public-defaults";
+import { fallbackCpuContractAddress, fallbackCpuDescription, fallbackCpuTradeUrl } from "@/lib/wallet/public-defaults";
 
 const CHAIN_ID = 8453;
 const CPU_ADDRESS = "0x1234567890abcdef1234567890abcdef12345678";
@@ -198,6 +198,7 @@ describe("prelaunch page", () => {
 describe("$CPU on the prelaunch page", () => {
   it("shows the owner-approved fallback contract and trade page while the app is in prelaunch", async () => {
     await renderPrelaunch({ cpuStatus: "PRELAUNCH" }, walletConfig());
+    expect(screen.getByText(fallbackCpuDescription)).toBeInTheDocument();
     expect(screen.getByText(fallbackCpuContractAddress)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /View \$CPU on Clank\.trade/i })).toHaveAttribute("href", fallbackCpuTradeUrl);
     expect(screen.getByRole("button", { name: /Copy \$CPU contract/i })).toBeInTheDocument();
