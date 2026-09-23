@@ -225,6 +225,8 @@ The automated suite covers, among other cases:
 
 The current deployment uses OpenAI Sites, which assigns the `*.chatgpt.site` domain and runs the Cloudflare Worker-compatible build. That does not change the framework: the repository remains a Next.js application. Hosting can later move to Vercel or a custom domain without redesigning the product; update `APP_URL`, the Reown origin allowlist, and deployment secrets together.
 
+Vercel uses `vercel.json` to run the native `next build` command and publish `.next`. OpenAI Sites continues to use the Vinext/Worker build from `npm run build`.
+
 Before production publication:
 
 1. Apply the Supabase migrations.
