@@ -1,56 +1,114 @@
 # Cabi — Cat Partner Unit
 
-Cabi is a production-oriented AI companion experience: a warm, witty Cat Partner Unit with real DeepSeek streaming, server-owned guest sessions, layered conversation memory, grounded Clank.trade answers, a healthy Bond system, and a separate secure admin console.
+Cabi is a wallet-optional AI companion built as a real **Next.js 16 App Router** application. The current `*.chatgpt.site` URL is only its hosting domain; the source is Next.js, React 19, TypeScript, Tailwind CSS, route handlers, and Supabase/PostgreSQL.
 
-The root route opens directly into the companion experience. There is no marketing gate and no simulated chatbot. If DeepSeek or Supabase is not configured, Cabi shows a clear configuration state instead of fabricating a reply or pretending data was saved.
+The product opens directly into chat. A wallet is never required to talk to Cabi.
 
-## What is included
+## Product behavior
 
-- Responsive three-panel desktop chat and native-feeling full-screen mobile chat.
-- Supplied-artwork integration for `cabi-main.png` and `cabi-mascot.png`, including restrained breathing/glow animation and neutral monogram fallbacks.
-- Real server-side DeepSeek streaming through a provider abstraction supporting Chat Completions and Responses-style SSE.
-- Persistent conversations, message retry/edit/delete, reactions, safe Markdown, source links, stop generation, and share cards in square and 16:9 formats.
-- Three memory layers: recent messages, rolling summary storage, and explicit long-term memories with view/delete/disable controls.
-- Healthy, daily-capped Bond events that never reward purchases or punish absence.
-- Same-domain Clank.trade crawler with robots checks, redirect revalidation, URL/size/depth limits, content hashing, deduplication, chunking, PostgreSQL full-text/trigram search, and prompt-injection boundaries.
-- Separate admin login and protected routes for AI, personality, knowledge, users, conversations, memories, branding, `$CPU`, app settings, and append-only audit logs.
-- AES-256-GCM encryption for admin-saved DeepSeek keys. Decrypted keys are never returned to the browser.
-- Zod validation, signed HttpOnly guest/admin cookies, same-origin mutation checks, rate limiting, ownership predicates, CSP/security headers, Supabase RLS, and sanitized Markdown.
-- Actual PostgreSQL migrations and automated unit/contract tests.
+| Capability | Guest | Connected + SIWE-authenticated EVM wallet |
+| --- | --- | --- |
+| Chat with Cabi | Yes | Yes |
+| Conversation storage | Active tab memory only | Supabase |
+| Recent chats and search | Locked | Enabled |
+| Rename, pin, delete | No | Enabled |
+| Long-term memories | No | Enabled |
+| Bond progress | Temporary only | Persisted |
+| Preferences and data export | No | Enabled |
+| Required network for chat/history | None | None |
+
+Guest transcripts are never written to Supabase, `localStorage`, or IndexedDB. Refreshing or closing the tab may clear them. If a guest connects during an active conversation, Cabi asks **Save Chat** or **Keep Temporary**; no existing transcript is uploaded until **Save Chat** is chosen.
+
+## Stack
+
+- Next.js 16 App Router and React 19
+- TypeScript and Tailwind CSS 4
+- Supabase/PostgreSQL for authenticated wallet data
+- viem for EVM address and signature validation
+- EIP-6963/injected providers plus optional Reown WalletConnect
+- DeepSeek-compatible Chat Completions or Responses streaming
+- Zod validation, Vitest, Testing Library, ESLint
+- Cloudflare Worker-compatible production output through the Vinext deployment adapter
 
 ## Architecture
 
 ```text
 Browser
-  ├─ Next/Vinext UI (React 19, Tailwind 4, Motion)
-  └─ same-origin route handlers only
-       ├─ signed guest/admin sessions
-       ├─ Supabase service repository with explicit owner predicates
-       ├─ DeepSeek provider + normalized SSE stream
-       ├─ memory and Bond services
-       └─ Clank crawler / search / RAG pipeline
+  ├─ Next.js React UI
+  ├─ temporary guest chat held only in component memory
+  └─ EIP-1193 wallet provider (optional)
+       ├─ eth_requestAccounts
+       ├─ personal_sign for SIWE-style login
+       └─ wallet_switchEthereumChain / wallet_addEthereumChain
+
+Next.js route handlers
+  ├─ secure nonce + signature verification
+  ├─ signed, HttpOnly, revocable wallet session
+  ├─ explicit wallet-owner predicates on every persisted query
+  ├─ DeepSeek stream normalization and cancellation
+  ├─ Cabi memory, summaries, Bond, and RAG
+  └─ separate protected admin console
 
 Supabase PostgreSQL
-  ├─ user-owned chat, settings, memory, Bond, and state
-  ├─ knowledge documents, chunks, and sync runs
-  ├─ encrypted settings, usage, rate-limit buckets, and audit
-  └─ RLS + least-privilege grants + server-only RPCs
+  ├─ wallet_accounts, wallet_nonces, auth_sessions, profiles
+  ├─ conversations, messages, memories, settings, Bond
+  ├─ centrally managed EVM chains and $CPU configuration
+  ├─ knowledge, usage, rate limits, encrypted config, audit
+  └─ constraints, indexes, RLS, and server-only RPCs
 ```
 
-The Sites/Vinext runtime is Cloudflare Worker-compatible. Server code uses `fetch`, Web Streams, and Web Crypto; it does not rely on native database sockets or filesystem persistence.
+There is no transaction execution or token-approval path in the shipped wallet client. Wallet signing is login-only and costs no gas. `$CPU` trading is an external link to the exact owner-configured Clank.trade coin page.
 
-## Routes
+## Wallet authentication
 
-### User product
+Connecting an address is not treated as authentication. The flow is:
 
-- `/` — Cabi chat experience
-- `/settings` — appearance, memory, sound, data export/deletion, and About
-- `/api/chat` — authenticated server-side DeepSeek stream
-- `/api/conversations/*` — owned conversation history
-- `/api/messages/*` — owned message edit/delete/reactions
-- `/api/memories/*` — memory view/delete/clear
-- `/api/settings` — user preferences
-- `/api/data/export` and `/api/data` — export and deletion
+1. Select an injected or WalletConnect-compatible EVM wallet.
+2. The server creates a cryptographically random, five-minute, one-time nonce.
+3. The wallet signs a human-readable SIWE-style message.
+4. The server verifies the address, signature, nonce, domain, URI, statement, issue time, and expiration.
+5. The nonce is atomically consumed to prevent replay.
+6. A random session token is hashed in PostgreSQL; only its signed bearer value is stored in an HttpOnly cookie.
+7. Logout revokes the database session and clears local authenticated state.
+
+The login message never asks for a transaction, approval, transfer, private key, recovery phrase, or seed phrase.
+
+Supported wallet discovery includes MetaMask, Rabby, Coinbase Wallet where it exposes an EIP-6963/EIP-1193 provider, other injected EVM wallets, and WalletConnect-compatible wallets when `NEXT_PUBLIC_REOWN_PROJECT_ID` is configured. This application is EVM-only.
+
+## Supported chains
+
+Chains are owner-managed in `/admin/cpu`; none are invented or seeded. Each chain stores:
+
+- chain ID and name
+- native currency name, symbol, and decimals
+- HTTPS RPC URL
+- verified block explorer URL
+- optional icon
+- enabled state
+- primary-chain state
+
+An unsupported connected chain shows **Wrong network** and **Switch Network**. Saved chat history remains readable regardless of the currently selected wallet network.
+
+## `$CPU`
+
+`/cpu` is the public Cat Partner Unit token page, and `/admin/cpu` controls its data.
+
+In `PRELAUNCH`, the public UI shows **Coming Soon** and no contract, price, market cap, or buy link. In `LIVE`, the admin must provide a viem-valid EVM address, an enabled configured chain, and an exact `https://clank.trade/...` coin URL. The UI then shows the contract, copy action, configured network, explorer link, and **Buy $CPU**.
+
+The Buy button opens the exact stored Clank.trade URL in a new tab with `rel="noopener noreferrer"`. It never derives a URL from a contract and never routes to a generic trading page.
+
+## Main routes
+
+### Public
+
+- `/` — Cabi chat
+- `/settings` — wallet-authenticated preferences, memories, export, and deletion
+- `/cpu` — safe prelaunch/live `$CPU` card
+- `/api/chat` — guest or authenticated DeepSeek stream
+- `/api/wallet/nonce`, `/verify`, `/session`, `/logout`
+- `/api/conversations/*`, `/api/messages/*`, `/api/memories/*`
+- `/api/settings`, `/api/data`, `/api/data/export`
+- `/api/public/config` — non-secret supported-chain and `$CPU` configuration
 
 ### Admin
 
@@ -67,132 +125,107 @@ The Sites/Vinext runtime is Cloudflare Worker-compatible. Server code uses `fetc
 - `/admin/settings`
 - `/admin/audit`
 
-Every admin page is protected server-side. Admin mutations repeat authorization checks in their route handler and write an audit record where applicable.
+Admin routes never appear in ordinary public navigation and are protected server-side.
+
+## Optional site modes and prelaunch
+
+The default application mode is `LIVE`, so `/` opens directly into chat as required. The owner may explicitly switch to `PRELAUNCH` or `MAINTENANCE` from `/admin/settings` or with the emergency `SITE_MODE` environment override.
+
+The prelaunch page uses the supplied transparent character artwork at `public/assets/cabi-main.png` (with `cabi-cpu-model.png` only as a missing-file fallback), responsive desktop/mobile framing, reduced-motion support, and truthful `$CPU` state. It does not show fake progress, a release date, a contract, market data, or a buy link.
+
+Mode precedence is:
+
+1. `SITE_MODE` or `NEXT_PUBLIC_SITE_MODE`
+2. `app_settings.site_mode`
+3. built-in `LIVE`
+
+`/preview` lets an authenticated admin inspect the application while an explicit prelaunch or maintenance mode is active.
 
 ## Local setup
 
-Requirements: Node.js 22.13 or newer and a Supabase project.
-
-1. Install dependencies:
-
-   ```bash
-   npm ci
-   ```
-
-2. Copy `.env.example` to `.env.local`.
-
-3. Generate strong local secrets:
-
-   ```bash
-   node scripts/generate-secrets.mjs
-   ```
-
-   Copy the printed values into `.env.local`. To generate an admin password hash in the same command, temporarily set `CABI_ADMIN_PASSWORD` in your shell, run the script, then remove that shell variable.
-
-4. Apply every SQL file in `supabase/migrations/` in filename order using the Supabase CLI or SQL editor.
-
-5. Fill the Supabase URL, publishable key, and service-role key in `.env.local`.
-
-6. Start Cabi:
-
-   ```bash
-   npm run dev
-   ```
-
-The supplied brand art belongs in `public/assets/`; see `public/assets/README.md`. Exact expected filenames are `cabi-main.png`, `cabi-mascot.png`, and optional design-only `cpu-reference.png`.
-
-## Supabase and database migrations
-
-The application uses Supabase/PostgreSQL as its only durable product datastore. The starter D1 files are retained only because the Sites starter tooling references them; `.openai/hosting.json` deliberately leaves D1 and R2 unbound.
-
-Migrations:
-
-1. `0001_extensions_and_private.sql` — extensions, private schema, ownership/update helpers.
-2. `0002_identity_and_chat.sql` — profiles, settings, conversations, messages, reactions, summaries, indexes, grants, and RLS.
-3. `0003_memory_and_bond.sql` — memories, Bond events/profiles, Cabi state, daily-diminishing Bond RPC, and RLS.
-4. `0004_knowledge.sql` — sync runs, documents, chunks, full-text/trigram indexes, and search RPC.
-5. `0005_admin_operations_and_security.sql` — admin/config/secrets, usage, audit, atomic rate limits, deletion RPC, audit immutability, and safe default branding.
-
-The browser never supplies a trusted owner ID. The BFF derives the profile from a signed HttpOnly cookie and applies an owner predicate to every user-data operation. RLS also exists for future authenticated/direct-client access; assistant/system writes and all admin/knowledge/secret tables remain service-only.
-
-## Admin setup
-
-Set `ADMIN_EMAIL` and `ADMIN_PASSWORD_HASH`. The password hash format is:
-
-```text
-pbkdf2-sha256$310000$<base64url-salt>$<base64url-derived-key>
-```
-
-`scripts/generate-secrets.mjs` creates this safely when `CABI_ADMIN_PASSWORD` is set. Admin sessions use a separate signed HttpOnly cookie, short expiry, same-origin checks, and login throttling. For a public production deployment, place the admin console behind an additional platform access policy and add MFA through Supabase Auth or the deployment identity layer.
-
-## DeepSeek configuration
-
-Preferred setup:
-
-1. Sign in to `/admin/ai`.
-2. Enter the API base URL and key.
-3. Leave Model blank to query DeepSeek's current model list, or select an explicit model.
-4. Use **Test connection**.
-5. Save.
-
-The key is encrypted with AES-256-GCM using `APP_ENCRYPTION_KEY`, a fresh 12-byte IV, and record-bound authenticated data. Only its last four characters are displayed. An environment-only `DEEPSEEK_API_KEY` is supported as a deployment fallback and is never sent to the browser.
-
-The provider retries only retryable failures before visible output, honors timeouts, normalizes streaming events, records sanitized usage/latency, and never forwards raw upstream errors.
-
-## Memory
-
-- Short term: bounded recent messages from the current conversation.
-- Summary: schema and prompt support for a rolling summary cursor.
-- Long term: only explicit `remember ...` requests are saved by the built-in deterministic extractor. Sensitive categories and seed-phrase-like text are rejected.
-
-Users can disable retrieval, view/delete one memory, clear all memories, export data, or clear all stored data. `forget ...` requests remove matching memories. A queue/scheduled job is recommended before enabling implicit AI-based extraction or automatic summaries at scale.
-
-## Clank.trade knowledge sync
-
-`/admin/knowledge` starts a bounded, public-only crawl from `https://clank.trade/`.
-
-The crawler:
-
-- obeys `robots.txt`;
-- accepts HTTPS and exact allowlisted hosts only;
-- rejects credentials, IP literals, nonstandard ports, private/auth-like paths, external redirects, and non-text content;
-- limits redirects, depth, pages, and page bytes;
-- strips scripts, navigation, forms, and repeated boilerplate;
-- stores canonical source URL, title, clean text, fetch time, and SHA-256 content hash;
-- rechunks only changed pages;
-- uses PostgreSQL full-text/trigram search even when no embedding provider exists.
-
-Retrieved records are JSON-encoded inside an explicit untrusted-data prompt boundary. The model cannot choose displayed source URLs; source attribution is built from the server's retrieved database rows. For larger sites, move sync execution to a Supabase Edge Function, Workflow, or queue rather than increasing request duration.
-
-## Testing and verification
+Requirements: Node.js 22.13+ and a Supabase project.
 
 ```bash
-npm run lint
-npm run typecheck
-npm test
+npm ci
+copy .env.example .env.local
+node scripts/generate-secrets.mjs
+npm run dev
+```
+
+Apply every SQL file in `supabase/migrations/` in filename order before testing wallet persistence.
+
+Required production values:
+
+```text
+NEXT_PUBLIC_SUPABASE_URL
+NEXT_PUBLIC_SUPABASE_ANON_KEY
+SUPABASE_SERVICE_ROLE_KEY
+APP_ENCRYPTION_KEY
+SESSION_SECRET
+APP_URL
+ADMIN_EMAIL
+ADMIN_PASSWORD_HASH
+```
+
+AI can be configured in `/admin/ai` or with `DEEPSEEK_API_KEY` and the related DeepSeek environment variables.
+
+For QR/mobile wallets, create a Reown Cloud project, set `NEXT_PUBLIC_REOWN_PROJECT_ID`, and allowlist the exact local and production origins. `APP_URL` must also be the exact canonical origin because SIWE domain and URI checks are strict.
+
+Never expose `SUPABASE_SERVICE_ROLE_KEY`, `APP_ENCRYPTION_KEY`, `SESSION_SECRET`, DeepSeek keys, or admin credentials through `NEXT_PUBLIC_*` variables.
+
+## Database migrations
+
+1. `0001_extensions_and_private.sql` — extensions and private helpers
+2. `0002_identity_and_chat.sql` — original profile/chat schema
+3. `0003_memory_and_bond.sql` — memories, Bond, and Cabi state
+4. `0004_knowledge.sql` — knowledge sync and search
+5. `0005_admin_operations_and_security.sql` — encrypted config, usage, audit, rate limits
+6. `0006_wallet_identity_and_persistence.sql` — wallet accounts, nonce/session auth, wallet ownership, supported chains, `$CPU`, and wallet-scoped RPCs
+7. `0007_site_mode_and_prelaunch.sql` — optional site modes and prelaunch settings
+
+Migration `0006` removes only rows owned by the retired anonymous/guest identity model. If it detects any legacy `auth.users`-owned profile, it aborts the transaction instead of guessing a wallet or deleting real data. Export or explicitly backfill those profiles to wallet accounts before retrying, and always back up an existing production database first.
+
+The server uses the Supabase service client, so every route also applies an explicit `wallet_account_id` predicate even though RLS policies exist. Never trust a wallet/account ID supplied by the browser.
+
+## DeepSeek, memory, and knowledge
+
+The provider keeps request abort and timeout handling active for the complete response body, rejects premature SSE EOF, and does not save incomplete streams as successful replies. Raw upstream errors and keys are never returned to the browser.
+
+Authenticated context includes bounded completed messages, an optional rolling summary, and explicit long-term memories. Turning memory off suppresses both long-term memories and summary recall. Guest context is supplied only from the current React state.
+
+Retrieved webpage content, memories, nicknames, and summaries are passed as lower-priority untrusted reference data; immutable safety/personality rules remain in the system message.
+
+## Verification
+
+```bash
+npm run check
 npm run build
 ```
 
-The test suite covers AES-GCM encryption/tamper detection, signed-session forgery, DeepSeek model discovery and split-frame streaming, error redaction, explicit memory/forget/sensitivity policy, crawler URL restrictions, HTML stripping, chunking, RAG prompt-injection boundaries, and Bond bounds.
+The automated suite covers, among other cases:
 
-Database integration tests require a disposable Supabase project and should exercise the migrations as two distinct users plus a service client. A credential-gated live DeepSeek smoke test should list models and complete one minimal stream; it is intentionally not part of ordinary CI.
+- invalid address/signature, wrong signer, altered message, expired/reused nonce, domain mismatch
+- revocable wallet sessions and disconnect-local-state clearing
+- no transaction/approval RPC methods and no private-key request UI
+- unsupported networks and standard chain switching
+- guest no-write behavior and authenticated chat writes
+- explicit-only guest chat import
+- wallet A isolation from wallet B conversations and memories
+- safe `$CPU` prelaunch/live rendering and exact-host Clank.trade validation
+- AI stream cancellation, split SSE frames, and premature EOF rejection
+- site-mode/preview authorization and responsive prelaunch rendering
 
-## Production deployment
+## Deployment
 
-1. Apply migrations to the production Supabase project.
-2. Configure all server-only variables as deployment secrets, not public variables.
-3. Add the supplied Cabi artwork.
-4. Run `npm run check` and `npm run build`.
-5. Deploy the generated Worker archive.
-6. Sign in at `/admin/ai`, save/test DeepSeek, and run the first knowledge sync.
+The current deployment uses OpenAI Sites, which assigns the `*.chatgpt.site` domain and runs the Cloudflare Worker-compatible build. That does not change the framework: the repository remains a Next.js application. Hosting can later move to Vercel or a custom domain without redesigning the product; update `APP_URL`, the Reown origin allowlist, and deployment secrets together.
 
-Never commit `.env.local`, a DeepSeek key, a Supabase service-role key, or an admin password. Do not configure a `$CPU` contract or trade URL until it has been independently verified; the UI hides unconfigured values rather than inventing them.
+Before production publication:
 
-## Security notes
+1. Apply the Supabase migrations.
+2. Configure production secrets and exact `APP_URL`.
+3. Configure Reown if WalletConnect is desired.
+4. Configure/test DeepSeek and admin access.
+5. Verify supported chains and `$CPU` fields in `/admin/cpu`.
+6. Run `npm run check` and `npm run build`.
 
-- Conversation privacy depends on deployment access, signed sessions, explicit ownership predicates, Supabase RLS, and secure secret handling; the UI does not claim end-to-end encryption.
-- Markdown is parsed without raw HTML and passed through `rehype-sanitize`.
-- CSP, nosniff, referrer, permissions, COOP, and resource-policy headers are configured in `next.config.ts`.
-- Cost-bearing endpoints have rate limits. Production should monitor the PostgreSQL bucket table and add a platform-level Cloudflare limit for defense in depth.
-- Audit metadata is redacted and append-only; prompts, message bodies, raw IPs, cookies, API keys, and ciphertext are not stored in audit rows.
-- Clank.trade information is informational, not guaranteed financial advice. Cabi never requests wallet secrets or performs custodial trading.
+Do not publish a `$CPU` contract or Clank.trade link until independently verified. Cabi never makes buying, holding, wallet balance, or trading activity part of the user's bond.

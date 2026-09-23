@@ -133,8 +133,7 @@ grant execute on function public.consume_rate_limit(text, text, integer, integer
 grant execute on function public.clear_user_data(uuid) to service_role;
 
 insert into public.app_settings (key, value_json) values
-  ('branding', '{"projectName":"Cabi","ticker":"CPU","tagline":"Cute, loyal, and always by your side.","primaryColor":"#C4B5FD","secondaryColor":"#8B5CF6","xUrl":"","clankUrl":"","websiteUrl":"","contractAddress":"","mainAsset":"/assets/cabi-main.png","mascotAsset":"/assets/cabi-mascot.png"}'::jsonb),
-  ('cpu_config', '{"coinName":"Cat Partner Unit","ticker":"CPU","contractAddress":"","clankUrl":"","xUrl":"","launchStatus":"Not configured","description":"","announcement":""}'::jsonb)
+  ('branding', '{"projectName":"Cabi","tagline":"Cute, loyal, and always by your side.","primaryColor":"#C4B5FD","secondaryColor":"#8B5CF6","xUrl":"","websiteUrl":"","mainAsset":"/assets/cabi-main.png","mascotAsset":"/assets/cabi-mascot.png"}'::jsonb)
 on conflict (key) do nothing;
 
 commit;

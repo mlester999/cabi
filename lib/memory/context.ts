@@ -5,20 +5,20 @@ import { listMemories } from "@/lib/memory/store";
 
 export type ConversationContext = { recent: AIMessage[]; summary: string | null; memories: string[]; nickname: string | null; memoryEnabled: boolean };
 
-export async function getConversationContext(profileId: string, conversationId: string): Promise<ConversationContext> {
+export async function getConversationContext(walletAccountId: string, profileId: string, conversationId: string): Promise<ConversationContext> {
   const db = getServiceClient();
   if (!db) return { recent: [], summary: null, memories: [], nickname: null, memoryEnabled: true };
   const [{ data: profile }, { data: settings }, { data: messages }, { data: summary }] = await Promise.all([
     db.from("profiles").select("preferred_name").eq("id", profileId).maybeSingle(),
-    db.from("user_settings").select("memory_enabled").eq("user_id", profileId).maybeSingle(),
-    db.from("messages").select("role,content").eq("conversation_id", conversationId).in("role", ["user", "assistant"]).order("created_at", { ascending: false }).limit(14),
+    db.from("user_settings").select("memory_enabled").eq("wallet_account_id", walletAccountId).maybeSingle(),
+    db.from("messages").select("role,content").eq("conversation_id", conversationId).in("role", ["user", "assistant"]).eq("status", "complete").neq("content", "").order("created_at", { ascending: false }).limit(14),
     db.from("conversation_summaries").select("summary").eq("conversation_id", conversationId).maybeSingle(),
   ]);
   const memoryEnabled = settings?.memory_enabled !== false;
-  const memories = memoryEnabled ? await listMemories(profileId, 6) : [];
+  const memories = memoryEnabled ? await listMemories(walletAccountId, 6) : [];
   return {
     recent: (messages ?? []).reverse().map((message) => ({ role: message.role as "user" | "assistant", content: message.content })),
-    summary: summary?.summary ?? null,
+    summary: memoryEnabled ? summary?.summary ?? null : null,
     memories: memories.map((memory) => `${memory.category}: ${memory.content}`),
     nickname: profile?.preferred_name ?? null,
     memoryEnabled,

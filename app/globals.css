@@ -31,7 +31,11 @@ body {
   background: radial-gradient(circle at 78% 18%, rgba(139,92,246,.10), transparent 28rem), radial-gradient(circle at 35% 105%, rgba(196,181,253,.05), transparent 30rem), #07070d;
   font-family: var(--font-sans); text-rendering: optimizeLegibility;
 }
-button, textarea, input { font: inherit; } button { -webkit-tap-highlight-color: transparent; } ::selection { color: #fff; background: rgba(139,92,246,.55); }
+button, textarea, input { font: inherit; }
+button { -webkit-tap-highlight-color: transparent; }
+button:not(:disabled), [role="button"]:not([aria-disabled="true"]) { cursor: pointer; }
+button:disabled, [role="button"][aria-disabled="true"] { cursor: not-allowed; }
+::selection { color: #fff; background: rgba(139,92,246,.55); }
 .glass { background: linear-gradient(145deg,rgba(20,16,31,.82),rgba(11,9,18,.74)); border: 1px solid rgba(196,181,253,.13); box-shadow: inset 0 1px 0 rgba(255,255,255,.035),0 22px 60px rgba(0,0,0,.24); backdrop-filter: blur(22px); }
 .cabi-noise::after { content:""; position:fixed; inset:0; pointer-events:none; opacity:.035; z-index:60; background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.8'/%3E%3C/svg%3E"); }
 .focus-ring:focus-visible { outline:2px solid #c4b5fd; outline-offset:3px; }
@@ -43,4 +47,101 @@ button, textarea, input { font: inherit; } button { -webkit-tap-highlight-color:
 @keyframes cabi-breathe { 0%,100% { transform:translateY(0) scale(1); } 50% { transform:translateY(-6px) scale(1.012); } }
 @keyframes cabi-orbit { to { transform:rotate(360deg); } }
 .cabi-breathe { animation:cabi-breathe 6.8s ease-in-out infinite; transform-origin:50% 80%; } .cabi-orbit { animation:cabi-orbit 28s linear infinite; }
-@media (prefers-reduced-motion: reduce) { *,*::before,*::after { scroll-behavior:auto!important; animation-duration:.01ms!important; animation-iteration-count:1!important; transition-duration:.01ms!important; } }
+
+/* ---------------------------------------------------------------------------
+   Prelaunch experience
+   Restrained, presentation-layer motion only. Every effect here is decorative,
+   GPU-cheap (transform/opacity), and disabled by prefers-reduced-motion below.
+   --------------------------------------------------------------------------- */
+
+.cabi-prelaunch { --cabi-lavender:#c4b5fd; --cabi-violet:#a78bfa; --cabi-deep:#8b5cf6; }
+
+/* Atmosphere: one slow drifting radial gradient over a deep near-black field. */
+.cabi-atmosphere { position:fixed; inset:-20vmax; z-index:0; pointer-events:none; background:
+  radial-gradient(38vmax 38vmax at 22% 18%, rgba(139,92,246,.17), transparent 62%),
+  radial-gradient(30vmax 30vmax at 82% 28%, rgba(167,139,250,.12), transparent 64%),
+  radial-gradient(46vmax 34vmax at 50% 108%, rgba(196,181,253,.10), transparent 68%);
+  animation:cabi-atmosphere-drift 46s ease-in-out infinite alternate; }
+@keyframes cabi-atmosphere-drift {
+  0% { transform:translate3d(-1.6%, -1.2%, 0) scale(1); }
+  100% { transform:translate3d(1.8%, 1.6%, 0) scale(1.06); }
+}
+
+/* Faint grain, kept below the content layer. */
+.cabi-grain { position:fixed; inset:0; z-index:1; pointer-events:none; opacity:.03; background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='pn'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23pn)'/%3E%3C/svg%3E"); }
+
+/* Hairline lavender rules that quietly breathe. */
+.cabi-hairline { height:1px; background:linear-gradient(90deg, transparent, rgba(196,181,253,.42), transparent); }
+.cabi-hairline-breathe { animation:cabi-hairline-breathe 7.5s ease-in-out infinite; }
+@keyframes cabi-hairline-breathe { 0%,100% { opacity:.28; } 50% { opacity:.85; } }
+
+/* Character: slow float plus a cursor-reactive perspective stage. */
+.cabi-model-stage { perspective:1100px; perspective-origin:50% 42%; contain:layout; }
+.cabi-model-depth { transform-style:preserve-3d; }
+.cabi-model-image { backface-visibility:hidden; transform-origin:50% 72%; }
+.cabi-model-sheen { mix-blend-mode:screen; opacity:.82; mask-position:center bottom; mask-repeat:no-repeat; mask-size:contain; -webkit-mask-position:center bottom; -webkit-mask-repeat:no-repeat; -webkit-mask-size:contain; }
+.cabi-float { animation:cabi-float 11s ease-in-out infinite; transform-style:preserve-3d; will-change:transform; }
+@keyframes cabi-float { 0%,100% { transform:translate3d(0,0,0) rotate(-.35deg); } 50% { transform:translate3d(0,-14px,0) rotate(.35deg); } }
+.cabi-breathe-slow { animation:cabi-breathe-slow 8.4s ease-in-out infinite; transform-origin:50% 86%; transform-style:preserve-3d; }
+@keyframes cabi-breathe-slow { 0%,100% { transform:scale(1); } 50% { transform:scale(1.017); } }
+.cabi-glow { animation:cabi-glow 9.5s ease-in-out infinite; }
+@keyframes cabi-glow { 0%,100% { opacity:.5; transform:scale(.97); } 50% { opacity:.95; transform:scale(1.05); } }
+
+/* Light sweeping behind the character. */
+.cabi-sweep { animation:cabi-sweep 15s ease-in-out infinite; will-change:opacity,transform; }
+@keyframes cabi-sweep { 0% { opacity:0; transform:translate3d(-14%,0,0) rotate(-8deg); } 40% { opacity:.55; } 100% { opacity:0; transform:translate3d(14%,0,0) rotate(-8deg); } }
+
+/* Sparkles: rise and fade, never twitchy. */
+.cabi-sparkle { animation:cabi-sparkle 13s linear infinite; }
+@keyframes cabi-sparkle {
+  0% { opacity:0; transform:translate3d(0,12px,0) scale(.6); }
+  18% { opacity:.75; }
+  62% { opacity:.45; }
+  100% { opacity:0; transform:translate3d(0,-72px,0) scale(1.05); }
+}
+
+/* Status: an indeterminate sweep — never a fabricated percentage. */
+.cabi-indeterminate { position:relative; overflow:hidden; }
+.cabi-indeterminate::after { content:""; position:absolute; inset:0; border-radius:inherit;
+  background:linear-gradient(90deg, transparent, rgba(196,181,253,.62), transparent);
+  transform:translateX(-100%); animation:cabi-indeterminate 2.9s cubic-bezier(.4,0,.2,1) infinite; }
+@keyframes cabi-indeterminate { 0% { transform:translateX(-100%); } 100% { transform:translateX(100%); } }
+
+.cabi-dot-pulse { animation:cabi-dot-pulse 3.4s ease-in-out infinite; }
+@keyframes cabi-dot-pulse { 0%,100% { opacity:.45; transform:scale(.85); } 50% { opacity:1; transform:scale(1); } }
+
+/* Mascot: occasional, small movements. */
+.cabi-mascot-bob { animation:cabi-mascot-bob 5.6s ease-in-out infinite; transform-origin:50% 92%; }
+@keyframes cabi-mascot-bob { 0%,100% { transform:translateY(0); } 50% { transform:translateY(-2px); } }
+.cabi-mascot-ear { transform-box:fill-box; transform-origin:50% 100%; animation:cabi-mascot-ear 7.3s ease-in-out infinite; }
+.cabi-mascot-ear-right { animation-delay:.42s; }
+@keyframes cabi-mascot-ear { 0%,88%,100% { transform:rotate(0deg); } 91% { transform:rotate(-5deg); } 94% { transform:rotate(3deg); } 97% { transform:rotate(-1deg); } }
+.cabi-mascot-eyelid { opacity:0; animation:cabi-mascot-blink 7.1s ease-in-out infinite; }
+@keyframes cabi-mascot-blink { 0%,92%,100% { opacity:0; } 94% { opacity:1; } 96.4% { opacity:0; } }
+.cabi-mascot-tail { transform-box:fill-box; transform-origin:92% 88%; animation:cabi-mascot-tail 6.2s ease-in-out infinite; }
+@keyframes cabi-mascot-tail { 0%,100% { transform:rotate(-3deg); } 50% { transform:rotate(7deg); } }
+
+/* Terminal caret. */
+.cabi-caret::after { content:"▍"; margin-left:2px; color:rgba(196,181,253,.75); animation:cabi-caret 1.15s steps(1,end) infinite; }
+@keyframes cabi-caret { 0%,49% { opacity:1; } 50%,100% { opacity:0; } }
+
+/* Branded first-paint veil. Hidden unless the inline bootstrap in the root
+   layout tagged <html data-cabi-veil> before first paint, which keeps the
+   server and client markup identical while still avoiding a page flash. */
+.cabi-veil { display:none; position:fixed; inset:0; z-index:200; place-items:center; background:#07070d; }
+html[data-cabi-veil] .cabi-veil { display:grid; }
+
+/* Stop decorative work while the tab is hidden. */
+.cabi-anim-paused *, .cabi-anim-paused *::before, .cabi-anim-paused *::after { animation-play-state:paused !important; }
+
+@media (prefers-reduced-motion: reduce) {
+  /* Collapse every transition and any animation not explicitly handled below. */
+  *,*::before,*::after { scroll-behavior:auto !important; animation-duration:.01ms !important; animation-iteration-count:1 !important; transition-duration:.01ms !important; }
+  /* Decorative prelaunch motion is removed outright rather than collapsed. */
+  .cabi-atmosphere,.cabi-float,.cabi-breathe-slow,.cabi-glow,.cabi-sweep,.cabi-sparkle,
+  .cabi-dot-pulse,.cabi-mascot-bob,.cabi-mascot-ear,.cabi-mascot-eyelid,
+  .cabi-mascot-tail,.cabi-hairline-breathe { animation:none !important; }
+  .cabi-model-sheen { display:none; }
+  .cabi-indeterminate::after,.cabi-caret::after { animation:none !important; transform:none; opacity:.55; }
+  .cabi-sparkle { opacity:.26; }
+}

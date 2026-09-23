@@ -5,8 +5,8 @@ import { jsonError } from "@/lib/security/request";
 
 const resources = {
   users: { table: "profiles", fields: "id,display_name,preferred_name,created_at,updated_at", order: "created_at" },
-  conversations: { table: "conversations", fields: "id,user_id,title,pinned,created_at,updated_at", order: "updated_at" },
-  memories: { table: "user_memories", fields: "id,user_id,category,content,importance,storage_reason,created_at,updated_at", order: "updated_at" },
+  conversations: { table: "conversations", fields: "id,wallet_account_id,title,pinned,created_at,updated_at", order: "updated_at" },
+  memories: { table: "user_memories", fields: "id,wallet_account_id,category,content,importance,storage_reason,created_at,updated_at", order: "updated_at" },
   audit: { table: "audit_logs", fields: "id,occurred_at,actor_type,actor_id,action,target_type,target_id,outcome,metadata_json", order: "occurred_at" },
 } as const;
 

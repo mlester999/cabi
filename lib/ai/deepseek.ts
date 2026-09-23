@@ -28,17 +28,32 @@ async function wait(ms: number, signal?: AbortSignal) {
   });
 }
 
-async function fetchProvider(url: string, init: RequestInit, config: ProviderConfig, signal?: AbortSignal) {
+type ProviderResponse = {
+  response: Response;
+  signal: AbortSignal;
+  release: () => void;
+};
+
+async function fetchProvider(url: string, init: RequestInit, config: ProviderConfig, signal?: AbortSignal): Promise<ProviderResponse> {
   let lastError: unknown;
   for (let attempt = 0; attempt <= config.retryCount; attempt += 1) {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(new DOMException("Provider timed out", "TimeoutError")), config.timeoutMs);
-    const abort = () => controller.abort(signal?.reason);
+    const abort = () => controller.abort(signal?.reason ?? new DOMException("Aborted", "AbortError"));
     signal?.addEventListener("abort", abort, { once: true });
+    let handedOff = false;
+    const release = () => {
+      clearTimeout(timeout);
+      signal?.removeEventListener("abort", abort);
+    };
     try {
       const response = await fetch(url, { ...init, signal: controller.signal });
-      if (response.ok) return response;
+      if (response.ok) {
+        handedOff = true;
+        return { response, signal: controller.signal, release };
+      }
       const retryable = response.status === 408 || response.status === 429 || response.status >= 500;
+      if (response.body) await response.body.cancel().catch(() => undefined);
       if (!retryable || attempt === config.retryCount) throw new AIProviderError("UPSTREAM_REJECTED", response.status === 401 ? "The DeepSeek API key was rejected." : "DeepSeek is unavailable right now.", retryable, response.status);
       const retryAfter = Number(response.headers.get("retry-after"));
       await wait(Number.isFinite(retryAfter) ? retryAfter * 1000 : Math.min(250 * 2 ** attempt + Math.random() * 150, 2000), signal);
@@ -46,25 +61,29 @@ async function fetchProvider(url: string, init: RequestInit, config: ProviderCon
       lastError = error;
       if (error instanceof AIProviderError) throw error;
       if (signal?.aborted) throw error;
+      if (controller.signal.aborted && controller.signal.reason instanceof DOMException && controller.signal.reason.name === "TimeoutError" && attempt === config.retryCount) {
+        throw new AIProviderError("UPSTREAM_TIMEOUT", "DeepSeek took too long to respond.", true, 504);
+      }
       if (attempt === config.retryCount) throw new AIProviderError("UPSTREAM_NETWORK_ERROR", "Cabi couldn't reach DeepSeek.", true);
       await wait(Math.min(250 * 2 ** attempt + Math.random() * 150, 2000), signal);
     } finally {
-      clearTimeout(timeout);
-      signal?.removeEventListener("abort", abort);
+      if (!handedOff) release();
     }
   }
   throw lastError;
 }
 
-async function* readSse(body: ReadableStream<Uint8Array>) {
+async function* readSse(body: ReadableStream<Uint8Array>, signal?: AbortSignal) {
   const reader = body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
+  const cancel = () => { void reader.cancel(signal?.reason).catch(() => undefined); };
+  signal?.addEventListener("abort", cancel, { once: true });
   try {
     while (true) {
       const { value, done } = await reader.read();
       if (done) break;
-      buffer += decoder.decode(value, { stream: true }).replaceAll("\r\n", "\n");
+      buffer = (buffer + decoder.decode(value, { stream: true })).replaceAll("\r\n", "\n");
       let boundary = buffer.indexOf("\n\n");
       while (boundary >= 0) {
         const block = buffer.slice(0, boundary);
@@ -75,7 +94,11 @@ async function* readSse(body: ReadableStream<Uint8Array>) {
         boundary = buffer.indexOf("\n\n");
       }
     }
-  } finally { reader.releaseLock(); }
+    if (signal?.aborted) throw signal.reason ?? new DOMException("Aborted", "AbortError");
+  } finally {
+    signal?.removeEventListener("abort", cancel);
+    reader.releaseLock();
+  }
 }
 
 function usageFrom(raw: unknown): TokenUsage | undefined {
@@ -99,9 +122,13 @@ function outputText(payload: Record<string, unknown>, wireApi: ProviderConfig["w
 
 export class DeepSeekProvider implements AIProvider {
   async listModels(config: ProviderConfig) {
-    const response = await fetchProvider(endpoint(config, "/models"), { headers: headers(config), cache: "no-store" }, config);
-    const payload = await response.json() as { data?: Array<{ id?: unknown }> };
-    return (payload.data ?? []).map((model) => typeof model.id === "string" ? model.id : "").filter(Boolean);
+    const pending = await fetchProvider(endpoint(config, "/models"), { headers: headers(config), cache: "no-store" }, config);
+    try {
+      const payload = await pending.response.json() as { data?: Array<{ id?: unknown }> };
+      return (payload.data ?? []).map((model) => typeof model.id === "string" ? model.id : "").filter(Boolean);
+    } finally {
+      pending.release();
+    }
   }
 
   private async model(config: ProviderConfig) {
@@ -113,41 +140,52 @@ export class DeepSeekProvider implements AIProvider {
 
   async generate(request: AIRequest, config: ProviderConfig): Promise<AIResult> {
     const model = await this.model(config);
-    const response = await fetchProvider(endpoint(config, providerPath(config)), { method: "POST", headers: headers(config), body: JSON.stringify(providerBody(request, config, false, model)), cache: "no-store" }, config, request.signal);
-    const payload = await response.json() as Record<string, unknown>;
-    return { text: outputText(payload, config.wireApi), model, usage: usageFrom(payload.usage), finishReason: String((payload.choices as Array<{ finish_reason?: string }> | undefined)?.[0]?.finish_reason ?? payload.status ?? "complete") };
+    const pending = await fetchProvider(endpoint(config, providerPath(config)), { method: "POST", headers: headers(config), body: JSON.stringify(providerBody(request, config, false, model)), cache: "no-store" }, config, request.signal);
+    try {
+      const payload = await pending.response.json() as Record<string, unknown>;
+      return { text: outputText(payload, config.wireApi), model, usage: usageFrom(payload.usage), finishReason: String((payload.choices as Array<{ finish_reason?: string }> | undefined)?.[0]?.finish_reason ?? payload.status ?? "complete") };
+    } finally {
+      pending.release();
+    }
   }
 
   async *stream(request: AIRequest, config: ProviderConfig): AsyncGenerator<AIStreamEvent> {
     const model = await this.model(config);
-    const response = await fetchProvider(endpoint(config, providerPath(config)), { method: "POST", headers: { ...headers(config), Accept: "text/event-stream" }, body: JSON.stringify(providerBody(request, config, true, model)), cache: "no-store" }, config, request.signal);
-    if (!response.body) throw new AIProviderError("EMPTY_STREAM", "DeepSeek returned an empty stream.");
-    yield { type: "start", model };
-    let finishReason: string | undefined;
-    for await (const frame of readSse(response.body)) {
-      if (frame.data === "[DONE]") break;
-      let payload: Record<string, unknown>;
-      try { payload = JSON.parse(frame.data) as Record<string, unknown>; } catch { continue; }
-      if (config.wireApi === "chat-completions") {
-        const choice = (payload.choices as Array<{ delta?: { content?: string }; finish_reason?: string }> | undefined)?.[0];
-        if (choice?.delta?.content) yield { type: "text-delta", text: choice.delta.content };
-        if (choice?.finish_reason) finishReason = choice.finish_reason;
-        const usage = usageFrom(payload.usage);
-        if (usage) yield { type: "usage", usage };
-      } else {
-        const eventName = frame.event ?? String(payload.type ?? "");
-        const delta = payload.delta;
-        if ((eventName.includes("output_text.delta") || payload.type === "response.output_text.delta") && typeof delta === "string") yield { type: "text-delta", text: delta };
-        if (eventName.includes("completed") || payload.type === "response.completed") {
-          const responsePayload = payload.response as Record<string, unknown> | undefined;
-          const usage = usageFrom(responsePayload?.usage);
+    const pending = await fetchProvider(endpoint(config, providerPath(config)), { method: "POST", headers: { ...headers(config), Accept: "text/event-stream" }, body: JSON.stringify(providerBody(request, config, true, model)), cache: "no-store" }, config, request.signal);
+    try {
+      if (!pending.response.body) throw new AIProviderError("EMPTY_STREAM", "DeepSeek returned an empty stream.");
+      yield { type: "start", model };
+      let finishReason: string | undefined;
+      let terminalSeen = false;
+      for await (const frame of readSse(pending.response.body, pending.signal)) {
+        if (frame.data === "[DONE]") { terminalSeen = true; break; }
+        let payload: Record<string, unknown>;
+        try { payload = JSON.parse(frame.data) as Record<string, unknown>; } catch { continue; }
+        if (config.wireApi === "chat-completions") {
+          const choice = (payload.choices as Array<{ delta?: { content?: string }; finish_reason?: string }> | undefined)?.[0];
+          if (choice?.delta?.content) yield { type: "text-delta", text: choice.delta.content };
+          if (choice?.finish_reason) { finishReason = choice.finish_reason; terminalSeen = true; }
+          const usage = usageFrom(payload.usage);
           if (usage) yield { type: "usage", usage };
-          finishReason = "complete";
+        } else {
+          const eventName = frame.event ?? String(payload.type ?? "");
+          const delta = payload.delta;
+          if ((eventName.includes("output_text.delta") || payload.type === "response.output_text.delta") && typeof delta === "string") yield { type: "text-delta", text: delta };
+          if (eventName.includes("completed") || payload.type === "response.completed") {
+            const responsePayload = payload.response as Record<string, unknown> | undefined;
+            const usage = usageFrom(responsePayload?.usage);
+            if (usage) yield { type: "usage", usage };
+            finishReason = "complete";
+            terminalSeen = true;
+          }
+          if (eventName.includes("failed") || eventName.includes("incomplete")) throw new AIProviderError("UPSTREAM_INCOMPLETE", "DeepSeek couldn't finish that response.", true);
         }
-        if (eventName.includes("failed") || eventName.includes("incomplete")) throw new AIProviderError("UPSTREAM_INCOMPLETE", "DeepSeek couldn't finish that response.", true);
       }
+      if (!terminalSeen) throw new AIProviderError("UPSTREAM_INCOMPLETE", "DeepSeek ended the reply before it was complete.", true);
+      yield { type: "complete", finishReason };
+    } finally {
+      pending.release();
     }
-    yield { type: "complete", finishReason };
   }
 
   async testConnection(config: ProviderConfig): Promise<ConnectionReport> {

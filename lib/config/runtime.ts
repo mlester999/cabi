@@ -1,16 +1,33 @@
 import "server-only";
 import { getServiceClient } from "@/lib/db/supabase";
+import { getPublicWalletConfig } from "@/lib/wallet/config";
 
 type Personality = { systemPrompt?: string; defaultMood?: string };
-type CpuConfig = { coinName?: string; ticker?: string; contractAddress?: string; clankUrl?: string; xUrl?: string; launchStatus?: string; description?: string; announcement?: string };
 
 export async function getCabiRuntimeConfig() {
-  const db = getServiceClient(); if (!db) return { personality: null, cpu: null };
-  const [{ data: personality }, { data: cpu }] = await Promise.all([
-    db.from("app_settings").select("value_json").eq("key", "personality").maybeSingle(),
-    db.from("app_settings").select("value_json").eq("key", "cpu_config").maybeSingle(),
+  const db = getServiceClient();
+  const [personalityResult, publicConfig] = await Promise.all([
+    db ? db.from("app_settings").select("value_json").eq("key", "personality").maybeSingle() : Promise.resolve({ data: null }),
+    getPublicWalletConfig(),
   ]);
-  const cpuValue = (cpu?.value_json as CpuConfig | null) ?? null;
-  const trustedCpu = cpuValue ? Object.fromEntries(Object.entries(cpuValue).filter(([, value]) => value !== "" && value != null)) : null;
-  return { personality: (personality?.value_json as Personality | null) ?? null, cpu: trustedCpu && Object.keys(trustedCpu).length ? trustedCpu : null };
+  const { cpu, chains } = publicConfig;
+  const chain = cpu.chainId == null ? null : chains.find((candidate) => candidate.id === cpu.chainId && candidate.enabled) ?? null;
+  const trustedCpu = cpu.launchStatus === "LIVE" ? {
+    tokenName: cpu.tokenName,
+    ticker: cpu.ticker,
+    launchStatus: cpu.launchStatus,
+    contractAddress: cpu.contractAddress,
+    network: chain?.name,
+    chainId: chain?.id,
+    clankTradeUrl: cpu.clankTradeUrl,
+    explorerUrl: cpu.explorerUrl || (chain && cpu.contractAddress ? `${chain.blockExplorerUrl.replace(/\/$/u, "")}/address/${cpu.contractAddress}` : undefined),
+    xUrl: cpu.xUrl || undefined,
+    websiteUrl: cpu.websiteUrl || undefined,
+    description: cpu.description || undefined,
+  } : {
+    tokenName: cpu.tokenName,
+    ticker: cpu.ticker,
+    launchStatus: "PRELAUNCH",
+  };
+  return { personality: (personalityResult.data?.value_json as Personality | null) ?? null, cpu: trustedCpu, publicWallet: publicConfig };
 }

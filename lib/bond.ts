@@ -12,9 +12,9 @@ export function bondFromPoints(points: number) {
   return { level, label: levels[level - 1], progress: Math.max(0, Math.min(100, progress)), points: safe };
 }
 
-export async function recordConversationBond(profileId: string, conversationId: string) {
+export async function recordConversationBond(walletAccountId: string, conversationId: string) {
   const db = getServiceClient();
   if (!db) return bondFromPoints(0);
-  const { data } = await db.rpc("record_bond_event", { p_user_id: profileId, p_conversation_id: conversationId, p_event_type: "conversation_turn" });
+  const { data } = await db.rpc("record_bond_event", { p_wallet_account_id: walletAccountId, p_conversation_id: conversationId, p_event_type: "conversation_turn" });
   return bondFromPoints(Number(data ?? 0));
 }

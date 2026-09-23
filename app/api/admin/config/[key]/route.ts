@@ -5,11 +5,10 @@ import { getServiceClient } from "@/lib/db/supabase";
 import { assertSameOrigin, jsonError } from "@/lib/security/request";
 import { z } from "zod";
 
-const allowed = new Set(["personality", "branding", "cpu_config", "app_config"]);
+const allowed = new Set(["personality", "branding", "app_config"]);
 const defaults: Record<string, unknown> = {
   personality: { systemPrompt: DEFAULT_CABI_PERSONALITY, greeting: "Hey. What should I call you?", traits: "warm, confident, curious, witty, playful", allowedNickname: "Cabi", tone: "casual", catExpressionFrequency: "low", defaultMood: "cozy", memoryBehavior: "Remember only useful details or explicit requests." },
-  branding: { projectName: "Cabi", ticker: "CPU", tagline: "Cute, loyal, and always by your side.", primaryColor: "#C4B5FD", secondaryColor: "#8B5CF6", xUrl: "", clankUrl: "", websiteUrl: "", contractAddress: "", mainAsset: "/assets/cabi-main.png", mascotAsset: "/assets/cabi-mascot.png" },
-  cpu_config: { coinName: "Cat Partner Unit", ticker: "CPU", contractAddress: "", clankUrl: "", xUrl: "", launchStatus: "Not configured", description: "", announcement: "" },
+  branding: { projectName: "Cabi", tagline: "Cute, loyal, and always by your side.", primaryColor: "#C4B5FD", secondaryColor: "#8B5CF6", xUrl: "", websiteUrl: "", logoAsset: "/assets/cabi-logo.png", mainAsset: "/assets/cabi-main.png", mascotAsset: "/assets/cabi-mascot.png" },
   app_config: { knowledgeSource: "https://clank.trade/", memoryExtraction: true, summaries: true, adminConversationAccess: false },
 };
 const bodySchema = z.record(z.string(), z.union([z.string().max(20_000), z.number(), z.boolean(), z.null()]));

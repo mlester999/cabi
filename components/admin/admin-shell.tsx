@@ -1,12 +1,12 @@
 "use client";
 
 import { MiniCabi } from "@/components/cabi/mini-cabi";
-import { Activity, Bot, Brain, Coins, DatabaseZap, FileText, Gauge, LogOut, MessageSquareText, Palette, Settings, ShieldCheck, UsersRound } from "lucide-react";
+import { Activity, Bot, Brain, Coins, DatabaseZap, Eye, FileText, Gauge, LogOut, MessageSquareText, Palette, Settings, ShieldCheck, UsersRound } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 
 const links = [
-  ["/admin", "Overview", Gauge], ["/admin/ai", "AI", Bot], ["/admin/personality", "Personality", Brain], ["/admin/knowledge", "Knowledge", DatabaseZap], ["/admin/users", "Users", UsersRound], ["/admin/conversations", "Conversations", MessageSquareText], ["/admin/memories", "Memories", FileText], ["/admin/branding", "Branding", Palette], ["/admin/cpu", "$CPU", Coins], ["/admin/settings", "Settings", Settings], ["/admin/audit", "Audit", ShieldCheck],
+  ["/admin", "Overview", Gauge], ["/preview", "Live preview", Eye], ["/admin/ai", "AI", Bot], ["/admin/personality", "Personality", Brain], ["/admin/knowledge", "Knowledge", DatabaseZap], ["/admin/users", "Users", UsersRound], ["/admin/conversations", "Conversations", MessageSquareText], ["/admin/memories", "Memories", FileText], ["/admin/branding", "Branding", Palette], ["/admin/cpu", "$CPU", Coins], ["/admin/settings", "Settings", Settings], ["/admin/audit", "Audit", ShieldCheck],
 ] as const;
 
 export function AdminShell({ children, email }: { children: React.ReactNode; email: string }) {

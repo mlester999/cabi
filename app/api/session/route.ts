@@ -1,12 +1,16 @@
-import { ensureProfile } from "@/lib/db/supabase";
-import { createGuestToken, guestCookieName, readGuestId, secureCookie } from "@/lib/security/session";
+import { readWalletAuth } from "@/lib/wallet/session";
 
 export async function GET() {
-  let id = await readGuestId();
-  let token: string | undefined;
-  if (!id) ({ id, token } = await createGuestToken());
-  const databaseReady = await ensureProfile(id).catch(() => false);
-  const response = Response.json({ guestId: id, databaseReady, mode: databaseReady ? "persistent" : "preview" }, { headers: { "Cache-Control": "private, no-store" } });
-  if (token) response.headers.append("Set-Cookie", `${guestCookieName}=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=31536000${secureCookie.secure ? "; Secure" : ""}`);
-  return response;
+  try {
+    const wallet = await readWalletAuth();
+    return Response.json({
+      authenticated: Boolean(wallet),
+      mode: wallet ? "wallet" : "temporary",
+    }, { headers: { "Cache-Control": "private, no-store" } });
+  } catch {
+    return Response.json(
+      { authenticated: false, error: "Wallet session is temporarily unavailable.", code: "WALLET_AUTH_UNAVAILABLE" },
+      { status: 503, headers: { "Cache-Control": "private, no-store" } },
+    );
+  }
 }

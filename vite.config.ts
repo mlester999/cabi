@@ -35,7 +35,7 @@ const localBindingConfig = {
     : [],
 };
 
-export default defineConfig(async () => {
+export default defineConfig(async ({ command }) => {
   // Use Miniflare's local Request.cf placeholder unless fetching is requested.
   process.env.CLOUDFLARE_CF_FETCH_ENABLED ??= "false";
   process.env.WRANGLER_SEND_METRICS ??= "false";
@@ -61,7 +61,18 @@ export default defineConfig(async () => {
       cloudflare({
         viteEnvironment: { name: "rsc", childEnvironments: ["ssr"] },
         inspectorPort: false,
-        config: localBindingConfig,
+        config: {
+          ...localBindingConfig,
+          // The local workerd runtime does not inherit Node's process.env.
+          // Forward only the non-secret site-mode flags during `vite serve` so
+          // local PRELAUNCH/LIVE visual checks match the actual operator mode.
+          ...(command === "serve" ? {
+            vars: {
+              SITE_MODE: process.env.SITE_MODE ?? "",
+              NEXT_PUBLIC_SITE_MODE: process.env.NEXT_PUBLIC_SITE_MODE ?? "",
+            },
+          } : {}),
+        },
       }),
     ],
   };

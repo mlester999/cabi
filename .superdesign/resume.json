@@ -1,0 +1,74 @@
+{
+  "schemaVersion": 1,
+  "targets": {
+    "/": {
+      "targetKind": "existing-ui",
+      "projectId": "d6d59b64-a7b2-4efc-8735-0aa6c5eb16e2",
+      "baselineDraftId": "35c64f9e-7727-402e-8ef7-bc36c370f207",
+      "activeDraftId": "35c64f9e-7727-402e-8ef7-bc36c370f207",
+      "designSystemPath": ".superdesign/design-system.md",
+      "contextFiles": [
+        ".superdesign/design-system.md",
+        "components/cabi/cabi-experience.tsx",
+        "components/chat/chat-message.tsx",
+        "components/cabi/mini-cabi.tsx",
+        "components/ui/dialog.tsx",
+        "components/ui/popover.tsx",
+        "app/globals.css",
+        "app/layout.tsx",
+        "lib/utils.ts"
+      ],
+      "fingerprints": {
+        ".superdesign/design-system.md": "61802782759ecae838d1beaecaa5a0ce5400dc3290071c3c93a32cb076fbdf86",
+        "components/cabi/cabi-experience.tsx": "0babd624ea21a43e7fcdb3dca2e26165ec718266c13b5dd239b46f8f1cda751b",
+        "components/chat/chat-message.tsx": "a03789b06587e6f2d589f7f343f2321b9c3c3f7b884876e9401f6db5cd9fdc17",
+        "components/cabi/mini-cabi.tsx": "dd61223c47afe8295803f51acc2dcb0221cb5f93fecae88a7a9a745e1241c4d4",
+        "components/ui/dialog.tsx": "dce39c6adc47d997bd2567f8b7a72f466b0134715105cd42f9194007b8ecdb14",
+        "components/ui/popover.tsx": "31c350309ff5d3034e6ecf1b0eda75ba8855bdbf987fc7ad6d71f0ef07c5a447",
+        "app/globals.css": "c2228b9b8543a16e734c859144ca954a8d84d9c69db022e4467f59caf8decd99",
+        "app/layout.tsx": "4900c7b400b666e76a2b8404aa29352ebd376b2be44525014fd052deb3a62177",
+        "lib/utils.ts": "53f3d3d070f0a9082934da25b875f9499855c2b0693868dd28be8c23d8730f68"
+      },
+      "drafts": {
+        "35c64f9e-7727-402e-8ef7-bc36c370f207": {
+          "title": "Cabi — Wallet-First Experience",
+          "visualDirection": "Existing three-pane Cabi chat with calm optional wallet identity",
+          "currentVersion": 2
+        }
+      },
+      "updatedAt": "2026-09-23T04:22:48.000Z"
+    },
+    "/cpu": {
+      "targetKind": "new-ui",
+      "projectId": "d6d59b64-a7b2-4efc-8735-0aa6c5eb16e2",
+      "activeDraftId": "bd00764a-ebec-4971-916e-46dbd894dac5",
+      "designSystemPath": ".superdesign/design-system.md",
+      "contextFiles": [
+        ".superdesign/design-system.md",
+        "components/cabi/cabi-experience.tsx",
+        "components/cabi/mini-cabi.tsx",
+        "components/ui/button.tsx",
+        "app/globals.css",
+        "app/layout.tsx",
+        "lib/utils.ts"
+      ],
+      "fingerprints": {
+        ".superdesign/design-system.md": "61802782759ecae838d1beaecaa5a0ce5400dc3290071c3c93a32cb076fbdf86",
+        "components/cabi/cabi-experience.tsx": "0babd624ea21a43e7fcdb3dca2e26165ec718266c13b5dd239b46f8f1cda751b",
+        "components/cabi/mini-cabi.tsx": "dd61223c47afe8295803f51acc2dcb0221cb5f93fecae88a7a9a745e1241c4d4",
+        "components/ui/button.tsx": "cc36af0f8b5019c33cc039fbf03bb952a513072b15b55b53c592b78af3e5f4c4",
+        "app/globals.css": "c2228b9b8543a16e734c859144ca954a8d84d9c69db022e4467f59caf8decd99",
+        "app/layout.tsx": "4900c7b400b666e76a2b8404aa29352ebd376b2be44525014fd052deb3a62177",
+        "lib/utils.ts": "53f3d3d070f0a9082934da25b875f9499855c2b0693868dd28be8c23d8730f68"
+      },
+      "drafts": {
+        "bd00764a-ebec-4971-916e-46dbd894dac5": {
+          "title": "Cabi $CPU Prelaunch",
+          "visualDirection": "Companion-led token information with safe prelaunch/live states",
+          "currentVersion": 1
+        }
+      },
+      "updatedAt": "2026-09-23T04:22:48.000Z"
+    }
+  }
+}
