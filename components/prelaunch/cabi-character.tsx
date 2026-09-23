@@ -16,20 +16,36 @@ import { useEffect, useRef, useState } from "react";
  * - a sparse field of rising sparkles.
  *
  * The character is always owner-supplied art. The exact `cabi-main.png` supplied
- * by the owner is preferred, followed by the alternate dimensional render and
- * the CPU render as safe fallbacks. If none
- * exists, the reserved space shows a Cabi-branded
+ * by the owner is the only character artwork used. If it cannot load, the
+ * reserved space shows a Cabi-branded
  * monogram stand-in at the exact same size, so nothing shifts and no broken
  * image ever appears.
  * A different character is never substituted.
  */
-const characterArt = ["/assets/cabi-main.png", "/assets/cabi-main-3d.png", "/assets/cabi-cpu-model.png"] as const;
+const characterArt = ["/assets/cabi-main.png"] as const;
+const fallbackArtSize = { width: 1086, height: 1448 };
+
+function getContainedArtBounds(frame: DOMRect, image: HTMLImageElement | null) {
+  const naturalWidth = image?.naturalWidth || fallbackArtSize.width;
+  const naturalHeight = image?.naturalHeight || fallbackArtSize.height;
+  const scale = Math.min(frame.width / naturalWidth, frame.height / naturalHeight);
+  const width = naturalWidth * scale;
+  const height = naturalHeight * scale;
+
+  return {
+    left: frame.left + (frame.width - width) / 2,
+    right: frame.left + (frame.width + width) / 2,
+    top: frame.bottom - height,
+    bottom: frame.bottom,
+  };
+}
 
 export function CabiCharacter({ className = "", mood = "cozy" }: { className?: string; mood?: string }) {
   const [artIndex, setArtIndex] = useState(0);
   const artFailed = artIndex >= characterArt.length;
   const reduced = usePrefersReducedMotion();
   const frame = useRef<HTMLDivElement>(null);
+  const image = useRef<HTMLImageElement>(null);
 
   const pointerX = useMotionValue(0);
   const pointerY = useMotionValue(0);
@@ -45,9 +61,9 @@ export function CabiCharacter({ className = "", mood = "cozy" }: { className?: s
   const auraY = useTransform(springY, (value) => value * -14);
   const shadowX = useTransform(springX, (value) => value * 10);
   const shadowScale = useTransform(springY, (value) => 1 - value * 0.08);
-  const lightX = useTransform(springX, (value) => `${50 + value * 24}%`);
-  const lightY = useTransform(springY, (value) => `${38 + value * 18}%`);
-  const sheen = useMotionTemplate`radial-gradient(circle at ${lightX} ${lightY}, rgba(255,255,255,.24) 0%, rgba(216,202,255,.11) 13%, rgba(167,139,250,.035) 29%, transparent 48%)`;
+  const lightX = useTransform(springX, (value) => `${50 + value * 34}%`);
+  const lightY = useTransform(springY, (value) => `${50 + value * 34}%`);
+  const sheen = useMotionTemplate`radial-gradient(ellipse 26% 19% at ${lightX} ${lightY}, rgba(255,255,255,.34) 0%, rgba(216,202,255,.15) 28%, rgba(167,139,250,.045) 52%, transparent 74%), linear-gradient(120deg, rgba(255,255,255,.07), transparent 42%, rgba(139,92,246,.055) 80%, transparent)`;
 
   useEffect(() => {
     if (reduced) {
@@ -62,12 +78,18 @@ export function CabiCharacter({ className = "", mood = "cozy" }: { className?: s
     const node = frame.current;
     if (!node) return;
     const onMove = (event: PointerEvent) => {
-      const bounds = node.getBoundingClientRect();
-      if (!bounds.width || !bounds.height) return;
-      const ratioX = (event.clientX - bounds.left) / bounds.width - 0.5;
-      const ratioY = (event.clientY - bounds.top) / bounds.height - 0.5;
-      pointerX.set(Math.max(-1, Math.min(1, ratioX * 2)));
-      pointerY.set(Math.max(-1, Math.min(1, ratioY * 2)));
+      const artBounds = getContainedArtBounds(node.getBoundingClientRect(), image.current);
+      const insideArt = event.clientX >= artBounds.left && event.clientX <= artBounds.right
+        && event.clientY >= artBounds.top && event.clientY <= artBounds.bottom;
+      if (!insideArt) {
+        pointerX.set(0);
+        pointerY.set(0);
+        return;
+      }
+      const ratioX = (event.clientX - artBounds.left) / (artBounds.right - artBounds.left);
+      const ratioY = (event.clientY - artBounds.top) / (artBounds.bottom - artBounds.top);
+      pointerX.set(ratioX * 2 - 1);
+      pointerY.set(ratioY * 2 - 1);
     };
     const onLeave = () => { pointerX.set(0); pointerY.set(0); };
     node.addEventListener("pointermove", onMove);
@@ -132,6 +154,7 @@ export function CabiCharacter({ className = "", mood = "cozy" }: { className?: s
 
                 <motion.img
                   key={characterArt[artIndex]}
+                  ref={image}
                   src={characterArt[artIndex]}
                   alt="Cabi, the purple Cat Partner Unit, getting ready"
                   width={1086}

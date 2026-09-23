@@ -131,7 +131,7 @@ Admin routes never appear in ordinary public navigation and are protected server
 
 The default application mode is `LIVE`, so `/` opens directly into chat as required. The owner may explicitly switch to `PRELAUNCH` or `MAINTENANCE` from `/admin/settings` or with the emergency `SITE_MODE` environment override.
 
-The prelaunch page uses the supplied transparent character artwork at `public/assets/cabi-main.png` (with `cabi-cpu-model.png` only as a missing-file fallback), responsive desktop/mobile framing, reduced-motion support, and truthful `$CPU` state. It does not show fake progress, a release date, a contract, market data, or a buy link.
+The prelaunch page uses the exact supplied transparent character artwork at `public/assets/cabi-main.png`, with responsive desktop/mobile framing, reduced-motion support, and truthful `$CPU` state. If the asset cannot load, the reserved frame falls back to a neutral Cabi monogram rather than substituting a different character. The page does not show fake progress, a release date, a contract, market data, or a buy link.
 
 Mode precedence is:
 

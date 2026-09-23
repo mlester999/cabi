@@ -3,6 +3,7 @@
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { explorerAddressUrl, shortenAddress } from "@/lib/wallet/client";
 import { useWallet } from "@/components/wallet/wallet-provider";
+import { WalletLogo } from "@/components/wallet/wallet-logo";
 import { Check, Copy, ExternalLink, LogOut, Network, WalletCards } from "lucide-react";
 import { useState } from "react";
 
@@ -46,7 +47,7 @@ export function WalletButton({ compact = false, requiredChainId = null }: { comp
       </PopoverTrigger>
       <PopoverContent align="end" sideOffset={10} className="glass w-[min(336px,calc(100vw-24px))] rounded-[22px] border-violet-200/[0.12] bg-[#0d0b15] p-4 text-white shadow-2xl">
         <div className="flex items-start gap-3">
-          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl border border-violet-200/15 bg-violet-300/[0.07] text-violet-200"><WalletCards size={18} /></span>
+          <WalletLogo wallet={wallet.activeWallet} size="md" />
           <div className="min-w-0 flex-1"><p className="text-xs text-[#777180]">Wallet</p><p className="mt-1 truncate font-mono text-sm text-[#ede9fe]">{wallet.address}</p></div>
         </div>
 

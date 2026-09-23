@@ -78,6 +78,13 @@ export function createSupabaseWalletAuthStore(): WalletAuthStore {
 
   return {
     async createNonce(input) {
+      // Authentication rows are deliberately short-lived. Opportunistic,
+      // indexed cleanup keeps wallet correlations from accumulating forever
+      // without making sign-in depend on a scheduler being configured.
+      await Promise.allSettled([
+        client.from("wallet_nonces").delete().lte("expires_at", input.createdAt),
+        client.from("auth_sessions").delete().lte("expires_at", input.createdAt),
+      ]);
       const { error } = await client.from("wallet_nonces").insert({
         wallet_address: input.walletAddress,
         wallet_address_unique_key: input.walletAddressUniqueKey,

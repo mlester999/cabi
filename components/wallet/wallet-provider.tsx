@@ -14,7 +14,8 @@ import {
   walletRpcMethods,
 } from "@/lib/wallet/client";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Check, ChevronRight, LoaderCircle, ShieldCheck, WalletCards } from "lucide-react";
+import { WalletLogo } from "@/components/wallet/wallet-logo";
+import { Check, ChevronRight, LoaderCircle, ShieldCheck, WalletCards, X } from "lucide-react";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 
 type WalletIdentity = { address: string; walletAccountId: string; profileId: string };
@@ -30,6 +31,8 @@ type WalletContextValue = {
   authenticatedAt: number | null;
   address: string | null;
   chainId: number | null;
+  /** The connected browser wallet, used to show its brand mark. */
+  activeWallet: BrowserWallet | null;
   wallets: BrowserWallet[];
   phase: WalletPhase;
   error: string | null;
@@ -65,6 +68,8 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const [authenticatedAt, setAuthenticatedAt] = useState<number | null>(null);
   const sessionRef = useRef<WalletSession | null>(null);
   const disconnectingRef = useRef(false);
+  const connectAttemptRef = useRef(0);
+  const connectAbortRef = useRef<AbortController | null>(null);
 
   const refreshConfig = useCallback(async () => {
     try {
@@ -140,6 +145,16 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     setPhase("idle");
   }, []);
 
+  const cancelConnect = useCallback(() => {
+    const wasBusy = phase !== "idle";
+    connectAttemptRef.current += 1;
+    connectAbortRef.current?.abort();
+    connectAbortRef.current = null;
+    setPhase("idle");
+    setConnectOpen(false);
+    if (wasBusy) setError("Wallet connection cancelled. Your chat is still available.");
+  }, [phase]);
+
   const disconnect = useCallback(async () => {
     if (disconnectingRef.current) return;
     disconnectingRef.current = true;
@@ -179,27 +194,46 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   }, [disconnect, provider]);
 
   const connect = useCallback(async (wallet: BrowserWallet) => {
+    const attemptId = connectAttemptRef.current + 1;
+    connectAttemptRef.current = attemptId;
+    const abortController = new AbortController();
+    connectAbortRef.current = abortController;
+    let walletProvider: Eip1193Provider | null = null;
+    const isCurrentAttempt = () => connectAttemptRef.current === attemptId;
+    const closeLateProvider = async () => {
+      if (!walletProvider || isCurrentAttempt()) return false;
+      try { await wallet.disconnect?.(walletProvider); } catch { /* The user already cancelled the attempt. */ }
+      return true;
+    };
+
     setError(null);
     setPhase("connecting");
     try {
-      const walletProvider = await wallet.connect();
+      walletProvider = await wallet.connect();
+      if (await closeLateProvider()) return;
       const accounts = await walletProvider.request<unknown>({ method: walletRpcMethods.accounts });
+      if (await closeLateProvider()) return;
       if (!Array.isArray(accounts) || !accounts[0]) throw new Error("No EVM account was selected.");
       const address = normalizeClientAddress(accounts[0]);
       const nextChainId = parseChainId(await walletProvider.request({ method: walletRpcMethods.chainId }));
+      if (await closeLateProvider()) return;
       if (!nextChainId) throw new Error("The wallet did not provide a valid EVM network.");
 
       const nonceResponse = await fetch("/api/wallet/nonce", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ address, chainId: nextChainId }),
+        signal: abortController.signal,
       });
+      if (await closeLateProvider()) return;
       if (!nonceResponse.ok) throw new Error(await readResponseError(nonceResponse, "Cabi couldn't start wallet sign-in."));
       const challenge = await nonceResponse.json() as { message?: unknown };
+      if (await closeLateProvider()) return;
       if (typeof challenge.message !== "string") throw new Error("Cabi received an invalid sign-in challenge.");
 
       setPhase("signing");
       const signature = await walletProvider.request<unknown>({ method: walletRpcMethods.signIn, params: [challenge.message, address] });
+      if (await closeLateProvider()) return;
       if (typeof signature !== "string") throw new Error("The wallet did not return a valid signature.");
 
       setPhase("verifying");
@@ -207,9 +241,12 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: challenge.message, signature }),
+        signal: abortController.signal,
       });
+      if (await closeLateProvider()) return;
       if (!verifyResponse.ok) throw new Error(await readResponseError(verifyResponse, "Cabi couldn't verify that signature."));
       const nextSession = await verifyResponse.json() as WalletSession;
+      if (!isCurrentAttempt()) return;
       if (!nextSession.authenticated || !nextSession.wallet?.address) throw new Error("Cabi received an invalid wallet session.");
 
       sessionRef.current = nextSession;
@@ -218,14 +255,19 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       setActiveWallet(wallet);
       setChainId(nextChainId);
       setAuthenticatedAt(Date.now());
+      setPhase("idle");
       setConnectOpen(false);
     } catch (cause) {
+      if (!isCurrentAttempt()) return;
       const message = cause instanceof Error && cause.message && !/reject|denied/iu.test(cause.message)
         ? cause.message
         : "Wallet sign-in was cancelled. Your chat is still available.";
       setError(message);
     } finally {
-      setPhase("idle");
+      if (isCurrentAttempt()) {
+        connectAbortRef.current = null;
+        setPhase("idle");
+      }
     }
   }, []);
 
@@ -265,24 +307,25 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     authenticatedAt,
     address: session?.wallet.address ?? null,
     chainId,
+    activeWallet,
     wallets,
     phase,
     error,
     openConnect: () => { setError(null); setConnectOpen(true); },
-    closeConnect: () => { if (phase === "idle") setConnectOpen(false); },
+    closeConnect: cancelConnect,
     connect,
     disconnect,
     switchNetwork,
     chainName,
     isWrongNetwork,
     refreshConfig,
-  }), [authenticatedAt, chainId, chainName, config, configLoaded, connect, disconnect, error, isWrongNetwork, phase, refreshConfig, session, sessionLoaded, switchNetwork, wallets]);
+  }), [activeWallet, authenticatedAt, cancelConnect, chainId, chainName, config, configLoaded, connect, disconnect, error, isWrongNetwork, phase, refreshConfig, session, sessionLoaded, switchNetwork, wallets]);
 
   return (
     <WalletContext.Provider value={value}>
       {children}
-      <Dialog open={connectOpen} onOpenChange={(open) => { if (!open && phase === "idle") setConnectOpen(false); }}>
-        <DialogContent className="glass gap-0 rounded-[28px] border-violet-200/[0.12] bg-[#0b0912] p-0 text-white sm:max-w-[430px]" showCloseButton={phase === "idle"}>
+      <Dialog open={connectOpen} onOpenChange={(open) => { if (!open) cancelConnect(); }}>
+        <DialogContent className="glass gap-0 rounded-[28px] border-violet-200/[0.12] bg-[#0b0912] p-0 text-white sm:max-w-[430px]" showCloseButton>
           <div className="p-6 sm:p-7">
             <div className="grid h-12 w-12 place-items-center rounded-2xl border border-violet-200/15 bg-violet-300/[0.07] text-violet-200"><WalletCards size={21} /></div>
             <DialogHeader className="mt-5 text-left">
@@ -295,12 +338,15 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
                 <LoaderCircle className="mx-auto animate-spin text-violet-200" size={24} />
                 <p className="mt-3 text-sm font-medium">{phase === "connecting" ? "Opening your wallet…" : phase === "signing" ? "Check your wallet to sign in" : "Verifying your sign-in…"}</p>
                 <p className="mt-2 text-xs leading-5 text-[#8e889b]">This signature is only for sign-in. It costs no gas and sends no transaction.</p>
+                <button type="button" onClick={cancelConnect} className="focus-ring mt-4 inline-flex h-9 items-center justify-center gap-2 rounded-xl border border-white/[0.10] px-3 text-xs font-semibold text-[#c8c1d4] transition hover:border-violet-200/25 hover:bg-white/[0.04] hover:text-white">
+                  <X size={14} /> Cancel
+                </button>
               </div>
             ) : (
               <div className="mt-6 space-y-2">
                 {wallets.length > 0 ? wallets.map((wallet) => (
                   <button key={wallet.id} onClick={() => void connect(wallet)} className="focus-ring flex min-h-12 w-full items-center gap-3 rounded-2xl border border-white/[0.07] bg-white/[0.025] px-4 text-left transition hover:border-violet-200/20 hover:bg-violet-300/[0.06]">
-                    <span className="grid h-8 w-8 place-items-center rounded-xl bg-white/[0.055] text-violet-200"><WalletCards size={16} /></span>
+                    <WalletLogo wallet={wallet} size="sm" />
                     <span className="min-w-0 flex-1 truncate text-sm font-medium">{wallet.name}</span>
                     <ChevronRight size={16} className="text-[#625d6d]" />
                   </button>

@@ -7,21 +7,34 @@ import "./globals.css";
 const siteTitle = "Cabi — Cat Partner Unit";
 const siteDescription =
   "Meet Cabi, your Cat Partner Unit. Chat, build memories, connect your wallet and explore a new kind of digital companion.";
+const fallbackPublicOrigin = "https://cabi-cat-partner-unit.acakmarklester33.chatgpt.site";
 
-function canonicalUrl() {
-  const configured = env("APP_URL");
-  if (!configured) return undefined;
+/**
+ * Canonical origin for meta tags.
+ *
+ * `APP_URL` is authoritative when the owner sets it. On Vercel the platform
+ * exposes the deployment host, so preview builds get correct absolute
+ * OpenGraph/Twitter URLs without any extra configuration. Falling back here
+ * avoids the "metadataBase property is not set" warning and stops social cards
+ * from resolving against localhost in production.
+ */
+function canonicalUrl(): URL | undefined {
+  const configured = env("APP_URL")
+    ?? env("VERCEL_PROJECT_PRODUCTION_URL")
+    ?? env("VERCEL_URL")
+    ?? fallbackPublicOrigin;
+  const withProtocol = /^https?:\/\//u.test(configured) ? configured : `https://${configured}`;
   try {
-    return new URL(configured).origin;
+    return new URL(withProtocol);
   } catch {
-    return undefined;
+    return new URL(fallbackPublicOrigin);
   }
 }
 
 const metadataBase = canonicalUrl();
 
 export const metadata: Metadata = {
-  metadataBase: metadataBase ? new URL(metadataBase) : undefined,
+  metadataBase,
   title: { default: siteTitle, template: "%s · Cabi" },
   description: siteDescription,
   applicationName: "Cabi",
@@ -41,14 +54,16 @@ export const metadata: Metadata = {
     siteName: "Cabi",
     title: siteTitle,
     description: siteDescription,
-    url: metadataBase ? "/" : undefined,
-    images: [{ url: "/opengraph-image", width: 1200, height: 630, alt: "Cabi — Cat Partner Unit" }],
+    ...(metadataBase ? {
+      url: "/",
+      images: [{ url: "/opengraph-image", width: 1200, height: 630, alt: "Cabi — Cat Partner Unit" }],
+    } : {}),
   },
   twitter: {
     card: "summary_large_image",
     title: siteTitle,
     description: siteDescription,
-    images: ["/opengraph-image"],
+    ...(metadataBase ? { images: ["/opengraph-image"] } : {}),
   },
   robots: {
     index: true,
@@ -81,7 +96,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="dark">
+    <html lang="en" className="dark" suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: veilScript }} />
       </head>

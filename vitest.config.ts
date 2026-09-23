@@ -1,28 +1,43 @@
 import { fileURLToPath } from "node:url";
-import { defineConfig } from "vitest/config";
+import { defineConfig, defineProject } from "vitest/config";
 
 const alias = {
   "@": fileURLToPath(new URL("./", import.meta.url)),
   "server-only": fileURLToPath(new URL("./tests/server-only.ts", import.meta.url)),
 };
 
+const include = ["tests/**/*.test.ts", "tests/**/*.test.tsx"];
+const exclude = ["node_modules/**", "dist/**", ".next/**"];
+
 export default defineConfig({
-  // Server modules in this project are React Server Components; the automatic
-  // JSX runtime keeps `next/og` image modules compilable under test.
-  esbuild: { jsx: "automatic" },
   resolve: { alias },
   test: {
-    environment: "node",
-    include: ["tests/**/*.test.ts", "tests/**/*.test.tsx"],
     restoreMocks: true,
     clearMocks: true,
     globals: true,
-    // Browser-plane tests (rendered components) opt into jsdom by location so
-    // the server-plane suites keep the fast Node environment.
-    environmentMatchGlobs: [
-      ["tests/dom/**", "jsdom"],
-      ["**/*.test.tsx", "jsdom"],
+    // Vitest 5 removed `environmentMatchGlobs`; projects replace it. Server-plane
+    // suites keep the fast Node environment, and the rendered-component suites
+    // opt into jsdom by location.
+    projects: [
+      defineProject({
+        resolve: { alias },
+        test: {
+          name: "server",
+          environment: "node",
+          include,
+          exclude: [...exclude, "tests/dom/**"],
+        },
+      }),
+      defineProject({
+        resolve: { alias },
+        test: {
+          name: "browser",
+          environment: "jsdom",
+          include: ["tests/dom/**/*.test.ts", "tests/dom/**/*.test.tsx"],
+          exclude,
+          setupFiles: ["tests/setup-dom.ts"],
+        },
+      }),
     ],
-    setupFiles: ["tests/setup-dom.ts"],
   },
 });

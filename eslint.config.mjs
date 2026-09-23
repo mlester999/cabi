@@ -12,6 +12,14 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Generated output. `.next-stale-*` directories are written by the local
+    // dev/build tooling; linting compiled bundles is never useful and it used
+    // to flood the report with thousands of errors.
+    "dist/**",
+    ".next-*/**",
+    ".vinext/**",
+    ".wrangler/**",
+    ".sites-runtime/**",
   ]),
   {
     files: ["components/ui/**/*.{ts,tsx}", "hooks/use-mobile.ts"],

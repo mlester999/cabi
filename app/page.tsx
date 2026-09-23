@@ -45,7 +45,7 @@ export async function generateMetadata(): Promise<Metadata> {
     title: mode === "LIVE" ? "Cabi — Cat Partner Unit" : `${settings.headline} · Cabi`,
     description,
     alternates: { canonical: "/" },
-    openGraph: { title: `Cabi — Cat Partner Unit`, description, url: "/" },
+    openGraph: { title: `Cabi — Cat Partner Unit`, description },
     // A prelaunch page is a real, finished public page: it stays indexable so
     // the project can be found and shared before the application opens.
     robots: { index: true, follow: true },
