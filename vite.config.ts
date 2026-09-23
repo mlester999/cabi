@@ -68,8 +68,7 @@ export default defineConfig(async ({ command }) => {
           // local PRELAUNCH/LIVE visual checks match the actual operator mode.
           ...(command === "serve" ? {
             vars: {
-              SITE_MODE: process.env.SITE_MODE ?? "",
-              NEXT_PUBLIC_SITE_MODE: process.env.NEXT_PUBLIC_SITE_MODE ?? "",
+              SITE_MODE_OVERRIDE: process.env.SITE_MODE_OVERRIDE ?? process.env.SITE_MODE ?? "",
             },
           } : {}),
         },

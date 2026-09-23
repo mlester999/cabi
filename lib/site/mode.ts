@@ -16,12 +16,14 @@ export const siteModeSettingKey = "site_mode";
 /**
  * Emergency environment override.
  *
- * `SITE_MODE` is preferred; `NEXT_PUBLIC_SITE_MODE` is accepted as a documented
- * fallback for hosts that only forward public variables. It is read on the
- * server only and is never inlined into client bundles by this module.
+ * `SITE_MODE_OVERRIDE` is the single supported variable and is read on the
+ * server only, so it can never become a client-side access-control signal and is
+ * never used for authorization in the browser. `SITE_MODE` is accepted as a
+ * legacy alias so an existing deployment keeps working after the rename; it is
+ * documented as deprecated in `.env.example`.
  */
 export function environmentSiteMode(): string | null {
-  const raw = env("SITE_MODE") ?? env("NEXT_PUBLIC_SITE_MODE");
+  const raw = env("SITE_MODE_OVERRIDE") ?? env("SITE_MODE");
   return raw ?? null;
 }
 

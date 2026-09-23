@@ -1,5 +1,6 @@
 import { CabiExperience } from "@/components/cabi/cabi-experience";
 import { PrelaunchExperience } from "@/components/prelaunch/prelaunch-experience";
+import { readFeatureFlags } from "@/lib/config/feature-flags.server";
 import { getAppAccess } from "@/lib/site/guard";
 import { getSiteMode } from "@/lib/site/mode";
 import { getPrelaunchSettings } from "@/lib/site/prelaunch";
@@ -21,14 +22,17 @@ export const dynamic = "force-dynamic";
  * to a normal visitor's browser in the first place.
  */
 export default async function Home() {
-  const [access, settings, wallet, { mode }] = await Promise.all([
+  const [access, settings, wallet, { mode }, flags] = await Promise.all([
     getAppAccess(),
     getPrelaunchSettings(),
     getPublicWalletConfig(),
     getSiteMode(),
+    // Resolved on the server and passed down. The browser never decides which
+    // features exist.
+    readFeatureFlags(),
   ]);
 
-  if (access.live) return <CabiExperience />;
+  if (access.live) return <CabiExperience flags={flags} />;
   // Maintenance is a distinct internal state with its own short notice; the
   // application itself is still reachable by an admin through /preview.
   if (mode === "MAINTENANCE") redirect("/maintenance");

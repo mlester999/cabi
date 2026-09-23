@@ -24,13 +24,15 @@ export function normalizeSiteMode(value: string | undefined | null): SiteMode | 
 /**
  * Precedence, highest first:
  *
- * 1. Environment override (`SITE_MODE`, then `NEXT_PUBLIC_SITE_MODE`). Any
- *    valid explicit value wins, including over the database.
- * 2. Database site setting — changeable from the dashboard without a redeploy.
- * 3. `PRELAUNCH` — fail closed if no explicit launch decision exists.
+ * 1. Emergency environment override — `SITE_MODE_OVERRIDE`. It is the only
+ *    environment variable consulted for access control, it is server-only, and
+ *    it is never inlined into client bundles. A valid value always wins so an
+ *    operator can force the site state without touching the database.
+ * 2. Database site setting (`app_settings.site_mode`) — the normal source of
+ *    truth, changeable from `/admin/settings` without a redeploy.
+ * 3. `PRELAUNCH` — fail closed when no explicit launch decision exists.
  *
- * Leave the environment value blank for normal dashboard control. Setting it is
- * an emergency operator lock and the admin UI cannot override it.
+ * Normal production leaves the override blank and launches from the dashboard.
  */
 export function resolveSiteModePrecedence(input: {
   environmentMode?: string | null;

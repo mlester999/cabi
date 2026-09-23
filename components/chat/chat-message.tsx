@@ -5,7 +5,9 @@ import { useState } from "react";
 import ReactMarkdown from "react-markdown";
 import rehypeSanitize from "rehype-sanitize";
 import remarkGfm from "remark-gfm";
+import { ActionCardView } from "@/components/chat/action-card";
 import { MiniCabi } from "@/components/cabi/mini-cabi";
+import type { ActionCard } from "@/lib/actions/types";
 
 export type ChatMessageModel = {
   id: string;
@@ -15,6 +17,8 @@ export type ChatMessageModel = {
   createdAt?: string;
   sources?: Array<{ title: string; url: string; fetchedAt?: string }>;
   reaction?: "heart" | "laugh" | "helpful";
+  /** Produced by the trusted action layer; validated before it reaches here. */
+  actionCard?: ActionCard;
 };
 
 type Props = {
@@ -24,9 +28,12 @@ type Props = {
   onEdit?: () => void;
   onShare?: () => void;
   onReact?: (reaction: ChatMessageModel["reaction"]) => void;
+  /** Re-asks for an image with the same prompt. Subject to the normal quota. */
+  onRegenerateImage?: (prompt: string) => void;
+  onUseImageAsAvatar?: (card: Extract<ActionCard, { kind: "IMAGE" }>) => void;
 };
 
-export function ChatMessage({ message, onRetry, onDelete, onEdit, onShare, onReact }: Props) {
+export function ChatMessage({ message, onRetry, onDelete, onEdit, onShare, onReact, onRegenerateImage, onUseImageAsAvatar }: Props) {
   const [copied, setCopied] = useState(false);
   const isCabi = message.role === "assistant";
   const copy = async () => {
@@ -55,6 +62,7 @@ export function ChatMessage({ message, onRetry, onDelete, onEdit, onShare, onRea
           {message.status === "failed" && <div className="mt-3 flex items-center gap-2 border-t border-white/[0.06] pt-2.5 text-xs text-rose-300"><span className="flex-1">Looks like my brain needs a second.</span><button onClick={onRetry} className="focus-ring rounded-lg px-2 py-1 hover:bg-white/[0.05]">Try again</button></div>}
         </div>
         {Boolean(message.sources?.length) && <div className="mt-2 rounded-xl border border-white/[0.06] bg-white/[0.02] p-2.5"><p className="mb-1.5 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[.12em] text-[#706a7d]"><BadgeCheck size={12} /> Sources</p><div className="flex flex-wrap gap-1.5">{message.sources!.map((source) => <a key={source.url} href={source.url} target="_blank" rel="noreferrer noopener" className="max-w-full truncate rounded-lg bg-white/[0.035] px-2 py-1 text-[11px] text-violet-300 hover:bg-violet-300/[0.08]">{source.title || new URL(source.url).hostname}</a>)}</div></div>}
+        {message.actionCard && <ActionCardView card={message.actionCard} onRegenerate={onRegenerateImage} onUseAsAvatar={onUseImageAsAvatar} />}
         <div className={`mt-1.5 flex min-h-8 flex-wrap items-center gap-1 opacity-0 transition group-hover/message:opacity-100 group-focus-within/message:opacity-100 ${isCabi ? "justify-start" : "justify-end"}`}>
           {isCabi && <><Action label={copied ? "Copied" : "Copy"} onClick={copy}>{copied ? <Check size={13} /> : <Copy size={13} />}</Action><Action label="Regenerate" onClick={onRetry}><RotateCcw size={13} /></Action><Action label="Share card" onClick={onShare}><Share2 size={13} /></Action><span className="mx-1 h-3 w-px bg-white/[0.08]" /><Reaction label="Heart" active={message.reaction === "heart"} onClick={() => onReact?.("heart")}><Heart size={13} fill={message.reaction === "heart" ? "currentColor" : "none"} /></Reaction><Reaction label="Funny" active={message.reaction === "laugh"} onClick={() => onReact?.("laugh")}><Laugh size={13} /></Reaction><Reaction label="Helpful" active={message.reaction === "helpful"} onClick={() => onReact?.("helpful")}><ThumbsUp size={13} /></Reaction></>}
           {!isCabi && <><Action label={copied ? "Copied" : "Copy"} onClick={copy}>{copied ? <Check size={13} /> : <Copy size={13} />}</Action><Action label="Edit" onClick={onEdit}><Pencil size={13} /></Action><Action label="Delete" onClick={onDelete}><Trash2 size={13} /></Action></>}

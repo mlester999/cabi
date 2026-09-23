@@ -1,37 +1,19 @@
 import type { Metadata, Viewport } from "next";
 import { WalletProvider } from "@/components/wallet/wallet-provider";
 import { veilAttribute, veilFadeMs, veilStorageKey, veilTimeoutMs } from "@/lib/site/veil";
-import { env } from "@/lib/config/env";
+import { siteMetadataBase } from "@/lib/site/origin";
 import "./globals.css";
 
 const siteTitle = "Cabi — Cat Partner Unit";
 const siteDescription =
   "Meet Cabi, your Cat Partner Unit. Chat, build memories, connect your wallet and explore a new kind of digital companion.";
-const fallbackPublicOrigin = "https://cabi-cat-partner-unit.acakmarklester33.chatgpt.site";
 
 /**
- * Canonical origin for meta tags.
- *
- * `APP_URL` is authoritative when the owner sets it. On Vercel the platform
- * exposes the deployment host, so preview builds get correct absolute
- * OpenGraph/Twitter URLs without any extra configuration. Falling back here
- * avoids the "metadataBase property is not set" warning and stops social cards
- * from resolving against localhost in production.
+ * Canonical origin for meta tags. See `lib/site/origin.ts` — `robots.ts` and
+ * `sitemap.ts` use the same resolver so every absolute URL in the product
+ * agrees.
  */
-function canonicalUrl(): URL | undefined {
-  const configured = env("APP_URL")
-    ?? env("VERCEL_PROJECT_PRODUCTION_URL")
-    ?? env("VERCEL_URL")
-    ?? fallbackPublicOrigin;
-  const withProtocol = /^https?:\/\//u.test(configured) ? configured : `https://${configured}`;
-  try {
-    return new URL(withProtocol);
-  } catch {
-    return new URL(fallbackPublicOrigin);
-  }
-}
-
-const metadataBase = canonicalUrl();
+const metadataBase = siteMetadataBase();
 
 export const metadata: Metadata = {
   metadataBase,

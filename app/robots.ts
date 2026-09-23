@@ -1,16 +1,6 @@
 import type { MetadataRoute } from "next";
 
-import { env } from "@/lib/config/env";
-
-function origin() {
-  const configured = env("APP_URL");
-  if (!configured) return null;
-  try {
-    return new URL(configured).origin;
-  } catch {
-    return null;
-  }
-}
+import { siteOrigin } from "@/lib/site/origin";
 
 /**
  * Robots policy.
@@ -21,7 +11,7 @@ function origin() {
  * never advertised.
  */
 export default function robots(): MetadataRoute.Robots {
-  const base = origin();
+  const base = siteOrigin();
   return {
     rules: [
       {

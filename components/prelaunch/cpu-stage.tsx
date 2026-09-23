@@ -1,7 +1,7 @@
 "use client";
 
 import { explorerAddressUrl } from "@/lib/wallet/client";
-import { fallbackCpuContractAddress, fallbackCpuDescription, fallbackCpuTradeUrl } from "@/lib/wallet/public-defaults";
+import { fallbackCpuDescription } from "@/lib/wallet/public-defaults";
 import { ArrowUpRight, Check, Clock3, Copy, Network, ShieldCheck } from "lucide-react";
 import { useState } from "react";
 
@@ -10,17 +10,23 @@ import type { PublicWalletConfig } from "@/lib/wallet/config";
 /**
  * $CPU on the prelaunch page.
  *
- * The token and the application have independent launch states, so this block
- * It can show the owner-supplied fallback contract and Clank page while the
- * application itself remains PRELAUNCH. Network-specific wallet controls stay
- * gated until the admin record has a verified enabled chain.
+ * The token and the application have independent launch states, so the token
+ * block can be complete while the application itself is still PRELAUNCH.
+ *
+ * The values come from the same owner-managed configuration every other $CPU
+ * surface uses, which is already redacted by `redactUnlaunchedCpu`: while the
+ * admin record is not LIVE, the contract, network, and trade URL arrive empty and
+ * this block states plainly that nothing is published. No contract address is
+ * hardcoded here, so an unverified token destination can never be presented as
+ * official. Network-specific wallet controls stay gated until the admin record
+ * has a verified enabled chain.
  */
 export function CupStage({ settings, wallet }: { settings: { cpuStatus: "PRELAUNCH" | "LIVE" }; wallet: PublicWalletConfig }) {
   const [copied, setCopied] = useState(false);
   const cpu = wallet.cpu;
   const description = cpu.description.trim() || fallbackCpuDescription;
-  const contractAddress = cpu.contractAddress || fallbackCpuContractAddress;
-  const clankTradeUrl = cpu.clankTradeUrl || fallbackCpuTradeUrl;
+  const contractAddress = cpu.contractAddress;
+  const clankTradeUrl = cpu.clankTradeUrl;
   const chain = cpu.chainId == null ? undefined : wallet.chains.find((candidate) => candidate.id === cpu.chainId && candidate.enabled);
   const published = Boolean(contractAddress && clankTradeUrl);
   const live = settings.cpuStatus === "LIVE" && cpu.launchStatus === "LIVE" && Boolean(contractAddress && chain && clankTradeUrl);

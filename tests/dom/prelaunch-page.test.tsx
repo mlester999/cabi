@@ -11,7 +11,7 @@ import { WalletProvider } from "@/components/wallet/wallet-provider";
 import { defaultPrelaunchSettings } from "@/lib/site/prelaunch-shared";
 import type { PrelaunchSettings } from "@/lib/site/prelaunch-shared";
 import type { PublicWalletConfig } from "@/lib/wallet/client";
-import { fallbackCpuContractAddress, fallbackCpuDescription, fallbackCpuTradeUrl } from "@/lib/wallet/public-defaults";
+import { fallbackCpuDescription } from "@/lib/wallet/public-defaults";
 
 const CHAIN_ID = 8453;
 const CPU_ADDRESS = "0x1234567890abcdef1234567890abcdef12345678";
@@ -117,11 +117,11 @@ describe("prelaunch page", () => {
   it("keeps the cabi mascot and character present as decorative art", async () => {
     await renderPrelaunch();
     expect(screen.getAllByLabelText(/Cabi, the purple Cat Partner Unit mascot/i).length).toBeGreaterThan(0);
-    // The character prefers the owner's main render and falls back to the CPU
-    // model render before ever showing a monogram stand-in.
+    // The hero uses the official supplied character render, with the higher
+    // resolution main render as its only fallback.
     const art = screen.getAllByAltText(/Cabi, the purple Cat Partner Unit, getting ready/i);
     expect(art.length).toBe(2);
-    expect(art[0]).toHaveAttribute("src", "/assets/cabi-main.png");
+    expect(art[0]).toHaveAttribute("src", "/assets/cabi-cpu-model.png");
   });
 
   it("renders the coming-with-cabi feature chips from settings", async () => {
@@ -196,18 +196,22 @@ describe("prelaunch page", () => {
 });
 
 describe("$CPU on the prelaunch page", () => {
-  it("shows the owner-approved fallback contract and trade page while the app is in prelaunch", async () => {
-    await renderPrelaunch({ cpuStatus: "PRELAUNCH" }, walletConfig());
+  it("shows no contract and no trade link when the owner has published nothing", async () => {
+    const { container } = await renderPrelaunch({ cpuStatus: "PRELAUNCH" }, walletConfig());
+    // The neutral product copy still explains what $CPU is.
     expect(screen.getByText(fallbackCpuDescription)).toBeInTheDocument();
-    expect(screen.getByText(fallbackCpuContractAddress)).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /View \$CPU on Clank\.trade/i })).toHaveAttribute("href", fallbackCpuTradeUrl);
-    expect(screen.getByRole("button", { name: /Copy \$CPU contract/i })).toBeInTheDocument();
+    // Nothing about a token destination may be invented, at any site mode.
+    expect(container.textContent ?? "").not.toMatch(/0x[0-9a-fA-F]{40}/u);
+    expect(screen.queryByRole("link", { name: /Clank\.trade/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Copy \$CPU contract/i })).toBeNull();
+    expect(screen.getAllByText(/Coming soon/i).length).toBeGreaterThan(0);
   });
 
-  it("uses the hardcoded official fallback when the admin record is empty", async () => {
-    await renderPrelaunch({ cpuStatus: "LIVE" }, walletConfig());
-    expect(screen.getByText(fallbackCpuContractAddress)).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /View \$CPU on Clank\.trade/i })).toHaveAttribute("href", fallbackCpuTradeUrl);
+  it("still publishes nothing when CPU is marked live but unconfigured", async () => {
+    const { container } = await renderPrelaunch({ cpuStatus: "LIVE" }, walletConfig());
+    expect(container.textContent ?? "").not.toMatch(/0x[0-9a-fA-F]{40}/u);
+    expect(screen.queryByRole("link", { name: /Clank\.trade/i })).toBeNull();
+    expect(screen.queryByRole("link", { name: /Buy/i })).toBeNull();
   });
 
   it("displays the configured address and network when CPU is live", async () => {
@@ -226,13 +230,18 @@ describe("$CPU on the prelaunch page", () => {
     expect(buy.getAttribute("rel")).toContain("noreferrer");
   });
 
-  it("uses the fallback Clank URL when the live record has no URL", async () => {
-    await renderPrelaunch(
+  it("hides the buy button when the live record has no verified URL", async () => {
+    const { container } = await renderPrelaunch(
       { cpuStatus: "LIVE" },
       walletConfig({ launchStatus: "LIVE", contractAddress: CPU_ADDRESS, chainId: CHAIN_ID, clankTradeUrl: "" }),
     );
-    expect(screen.getByText(CPU_ADDRESS)).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Buy \$CPU/i })).toHaveAttribute("href", fallbackCpuTradeUrl);
+    // A contract without a verified coin page is not a complete, publishable
+    // token entry, so the block stays in its Coming Soon state and offers no
+    // trade link at all.
+    expect(container.textContent ?? "").not.toContain(CPU_ADDRESS);
+    expect(screen.getAllByText(/Coming Soon/i).length).toBeGreaterThan(0);
+    expect(screen.queryByRole("link", { name: /Buy/i })).toBeNull();
+    expect(container.querySelectorAll('a[href*="clank.trade"]').length).toBe(0);
   });
 
   it("hides the whole $CPU section when the owner turns it off", async () => {

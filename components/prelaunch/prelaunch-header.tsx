@@ -2,13 +2,14 @@
 
 import { WalletButton } from "@/components/wallet/wallet-button";
 import { MiniCabi } from "@/components/cabi/mini-cabi";
-import { fallbackCpuTradeUrl } from "@/lib/wallet/public-defaults";
 import { ArrowUpRight, X } from "lucide-react";
-
-const clankInfoUrl = fallbackCpuTradeUrl;
 
 /**
  * Prelaunch top bar: CABI · $CPU · X.
+ *
+ * The $CPU chip only becomes an external Clank.trade link once the owner has
+ * published a verified coin page; until then it scrolls to the token section on
+ * this page, so no unverified destination is ever linked from the header.
  *
  * There is intentionally no link into `/chat` while the site is in prelaunch —
  * the only interactive control is the optional wallet sign-in, which unlocks
@@ -19,11 +20,13 @@ export function PrelaunchHeader({
   xUrl,
   communityUrl,
   showSocial,
+  clankTradeUrl = "",
 }: {
   ticker: string;
   xUrl: string;
   communityUrl: string;
   showSocial: boolean;
+  clankTradeUrl?: string;
 }) {
   return (
     <header className="relative z-30 mx-auto flex w-full max-w-[1240px] items-center justify-between gap-3 px-5 pt-5 sm:px-8 sm:pt-7">
@@ -38,15 +41,24 @@ export function PrelaunchHeader({
       </div>
 
       <nav aria-label="Prelaunch links" className="flex items-center gap-2">
-        <a
-          href={clankInfoUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          aria-label={`${ticker} on Clank.trade`}
-          className="focus-ring hidden rounded-xl px-3 py-2 text-xs font-semibold tracking-[.08em] text-[#a8a3b3] transition hover:bg-white/[0.04] hover:text-white sm:block"
-        >
-          ${ticker}
-        </a>
+        {clankTradeUrl ? (
+          <a
+            href={clankTradeUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label={`${ticker} on Clank.trade`}
+            className="focus-ring hidden rounded-xl px-3 py-2 text-xs font-semibold tracking-[.08em] text-[#a8a3b3] transition hover:bg-white/[0.04] hover:text-white sm:block"
+          >
+            ${ticker}
+          </a>
+        ) : (
+          <a
+            href="#cpu"
+            className="focus-ring hidden rounded-xl px-3 py-2 text-xs font-semibold tracking-[.08em] text-[#a8a3b3] transition hover:bg-white/[0.04] hover:text-white sm:block"
+          >
+            ${ticker}
+          </a>
+        )}
         {showSocial && xUrl && (
           <a
             href={xUrl}

@@ -1,11 +1,24 @@
 import "server-only";
 import type { AIMessage } from "@/lib/ai/provider";
 import { getServiceClient } from "@/lib/db/supabase";
-import { listMemories } from "@/lib/memory/store";
+import { listMemories, selectRelevantMemories } from "@/lib/memory/store";
 
 export type ConversationContext = { recent: AIMessage[]; summary: string | null; memories: string[]; nickname: string | null; memoryEnabled: boolean };
 
-export async function getConversationContext(walletAccountId: string, profileId: string, conversationId: string): Promise<ConversationContext> {
+/**
+ * Assembles the three memory layers for one turn.
+ *
+ * 1. **Short term** - recent completed messages from this conversation.
+ * 2. **Conversation summary** - older context from this conversation.
+ * 3. **Long term** - persistent facts scoped to `wallet_account_id`, so a fact
+ *    stored in one conversation is available in every other one.
+ *
+ * Long-term memories are selected for *relevance to the current message* rather
+ * than injected wholesale, so a question about a pet pulls the pet fact. When
+ * memory is switched off, neither layer 2 nor layer 3 is used and the caller
+ * stops writing new long-term memories.
+ */
+export async function getConversationContext(walletAccountId: string, profileId: string, conversationId: string, query = ""): Promise<ConversationContext> {
   const db = getServiceClient();
   if (!db) return { recent: [], summary: null, memories: [], nickname: null, memoryEnabled: true };
   const [{ data: profile }, { data: settings }, { data: messages }, { data: summary }] = await Promise.all([
@@ -15,11 +28,13 @@ export async function getConversationContext(walletAccountId: string, profileId:
     db.from("conversation_summaries").select("summary").eq("conversation_id", conversationId).maybeSingle(),
   ]);
   const memoryEnabled = settings?.memory_enabled !== false;
-  const memories = memoryEnabled ? await listMemories(walletAccountId, 6) : [];
+  // Fetch a wider pool than we inject, then narrow it by relevance.
+  const stored = memoryEnabled ? await listMemories(walletAccountId, 40) : [];
+  const relevant = memoryEnabled ? selectRelevantMemories(stored, query, 8) : [];
   return {
     recent: (messages ?? []).reverse().map((message) => ({ role: message.role as "user" | "assistant", content: message.content })),
     summary: memoryEnabled ? summary?.summary ?? null : null,
-    memories: memories.map((memory) => `${memory.category}: ${memory.content}`),
+    memories: relevant.map((memory) => `${memory.category}: ${memory.content}`),
     nickname: profile?.preferred_name ?? null,
     memoryEnabled,
   };

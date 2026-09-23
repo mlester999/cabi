@@ -14,7 +14,24 @@ export const appApiRoutePrefixes = [
   "/api/messages",
   "/api/settings",
   "/api/data",
+  // Wallet-aware and social surfaces. Each also calls guardAppApi() in its own
+  // handler, but listing them here means the middleware refuses the request
+  // before a handler ever runs.
+  "/api/portfolio",
+  "/api/cabi",
+  "/api/profile",
+  "/api/rank",
+  "/api/images",
+  "/api/gallery",
 ] as const;
+
+/**
+ * Public reads that stay reachable in every site mode.
+ *
+ * The leaderboard is public by design: it publishes usernames and XP only, never
+ * a wallet address, so a visitor can see the standings before connecting.
+ */
+export const publicReadApiRoutePrefixes = ["/api/leaderboard"] as const;
 
 /** Always reachable in every site mode: identity, public config, sessions, admin. */
 export const alwaysPublicApiRoutePrefixes = [

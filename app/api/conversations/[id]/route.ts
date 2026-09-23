@@ -1,5 +1,6 @@
 import { getServiceClient } from "@/lib/db/supabase";
 import { assertSameOrigin, jsonError } from "@/lib/security/request";
+import { parseActionCard } from "@/lib/actions/guards";
 import { guardAppApi } from "@/lib/site/guard";
 import { conversationPatchSchema } from "@/lib/validation/api";
 import { walletAuthOrResponse } from "@/lib/wallet/session";
@@ -20,7 +21,16 @@ export async function GET(_request: Request, context: Context) {
   if (!conversation) return jsonError("Conversation not found.", 404, "NOT_FOUND");
   const { data: messages, error: messagesError } = await db.from("messages").select("id,role,content,status,metadata_json,created_at,updated_at").eq("conversation_id", id).order("created_at", { ascending: true }).limit(500);
   if (messagesError) return jsonError("Cabi couldn't load that chat.", 503, "CONVERSATION_LOAD_FAILED");
-  return Response.json({ conversation, messages: messages ?? [] }, { headers: { "Cache-Control": "private, no-store" } });
+  // A stored card is re-validated before it reaches the client, so a malformed or
+  // legacy row degrades to plain text instead of rendering untrusted data.
+  const shaped = (messages ?? []).map((message) => {
+    const meta = message.metadata_json as { actionCard?: unknown } | null;
+    if (!meta?.actionCard) return message;
+    const { actionCard, ...rest } = meta;
+    const safe = parseActionCard(actionCard);
+    return { ...message, metadata_json: { ...rest, ...(safe ? { actionCard: safe } : {}) } };
+  });
+  return Response.json({ conversation, messages: shaped }, { headers: { "Cache-Control": "private, no-store" } });
 }
 
 export async function PATCH(request: Request, context: Context) {

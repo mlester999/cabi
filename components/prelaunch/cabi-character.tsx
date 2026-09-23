@@ -15,28 +15,49 @@ import { useEffect, useRef, useState } from "react";
  * - separated foreground, silhouette, aura, and shadow depth planes,
  * - a sparse field of rising sparkles.
  *
- * The character is always owner-supplied art. The exact `cabi-main.png` supplied
- * by the owner is the only character artwork used. If it cannot load, the
- * reserved space shows a Cabi-branded
- * monogram stand-in at the exact same size, so nothing shifts and no broken
- * image ever appears.
+ * The character is always the owner-supplied official art (see `characterArt`
+ * below). If it cannot load, the reserved space shows the official Cabi mascot
+ * and a Cat Partner Unit label at the exact same size, so nothing shifts and no
+ * broken image ever appears.
  * A different character is never substituted.
  */
-const characterArt = ["/assets/cabi-main.png"] as const;
-const fallbackArtSize = { width: 1086, height: 1448 };
+/**
+ * The official Cabi character render. `cabi-cpu-model.png` is the supplied
+ * artwork; `cabi-main.png` is kept as a second candidate only so an owner who
+ * uploads a higher-resolution main render gets it automatically. If neither
+ * loads, the reserved space shows the official mini mascot and a Cat Partner
+ * Unit label at the exact same size, so nothing shifts and no broken image ever
+ * appears. A different character is never substituted.
+ */
+const characterArt = ["/assets/cabi-cpu-model.png", "/assets/cabi-main.png"] as const;
 
-function getContainedArtBounds(frame: DOMRect, image: HTMLImageElement | null) {
-  const naturalWidth = image?.naturalWidth || fallbackArtSize.width;
-  const naturalHeight = image?.naturalHeight || fallbackArtSize.height;
-  const scale = Math.min(frame.width / naturalWidth, frame.height / naturalHeight);
+/**
+ * Bounds of the *rendered* artwork inside its frame.
+ *
+ * The image uses `object-contain object-bottom`, so the drawn box is the natural
+ * aspect ratio scaled to fit and then anchored to the bottom. This is used only
+ * for pointer tracking, and it is measured against the untransformed layout box
+ * (`offsetWidth`/`offsetHeight`) because a 3D-transformed `getBoundingClientRect`
+ * is skewed by the rotate/perspective used for the depth effect.
+ */
+function getContainedArtBounds(frame: HTMLElement, image: HTMLImageElement | null) {
+  const frameRect = frame.getBoundingClientRect();
+  const frameWidth = frame.offsetWidth || frameRect.width;
+  const frameHeight = frame.offsetHeight || frameRect.height;
+
+  // Fall back to the square official render when the image has not decoded yet,
+  // so the first pointer event is still tracked against the right box.
+  const naturalWidth = image?.naturalWidth || 500;
+  const naturalHeight = image?.naturalHeight || 500;
+  const scale = Math.min(frameWidth / naturalWidth, frameHeight / naturalHeight);
   const width = naturalWidth * scale;
   const height = naturalHeight * scale;
 
   return {
-    left: frame.left + (frame.width - width) / 2,
-    right: frame.left + (frame.width + width) / 2,
-    top: frame.bottom - height,
-    bottom: frame.bottom,
+    left: frameRect.left + (frameWidth - width) / 2,
+    right: frameRect.left + (frameWidth + width) / 2,
+    top: frameRect.bottom - height,
+    bottom: frameRect.bottom,
   };
 }
 
@@ -78,7 +99,7 @@ export function CabiCharacter({ className = "", mood = "cozy" }: { className?: s
     const node = frame.current;
     if (!node) return;
     const onMove = (event: PointerEvent) => {
-      const artBounds = getContainedArtBounds(node.getBoundingClientRect(), image.current);
+      const artBounds = getContainedArtBounds(node, image.current);
       const insideArt = event.clientX >= artBounds.left && event.clientX <= artBounds.right
         && event.clientY >= artBounds.top && event.clientY <= artBounds.bottom;
       if (!insideArt) {
@@ -189,9 +210,9 @@ export function CabiCharacter({ className = "", mood = "cozy" }: { className?: s
 }
 
 /**
- * Reserved-size stand-in used only until the supplied artwork is added. It uses
- * the existing Cabi monogram component and a lavender aura, so the composition
- * keeps its final proportions and never shows a broken image.
+ * Reserved-size fallback used only if no character artwork can be loaded. It
+ * uses the official Cabi logo mark inside the shared orb treatment, so the
+ * composition keeps its final proportions and never shows a broken image.
  */
 function CabiPlaceholder() {
   return (

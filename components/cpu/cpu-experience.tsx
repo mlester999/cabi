@@ -15,7 +15,10 @@ export function CpuExperience({ prelaunch = false }: { prelaunch?: boolean } = {
       <PublicHeader active="cpu" />
       <main className="relative z-10 mx-auto w-full max-w-[1160px] px-5 py-12 sm:px-8 sm:py-20">
         <section className="grid items-center gap-12 lg:grid-cols-[minmax(300px,.9fr)_minmax(360px,1.1fr)] lg:gap-20">
-          <div className="relative mx-auto grid h-[300px] w-[300px] place-items-center sm:h-[410px] sm:w-[410px]">
+          {/* `overflow-hidden` is required: the dashed ring rotates, and a
+              rotating square's bounding box grows by ~41%, which escaped this
+              fixed-width column and produced horizontal page scroll at 320px. */}
+          <div className="relative mx-auto grid h-[300px] w-[300px] place-items-center overflow-hidden sm:h-[410px] sm:w-[410px]">
             <div className="absolute inset-[6%] rounded-full bg-violet-500/[0.14] blur-[72px]" />
             <div className="cabi-orbit absolute inset-[9%] rounded-full border border-dashed border-violet-300/[0.14]" />
             <div className="absolute inset-[24%] rounded-full border border-violet-300/[0.10] shadow-[0_0_80px_rgba(167,139,250,.12)]" />

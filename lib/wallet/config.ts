@@ -4,7 +4,8 @@ import { getAddress, isAddress } from "viem";
 import { z } from "zod";
 
 import { getServiceClient } from "@/lib/db/supabase";
-import { fallbackCpuContractAddress, fallbackCpuDescription, fallbackCpuTradeUrl } from "@/lib/wallet/public-defaults";
+import { env } from "@/lib/config/env";
+import { fallbackCpuDescription } from "@/lib/wallet/public-defaults";
 
 export type SupportedChainConfig = {
   id: number;
@@ -39,9 +40,9 @@ export const defaultCpuConfig: CpuTokenConfig = {
   tokenName: "Cat Partner Unit",
   ticker: "CPU",
   launchStatus: "PRELAUNCH",
-  contractAddress: fallbackCpuContractAddress,
+  contractAddress: "",
   chainId: null,
-  clankTradeUrl: fallbackCpuTradeUrl,
+  clankTradeUrl: "",
   explorerUrl: "",
   xUrl: "",
   websiteUrl: "",
@@ -66,6 +67,25 @@ const clankTradeUrlOrEmpty = z.string().trim().max(2_000).refine((value) => {
     return false;
   }
 }, "Use the exact HTTPS Clank.trade coin URL.");
+
+/**
+ * Deployment-level $CPU destination.
+ *
+ * The contract and its Clank.trade page are published values, so a fresh clone
+ * intentionally has neither. An owner who would rather stage them in the hosting
+ * environment than type them into `/admin/cpu` can set these two variables
+ * instead. They are validated exactly like admin input — a valid EVM address and
+ * an exact HTTPS Clank.trade URL — so a typo can never publish a broken
+ * destination, and they are still gated by `launch_status` on the way to the
+ * browser.
+ */
+export function environmentCpuDestination(): { contractAddress: string; clankTradeUrl: string } {
+  const rawAddress = env("CPU_CONTRACT_ADDRESS")?.trim() ?? "";
+  const rawUrl = env("CPU_CLANK_TRADE_URL")?.trim() ?? "";
+  const contractAddress = rawAddress && isAddress(rawAddress, { strict: false }) ? getAddress(rawAddress.toLowerCase()) : "";
+  const clankTradeUrl = clankTradeUrlOrEmpty.safeParse(rawUrl).success ? rawUrl : "";
+  return { contractAddress, clankTradeUrl };
+}
 
 const rpcUrl = z.string().trim().url().max(2_000).refine(
   (value) => value.startsWith("https://"),
@@ -150,8 +170,9 @@ export function parseWalletProductConfig(value: unknown): PublicWalletConfig {
 /** Full owner-managed product configuration. Keep this server-only and use it
  * only behind admin authorization; PRELAUNCH may contain staged launch data. */
 export async function getWalletProductConfig(): Promise<PublicWalletConfig> {
+  const environment = environmentCpuDestination();
   const db = getServiceClient();
-  if (!db) return { ...defaultChainConfig, cpu: defaultCpuConfig };
+  if (!db) return { ...defaultChainConfig, cpu: { ...defaultCpuConfig, contractAddress: environment.contractAddress, clankTradeUrl: environment.clankTradeUrl } };
   const [{ data: chainRows, error: chainError }, { data: cpuRow, error: cpuError }] = await Promise.all([
     db.from("chain_configs").select("chain_id,chain_name,native_currency_name,native_currency_symbol,native_currency_decimals,rpc_url,block_explorer_url,icon_url,enabled,is_primary").order("chain_name"),
     db.from("cpu_settings").select("launch_status,token_name,ticker,contract_address,chain_id,clank_trade_url,block_explorer_url,x_url,website_url,description").eq("singleton", true).maybeSingle(),
@@ -174,14 +195,18 @@ export async function getWalletProductConfig(): Promise<PublicWalletConfig> {
     tokenName: cpuRow.token_name,
     ticker: cpuRow.ticker,
     launchStatus: cpuRow.launch_status,
-    contractAddress: cpuRow.contract_address || fallbackCpuContractAddress,
+    contractAddress: cpuRow.contract_address || environment.contractAddress,
     chainId: cpuRow.chain_id == null ? null : Number(cpuRow.chain_id),
-    clankTradeUrl: cpuRow.clank_trade_url || fallbackCpuTradeUrl,
+    clankTradeUrl: cpuRow.clank_trade_url || environment.clankTradeUrl,
     explorerUrl: cpuRow.block_explorer_url ?? "",
     xUrl: cpuRow.x_url ?? "",
     websiteUrl: cpuRow.website_url ?? "",
     description: cpuRow.description?.trim() || fallbackCpuDescription,
-  } : defaultCpuConfig);
+  } : {
+    ...defaultCpuConfig,
+    contractAddress: environment.contractAddress,
+    clankTradeUrl: environment.clankTradeUrl,
+  });
   const candidate = {
     ...(chains.success ? chains.data : defaultChainConfig),
     cpu: cpu.success ? cpu.data : defaultCpuConfig,

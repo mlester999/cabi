@@ -6,7 +6,15 @@ import { CpuTokenCard } from "@/components/cpu/cpu-token-card";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { WalletButton } from "@/components/wallet/wallet-button";
 import { useWallet } from "@/components/wallet/wallet-provider";
+import { LockedFeatures, useLockedNotice } from "@/components/features/locked-feature";
+import { SlashCommandPalette } from "@/components/chat/slash-command-palette";
+import { InitialsAvatar, RankBadge } from "@/components/ranking/rank-badge";
+import { ProfileSetupModal } from "@/components/profile/profile-setup-modal";
+import { RankUpCelebration } from "@/components/ranking/rank-up-celebration";
+import { tierByNumber, type RankTier } from "@/lib/ranking/tiers";
+import { celebrationFor } from "@/lib/ranking/progression-frame";
 import { readEventStream } from "@/lib/client/sse";
+import { defaultFeatureFlags, lockedFeatureOrder, type FeatureFlags } from "@/lib/config/feature-flags";
 import { shouldImportGuestChat } from "@/lib/wallet/persistence";
 import {
   ArrowUp,
@@ -46,6 +54,12 @@ type StreamPayload = {
   persistent?: boolean;
   sources?: ChatMessageModel["sources"];
   bond?: Bond;
+  /** Emitted by the action layer before any text, when a request produced a card. */
+  card?: ChatMessageModel["actionCard"];
+  /** Present only when this turn crossed a tier threshold. */
+  rankUp?: { tier: number };
+  /** Achievement labels earned by this turn, already humanised by the server. */
+  achievements?: string[];
 };
 
 const quickPrompts = ["Tell me something random", "What is Clank.trade?", "How are you today?", "Remember something about me"];
@@ -96,7 +110,7 @@ function downloadShareCard(text: string, wide: boolean) {
   context.strokeRect(44, 44, canvas.width - 88, canvas.height - 88);
   context.fillStyle = "#c4b5fd";
   context.font = `700 ${wide ? 30 : 28}px system-ui`;
-  context.fillText("CABI  ·  CAT PARTNER UNIT", 100, 125);
+  context.fillText("CABI  ·  CAT PARTNER UNIT  ·  $CPU", 100, 125);
   context.fillStyle = "#ffffff";
   context.font = `600 ${wide ? 54 : 48}px system-ui`;
   const maxWidth = canvas.width - 200;
@@ -125,7 +139,14 @@ function downloadShareCard(text: string, wide: boolean) {
   }, "image/png");
 }
 
-export function CabiExperience() {
+export function CabiExperience({ flags = defaultFeatureFlags }: {
+  /**
+   * Resolved server-side and passed down. Defaults to the shipped configuration
+   * rather than to "everything on", so a caller that forgets to pass flags gets
+   * the locked state instead of an accidental unlock.
+   */
+  flags?: FeatureFlags;
+} = {}) {
   const wallet = useWallet();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
@@ -146,12 +167,86 @@ export function CabiExperience() {
   const [savePromptOpen, setSavePromptOpen] = useState(false);
   const [savingGuestChat, setSavingGuestChat] = useState(false);
   const [bond, setBond] = useState<Bond | null>(null);
+  // Identity and rank for the header chip. Server-provided; never computed here.
+  const [rank, setRank] = useState<{ username: string | null; initials: string | null; tier: RankTier; profileComplete: boolean } | null>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const controllerRef = useRef<AbortController | null>(null);
+  // The server renames the streaming assistant entry to its own id when the
+  // `meta` frame arrives. Later frames (`action`, `delta`) carry no id, so the
+  // placeholder id would no longer match and the card and text would be dropped.
+  // This ref keeps both ids so every frame can find the right entry.
+  const assistantServerIdRef = useRef<string | null>(null);
+  // Set from the `done` frame when a tier threshold is crossed. Held separately
+  // from the transcript so a celebration never becomes part of the conversation.
+  const [celebration, setCelebration] = useState<{ tier: RankTier; achievements: string[] } | null>(null);
+  const lockedNotice = useLockedNotice();
   const endRef = useRef<HTMLDivElement>(null);
   const previousAuthRef = useRef(false);
   const promptedGuestImportRef = useRef(false);
 
+  // Load the signed-in identity and rank. This single read also decides whether
+  // the mandatory profile setup modal should appear, so the gate cannot drift
+  // from what the header displays.
+  const refreshRank = useCallback(async () => {
+    if (!wallet.authenticated) { setRank(null); return; }
+    try {
+      const response = await fetch("/api/rank", { cache: "no-store" });
+      if (!response.ok) return;
+      const payload = await response.json() as {
+        profileComplete?: boolean;
+        identity?: { username: string | null; initials: string | null };
+        progress?: { current?: { tier?: number } };
+      };
+      setRank({
+        username: payload.identity?.username ?? null,
+        initials: payload.identity?.initials ?? null,
+        tier: tierByNumber(payload.progress?.current?.tier ?? 1),
+        profileComplete: Boolean(payload.profileComplete),
+      });
+    } catch {
+      // A rank read failing must never block chat.
+    }
+  }, [wallet.authenticated]);
+  // Re-asks for an image with the same scene. This goes through the normal send
+  // path, so it consumes the daily allowance exactly like any other request
+  // rather than being a free extra provider call.
+  const regenerateImage = useCallback((prompt: string) => {
+    setComposer(`Generate an image of ${prompt}`);
+    composerRef.current?.focus();
+  }, []);
+
+  // Adopts a generated Cabi image as the profile picture.
+  const adoptImageAsAvatar = useCallback(async (card: { generationId: string }) => {
+    try {
+      const response = await fetch("/api/profile/avatar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ generationId: card.generationId }),
+      });
+      if (response.ok) {
+        setNotice("Profile picture updated.");
+        void refreshRank();
+      } else {
+        setNotice("I could not set that as your picture.");
+      }
+    } catch {
+      setNotice("I could not set that as your picture.");
+    }
+  }, [refreshRank]);
+  // A gallery "Regenerate" link arrives as ?regenerate=<scene>. It only prefills
+  // the composer; the user still sends it, so a re-run is a deliberate request
+  // that counts against the daily image allowance rather than a silent repeat.
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      const requested = new URLSearchParams(window.location.search).get("regenerate");
+      if (!requested) return;
+      setComposer(`Generate an image of ${requested}`);
+      composerRef.current?.focus();
+      // Drop the parameter so a refresh does not re-prefill it.
+      window.history.replaceState({}, "", window.location.pathname);
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, []);
   const refreshConversations = useCallback(async (query = "") => {
     if (!wallet.authenticated) { setConversations([]); return; }
     const params = new URLSearchParams();
@@ -180,18 +275,21 @@ export function CabiExperience() {
     if (!wallet.authenticated) { wallet.openConnect(); return; }
     const response = await fetch(`/api/conversations/${id}`, { cache: "no-store" });
     if (!response.ok) { setNotice("That chat couldn't be opened."); return; }
-    const payload = await response.json() as { conversation: Conversation; messages: Array<{ id: string; role: "user" | "assistant"; content: string; status: ChatMessageModel["status"]; metadata_json?: { sources?: ChatMessageModel["sources"] }; created_at: string }> };
+    const payload = await response.json() as { conversation: Conversation; messages: Array<{ id: string; role: "user" | "assistant"; content: string; status: ChatMessageModel["status"]; metadata_json?: { sources?: ChatMessageModel["sources"]; actionCard?: ChatMessageModel["actionCard"] }; created_at: string }> };
     setConversationId(payload.conversation.id);
     setTemporaryChat(false);
-    setMessages(payload.messages.filter((message) => message.role === "user" || message.role === "assistant").map((message) => ({ id: message.id, role: message.role, content: message.content, status: message.status, sources: message.metadata_json?.sources, createdAt: message.created_at })));
+    setMessages(payload.messages.filter((message) => message.role === "user" || message.role === "assistant").map((message) => ({ id: message.id, role: message.role, content: message.content, status: message.status, sources: message.metadata_json?.sources, actionCard: message.metadata_json?.actionCard, createdAt: message.created_at })));
     setSidebarOpen(false);
   };
 
   useEffect(() => {
     if (!wallet.sessionLoaded) return;
     const timer = window.setTimeout(() => {
-      if (wallet.authenticated) void refreshConversations();
-      else {
+      if (wallet.authenticated) {
+        void refreshConversations();
+        void refreshRank();
+      } else {
+        setRank(null);
         setConversations([]);
         if (previousAuthRef.current) {
           setConversationId(undefined);
@@ -205,7 +303,7 @@ export function CabiExperience() {
       previousAuthRef.current = wallet.authenticated;
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [refreshConversations, wallet.authenticated, wallet.sessionLoaded]);
+  }, [refreshConversations, refreshRank, wallet.authenticated, wallet.sessionLoaded]);
 
   useEffect(() => {
     if (!wallet.sessionLoaded || !wallet.authenticated) return;
@@ -239,6 +337,7 @@ export function CabiExperience() {
     const requestId = crypto.randomUUID();
     const userId = crypto.randomUUID();
     const assistantId = crypto.randomUUID();
+  assistantServerIdRef.current = null;
     if (!retryOfMessageId) setMessages((current) => [...current, { id: userId, role: "user", content: text, status: "complete", createdAt: new Date().toISOString() }, { id: assistantId, role: "assistant", content: "", status: "streaming", createdAt: new Date().toISOString() }]);
     else setMessages((current) => [...current, { id: assistantId, role: "assistant", content: "", status: "streaming", createdAt: new Date().toISOString() }]);
     const guestHistory = persistent ? undefined : messages
@@ -281,12 +380,27 @@ export function CabiExperience() {
             setTemporaryChat(true);
             setNotice("Your wallet session ended. This reply is staying temporary until you sign in again.");
           }
-          if (data.assistantMessageId) setMessages((current) => current.map((entry) => entry.id === assistantId ? { ...entry, id: data.assistantMessageId!, sources: data.sources } : entry));
+          if (data.assistantMessageId) {
+            assistantServerIdRef.current = data.assistantMessageId;
+            setMessages((current) => current.map((entry) => entry.id === assistantId ? { ...entry, id: data.assistantMessageId!, sources: data.sources } : entry));
+          }
         }
-        if (item.event === "delta" && data.text) setMessages((current) => current.map((entry) => (entry.id === assistantId || entry.id === data.assistantMessageId) && entry.role === "assistant" && entry.status === "streaming" ? { ...entry, content: entry.content + data.text } : entry));
+        if (item.event === "delta" && data.text) setMessages((current) => current.map((entry) => (entry.id === assistantId || entry.id === assistantServerIdRef.current || entry.id === data.assistantMessageId) && entry.role === "assistant" && entry.status === "streaming" ? { ...entry, content: entry.content + data.text } : entry));
+        // The action card arrives before any text so the user sees what Cabi
+        // prepared while her sentence is still streaming in.
+        if (item.event === "action" && data.card) setMessages((current) => current.map((entry) => (entry.id === assistantId || entry.id === assistantServerIdRef.current || entry.id === data.assistantMessageId) && entry.role === "assistant" ? { ...entry, actionCard: data.card } : entry));
         if (item.event === "done") {
           setMessages((current) => current.map((entry) => entry.role === "assistant" && entry.status === "streaming" ? { ...entry, status: "complete", sources: data.sources ?? entry.sources } : entry));
           if (data.bond && persistent) setBond(data.bond);
+          // Scenario 7: the server decides a rank-up happened; the client only
+          // renders it. Nothing here can award a tier.
+          //
+          // Only a rank-up opens the celebration. An achievement on its own is
+          // listed on the profile rather than interrupting the conversation -
+          // and must not dismiss a celebration that is already showing, which is
+          // what an earlier `else` branch here did.
+          const celebrationFromFrame = celebrationFor(data);
+          if (celebrationFromFrame) setCelebration(celebrationFromFrame);
         }
         if (item.event === "error") throw new Error(data.message ?? "Looks like my brain needs a second.");
       }
@@ -393,26 +507,43 @@ export function CabiExperience() {
           </> : <div className="mt-5 flex min-h-0 flex-1 flex-col"><button onClick={wallet.openConnect} className="focus-ring flex flex-1 flex-col items-center justify-center rounded-2xl border border-dashed border-white/[0.08] bg-white/[0.015] p-5 text-center hover:border-violet-200/20 hover:bg-violet-300/[0.025]"><span className="grid h-11 w-11 place-items-center rounded-full bg-white/[0.04] text-[#777180]"><Lock size={18} /></span><span className="mt-4 text-[13px] font-semibold text-[#d5d0de]">Connect your wallet to save your chats.</span><span className="mt-2 text-[11px] leading-5 text-[#706a7d]">Recent chats, memory, settings, and bond continuity unlock after a free login signature.</span><span className="mt-5 rounded-xl border border-white/[0.1] bg-white/[0.04] px-4 py-2.5 text-xs font-semibold text-white">Connect Wallet</span></button></div>}
 
           <div className="mt-3 rounded-2xl border border-violet-200/[0.10] bg-violet-300/[0.04] p-3"><div className="flex items-center gap-3"><MiniCabi className="h-9 w-9" decorative /><div className="min-w-0 flex-1"><p className="text-xs font-medium text-violet-100">{wallet.authenticated ? (bond?.label ?? "Wallet companion") : "Temporary companion"}</p><p className="mt-0.5 text-[11px] text-[#706a7d]">{wallet.authenticated ? "Bond is saved independently of $CPU" : "Guest bond is not saved"}</p></div><Heart size={15} className="text-violet-300" fill="currentColor" /></div></div>
-          <div className="mt-2 flex items-center gap-2"><button onClick={wallet.authenticated ? undefined : wallet.openConnect} className="focus-ring flex h-11 min-w-0 flex-1 items-center gap-3 rounded-xl px-3 text-left hover:bg-white/[0.035]"><span className="grid h-7 w-7 place-items-center rounded-full bg-white/[0.06]"><UserRound size={14} /></span><span className="truncate text-xs text-[#a8a3b3]">{wallet.authenticated && wallet.address ? `${wallet.address.slice(0, 6)}…${wallet.address.slice(-4)}` : "Guest"}</span></button><Link href="/settings" className="focus-ring grid h-11 w-11 place-items-center rounded-xl text-[#706a7d] hover:bg-white/[0.035] hover:text-white" aria-label="Settings"><Settings size={17} /></Link></div>
+          <div className="mt-2 flex items-center gap-2"><button onClick={wallet.authenticated ? undefined : wallet.openConnect} className="focus-ring flex h-11 min-w-0 flex-1 items-center gap-3 rounded-xl px-3 text-left hover:bg-white/[0.035]">{rank?.initials ? <InitialsAvatar initials={rank.initials} size={28} label="Your avatar" /> : <span className="grid h-7 w-7 place-items-center rounded-full bg-white/[0.06]"><UserRound size={14} /></span>}<span className="min-w-0 flex-1 truncate text-xs text-[#a8a3b3]">{rank?.username ?? (wallet.authenticated && wallet.address ? `${wallet.address.slice(0, 6)}…${wallet.address.slice(-4)}` : "Guest")}</span>{rank?.username ? <RankBadge tier={rank.tier} size="sm" showLabel={false} /> : null}</button><Link href="/profile" className="focus-ring grid h-11 w-11 place-items-center rounded-xl text-[#706a7d] hover:bg-white/[0.035] hover:text-white" aria-label="Your profile"><UserRound size={17} /></Link><Link href="/settings" className="focus-ring grid h-11 w-11 place-items-center rounded-xl text-[#706a7d] hover:bg-white/[0.035] hover:text-white" aria-label="Settings"><Settings size={17} /></Link></div>
         </aside>
 
-        <section id="cabi-chat" className="relative flex min-h-0 min-w-0 flex-col bg-[#08070d]/55" tabIndex={-1}>
-          <header className="flex h-[70px] shrink-0 items-center border-b border-white/[0.06] px-4 max-sm:h-[64px] max-sm:px-3"><button onClick={() => { setSidebarOpen(true); setProfileOpen(false); }} className="focus-ring mr-2 hidden h-11 w-11 place-items-center rounded-xl text-[#a8a3b3] hover:bg-white/[0.04] max-md:grid" aria-label="Open menu"><Menu size={20} /></button><button onClick={() => setProfileOpen(true)} className="focus-ring mr-3 hidden rounded-[14px] max-lg:block" aria-label="Open Cabi profile"><MiniCabi className="h-9 w-9" /></button><div className="min-w-0 flex-1"><div className="flex items-center gap-2"><h1 className="text-[15px] font-semibold">Cabi</h1><span className="relative h-2 w-2 rounded-full bg-emerald-300"><span className="absolute inset-0 animate-ping rounded-full bg-emerald-300/50" /></span></div><p className="truncate text-xs text-[#777180]">{status}{temporaryChat && wallet.authenticated ? " · temporary chat" : ""}</p></div><nav className="mr-3 hidden items-center gap-1 md:flex" aria-label="Primary"><Link href="/" aria-current="page" className="focus-ring rounded-xl bg-white/[0.05] px-3 py-2 text-xs font-semibold">Chat</Link><Link href="/cpu" className="focus-ring rounded-xl px-3 py-2 text-xs font-semibold text-[#8e889b] hover:bg-white/[0.035] hover:text-white">$CPU</Link></nav><WalletButton compact /><button className="focus-ring ml-2 grid h-10 w-10 place-items-center rounded-xl text-[#777180] hover:bg-white/[0.04] hover:text-white" aria-label="Conversation actions"><MoreHorizontal size={19} /></button></header>
+        {/* One shared acknowledgement for locked cards, so the message appears in a
+          single predictable place instead of inside each card. */}
+      {lockedNotice.notice ? (
+        <div role="status" aria-live="polite" className="pointer-events-none fixed inset-x-0 bottom-24 z-[74] flex justify-center px-4">
+          <p className="rounded-full border border-violet-200/[0.16] bg-[#0d0b15]/96 px-4 py-2 text-[12px] font-medium text-violet-100 shadow-[0_10px_30px_rgba(0,0,0,.4)] backdrop-blur-xl">
+            {lockedNotice.notice}
+          </p>
+        </div>
+      ) : null}
+
+      <RankUpCelebration tier={celebration?.tier ?? null} achievements={celebration?.achievements ?? []} onDismiss={() => { setCelebration(null); void refreshRank(); }} />
+
+      <ProfileSetupModal
+        open={Boolean(wallet.authenticated && rank && !rank.profileComplete)}
+        onComplete={() => { void refreshRank(); }}
+      />
+
+      <section id="cabi-chat" className="relative flex min-h-0 min-w-0 flex-col bg-[#08070d]/55" tabIndex={-1}>
+          <header className="flex h-[70px] shrink-0 items-center border-b border-white/[0.06] px-4 max-sm:h-[64px] max-sm:px-3"><button onClick={() => { setSidebarOpen(true); setProfileOpen(false); }} className="focus-ring mr-2 hidden h-11 w-11 place-items-center rounded-xl text-[#a8a3b3] hover:bg-white/[0.04] max-md:grid" aria-label="Open menu"><Menu size={20} /></button><button onClick={() => setProfileOpen(true)} className="focus-ring mr-3 hidden rounded-[14px] max-lg:block" aria-label="Open Cabi profile"><MiniCabi className="h-9 w-9" /></button><div className="min-w-0 flex-1"><div className="flex items-center gap-2"><h1 className="text-[15px] font-semibold">Cabi</h1><span className="relative h-2 w-2 rounded-full bg-emerald-300"><span className="absolute inset-0 animate-ping rounded-full bg-emerald-300/50" /></span></div><p className="truncate text-xs text-[#777180]">{status}{temporaryChat && wallet.authenticated ? " · temporary chat" : ""}</p></div><nav className="mr-3 hidden items-center gap-1 md:flex" aria-label="Primary"><Link href="/" aria-current="page" className="focus-ring rounded-xl bg-white/[0.05] px-3 py-2 text-xs font-semibold">Chat</Link><Link href="/cpu" className="focus-ring rounded-xl px-3 py-2 text-xs font-semibold text-[#8e889b] hover:bg-white/[0.035] hover:text-white">$CPU</Link></nav>{rank?.username ? <Link href="/profile" className="focus-ring mr-2 hidden items-center gap-2 rounded-full border border-white/[0.07] bg-white/[0.03] py-1 pl-1 pr-2.5 transition hover:bg-white/[0.06] sm:flex" aria-label={`Your profile, rank ${rank.tier.label}`}><InitialsAvatar initials={rank.initials ?? "?"} size={26} label="Your avatar" /><span className="max-w-[110px] truncate text-[12px] font-semibold text-white">{rank.username}</span><RankBadge tier={rank.tier} size="sm" /></Link> : null}<WalletButton compact /><button className="focus-ring ml-2 grid h-10 w-10 place-items-center rounded-xl text-[#777180] hover:bg-white/[0.04] hover:text-white" aria-label="Conversation actions"><MoreHorizontal size={19} /></button></header>
           <div className="scrollbar-cabi flex min-h-0 flex-1 flex-col overflow-y-auto px-5 pb-6 pt-8 max-sm:px-3">
             <div className={`mx-auto flex w-full max-w-[760px] flex-1 flex-col ${hasMessages ? "justify-start" : "justify-center"}`}>
-              {!hasMessages ? <><motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .55 }} className="mx-auto max-w-xl text-center"><div className="relative mx-auto mb-6 hidden h-24 w-24 max-lg:grid"><div className="absolute inset-0 rounded-[30px] bg-violet-400/15 blur-2xl" /><MiniCabi className="relative h-24 w-24 rounded-[30px]" /></div><span className="inline-flex items-center gap-2 rounded-full border border-violet-200/[0.12] bg-violet-200/[0.05] px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[.13em] text-violet-200"><Sparkles size={13} /> Your Cat Partner Unit</span><h2 className="mt-5 text-balance text-[clamp(2rem,4vw,3.55rem)] font-semibold leading-[1.02] tracking-[-0.055em]">Hi, I&apos;m Cabi.</h2><p className="mx-auto mt-4 max-w-md text-pretty text-base leading-7 text-[#a8a3b3]">Cute, loyal, and always by your side. Talk, chill, ask anything — I&apos;m here.</p><button onClick={beginOnboarding} className="focus-ring mt-7 inline-flex h-12 items-center gap-2 rounded-2xl bg-white px-5 text-sm font-semibold text-[#0b0912] shadow-[0_12px_40px_rgba(255,255,255,.1)] hover:bg-violet-100">Talk to Cabi <ArrowUp size={16} className="rotate-45" /></button><p className="mt-3 text-[11px] text-[#625d6d]">No wallet needed to start chatting.</p></motion.div><div className="mt-10 flex flex-wrap justify-center gap-2">{quickPrompts.map((prompt) => <button key={prompt} onClick={() => { setComposer(prompt); composerRef.current?.focus(); }} className="focus-ring rounded-full border border-white/[0.07] bg-white/[0.025] px-3.5 py-2 text-xs text-[#9a95a5] transition hover:border-violet-300/20 hover:bg-violet-300/[0.06] hover:text-white">{prompt}</button>)}</div></> : <ol className="space-y-6" aria-label="Conversation messages">{messages.map((message, index) => <li key={message.id}><ChatMessage message={message} onRetry={() => retry(index)} onDelete={() => void deleteMessage(message)} onEdit={() => void editMessage(message)} onShare={() => setShareMessage(message)} onReact={(reaction) => void reactToMessage(message, reaction)} /></li>)}</ol>}
+              {!hasMessages ? <><motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .55 }} className="mx-auto max-w-xl text-center"><div className="relative mx-auto mb-6 hidden h-24 w-24 max-lg:grid"><div className="absolute inset-0 rounded-[30px] bg-violet-400/15 blur-2xl" /><MiniCabi className="relative h-24 w-24 rounded-[30px]" /></div><span className="inline-flex items-center gap-2 rounded-full border border-violet-200/[0.12] bg-violet-200/[0.05] px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[.13em] text-violet-200"><Sparkles size={13} /> Your Cat Partner Unit</span><h2 className="mt-5 text-balance text-[clamp(2rem,4vw,3.55rem)] font-semibold leading-[1.02] tracking-[-0.055em]">Hi, I&apos;m Cabi.</h2><p className="mx-auto mt-4 max-w-md text-pretty text-base leading-7 text-[#a8a3b3]">Cute, loyal, and always by your side. Talk, chill, ask anything — I&apos;m here.</p><button onClick={beginOnboarding} className="focus-ring mt-7 inline-flex h-12 items-center gap-2 rounded-2xl bg-white px-5 text-sm font-semibold text-[#0b0912] shadow-[0_12px_40px_rgba(255,255,255,.1)] hover:bg-violet-100">Talk to Cabi <ArrowUp size={16} className="rotate-45" /></button><p className="mt-3 text-[11px] text-[#625d6d]">No wallet needed to start chatting.</p></motion.div><div className="mt-10 flex flex-wrap justify-center gap-2">{quickPrompts.map((prompt) => <button key={prompt} onClick={() => { setComposer(prompt); composerRef.current?.focus(); }} className="focus-ring rounded-full border border-white/[0.07] bg-white/[0.025] px-3.5 py-2 text-xs text-[#9a95a5] transition hover:border-violet-300/20 hover:bg-violet-300/[0.06] hover:text-white">{prompt}</button>)}</div></> : <ol className="space-y-6" aria-label="Conversation messages">{messages.map((message, index) => <li key={message.id}><ChatMessage message={message} onRegenerateImage={regenerateImage} onUseImageAsAvatar={(card) => void adoptImageAsAvatar(card)} onRetry={() => retry(index)} onDelete={() => void deleteMessage(message)} onEdit={() => void editMessage(message)} onShare={() => setShareMessage(message)} onReact={(reaction) => void reactToMessage(message, reaction)} /></li>)}</ol>}
               {notice && <div role="alert" className="mx-auto mt-4 flex max-w-xl items-center gap-3 rounded-xl border border-rose-300/15 bg-rose-300/[0.05] px-3 py-2 text-xs text-rose-200"><span className="flex-1">{notice}</span><button className="focus-ring grid h-8 w-8 place-items-center rounded-lg hover:bg-white/[0.05]" onClick={() => setNotice(undefined)} aria-label="Dismiss"><X size={14} /></button></div>}
               <div ref={endRef} />
             </div>
           </div>
-          <div className="shrink-0 bg-gradient-to-t from-[#08070d] via-[#08070d] to-transparent px-5 cabi-safe-bottom pt-3 max-sm:px-3"><form className="mx-auto max-w-[760px]" onSubmit={submit}><div className="rounded-[24px] border border-violet-200/[0.14] bg-[#11101a] p-2 shadow-[0_18px_60px_rgba(0,0,0,.35)] focus-within:border-violet-300/30 focus-within:shadow-[0_18px_60px_rgba(0,0,0,.35),0_0_0_3px_rgba(139,92,246,.06)]"><textarea ref={composerRef} value={composer} onChange={(event) => setComposer(event.target.value)} onKeyDown={onKeyDown} rows={2} className="scrollbar-cabi max-h-40 min-h-[50px] w-full resize-none bg-transparent px-3 pt-2.5 text-[15px] leading-6 text-white outline-none placeholder:text-[#625d6d]" placeholder="What's on your mind?" aria-label="Message Cabi" disabled={sending} /><div className="flex items-center justify-between px-1 pb-1"><p className="hidden pl-2 text-[10px] text-[#5d5868] sm:block">Enter to send · Shift + Enter for a new line</p><span className="sm:hidden" />{sending ? <button type="button" onClick={() => controllerRef.current?.abort()} className="focus-ring grid h-10 w-10 place-items-center rounded-[14px] bg-white text-[#160f27]" aria-label="Stop generating"><Square size={15} fill="currentColor" /></button> : <button type="submit" disabled={!composer.trim()} className="focus-ring grid h-10 w-10 place-items-center rounded-[14px] bg-gradient-to-br from-violet-200 to-violet-400 text-[#160f27] shadow-[0_8px_24px_rgba(139,92,246,.28)] hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-35" aria-label="Send message"><ArrowUp size={18} strokeWidth={2.4} /></button>}</div></div><p className="mt-2 text-center text-[10px] text-[#504b59]">{wallet.authenticated && !temporaryChat ? "Saved to your wallet profile · Cabi can make mistakes." : "Temporary in this tab · Cabi can make mistakes."}</p></form></div>
+          <div className="shrink-0 bg-gradient-to-t from-[#08070d] via-[#08070d] to-transparent px-5 cabi-safe-bottom pt-3 max-sm:px-3"><div className="mx-auto max-w-[760px]"><SlashCommandPalette value={composer} onRun={(command) => void send(command.id)} /></div><form className="mx-auto max-w-[760px]" onSubmit={submit}><div className="rounded-[24px] border border-violet-200/[0.14] bg-[#11101a] p-2 shadow-[0_18px_60px_rgba(0,0,0,.35)] focus-within:border-violet-300/30 focus-within:shadow-[0_18px_60px_rgba(0,0,0,.35),0_0_0_3px_rgba(139,92,246,.06)]"><textarea ref={composerRef} value={composer} onChange={(event) => setComposer(event.target.value)} onKeyDown={onKeyDown} rows={2} className="scrollbar-cabi max-h-40 min-h-[50px] w-full resize-none bg-transparent px-3 pt-2.5 text-[15px] leading-6 text-white outline-none placeholder:text-[#625d6d]" placeholder="What's on your mind?" aria-label="Message Cabi" disabled={sending} /><div className="flex items-center justify-between px-1 pb-1"><p className="hidden pl-2 text-[10px] text-[#5d5868] sm:block">Enter to send · Shift + Enter for a new line</p><span className="sm:hidden" />{sending ? <button type="button" onClick={() => controllerRef.current?.abort()} className="focus-ring grid h-10 w-10 place-items-center rounded-[14px] bg-white text-[#160f27]" aria-label="Stop generating"><Square size={15} fill="currentColor" /></button> : <button type="submit" disabled={!composer.trim()} className="focus-ring grid h-10 w-10 place-items-center rounded-[14px] bg-gradient-to-br from-violet-200 to-violet-400 text-[#160f27] shadow-[0_8px_24px_rgba(139,92,246,.28)] hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-35" aria-label="Send message"><ArrowUp size={18} strokeWidth={2.4} /></button>}</div></div><p className="mt-2 text-center text-[10px] text-[#504b59]">{wallet.authenticated && !temporaryChat ? "Saved to your wallet profile · Cabi can make mistakes." : "Temporary in this tab · Cabi can make mistakes."}</p></form></div>
         </section>
 
-        <aside className="flex min-h-0 flex-col border-l border-white/[0.065] p-3 max-lg:hidden" aria-label="Cabi presence"><PresenceArt mood="cozy" speaking={sending} authenticated={wallet.authenticated} bond={bond} /><div className="mt-3"><CpuTokenCard compact /></div></aside>
+        <aside className="scrollbar-cabi flex min-h-0 flex-col gap-3 overflow-y-auto border-l border-white/[0.065] p-3 max-lg:hidden" aria-label="Cabi presence"><PresenceArt mood="cozy" speaking={sending} authenticated={wallet.authenticated} bond={bond} /><CpuTokenCard compact />{/* Future features, presented as intentionally unreleased. */}<LockedFeatures flags={flags} keys={lockedFeatureOrder} onNotice={lockedNotice.show} /></aside>
       </div>
 
       {sidebarOpen && <button className="fixed inset-0 z-40 bg-black/65 backdrop-blur-sm md:hidden" onClick={() => setSidebarOpen(false)} aria-label="Close menu" />}
-      {profileOpen && <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 p-3 backdrop-blur-sm lg:hidden" role="dialog" aria-modal="true" aria-label="Cabi profile"><button className="absolute inset-0" onClick={() => setProfileOpen(false)} aria-label="Close Cabi profile" /><div className="scrollbar-cabi relative max-h-[88dvh] w-full max-w-md overflow-y-auto rounded-[28px] border border-violet-200/10 bg-[#0b0912] p-3 shadow-2xl"><button className="focus-ring absolute right-5 top-5 z-30 grid h-10 w-10 place-items-center rounded-xl bg-black/35 text-white" onClick={() => setProfileOpen(false)} aria-label="Close"><X size={18} /></button><div className="h-[min(58dvh,520px)]"><PresenceArt mood="cozy" speaking={sending} authenticated={wallet.authenticated} bond={bond} /></div><div className="mt-3"><CpuTokenCard compact /></div></div></div>}
+      {profileOpen && <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 p-3 backdrop-blur-sm lg:hidden" role="dialog" aria-modal="true" aria-label="Cabi profile"><button className="absolute inset-0" onClick={() => setProfileOpen(false)} aria-label="Close Cabi profile" /><div className="scrollbar-cabi relative max-h-[88dvh] w-full max-w-md overflow-y-auto rounded-[28px] border border-violet-200/10 bg-[#0b0912] p-3 shadow-2xl"><button className="focus-ring absolute right-5 top-5 z-30 grid h-10 w-10 place-items-center rounded-xl bg-black/35 text-white" onClick={() => setProfileOpen(false)} aria-label="Close"><X size={18} /></button><div className="h-[min(58dvh,520px)]"><PresenceArt mood="cozy" speaking={sending} authenticated={wallet.authenticated} bond={bond} /></div><div className="mt-3"><CpuTokenCard compact /></div><div className="mt-3"><LockedFeatures flags={flags} keys={lockedFeatureOrder} onNotice={lockedNotice.show} /></div></div></div>}
       {shareMessage && <div className="fixed inset-0 z-[70] grid place-items-center bg-black/75 p-4 backdrop-blur-md" role="dialog" aria-modal="true" aria-labelledby="share-title"><button className="absolute inset-0" onClick={() => setShareMessage(undefined)} aria-label="Close share dialog" /><div className="glass relative w-full max-w-md rounded-[28px] p-5"><div className="flex items-start gap-3"><MiniCabi className="h-11 w-11" /><div className="min-w-0 flex-1"><h2 id="share-title" className="text-lg font-semibold">Make a Cabi card</h2><p className="mt-1 text-sm text-[#8e889b]">Only this response will be added to the image.</p></div><button className="focus-ring grid h-10 w-10 place-items-center rounded-xl text-[#777180] hover:bg-white/[0.05]" onClick={() => setShareMessage(undefined)} aria-label="Close"><X size={18} /></button></div><blockquote className="mt-5 max-h-52 overflow-y-auto rounded-2xl border border-violet-200/10 bg-violet-300/[0.04] p-4 text-sm leading-6 text-[#d8d4df]">{shareMessage.content}</blockquote><div className="mt-4 grid grid-cols-2 gap-2"><button onClick={() => downloadShareCard(shareMessage.content, false)} className="focus-ring flex h-11 items-center justify-center gap-2 rounded-xl bg-white text-sm font-semibold text-[#0b0912]"><Download size={15} /> Square</button><button onClick={() => downloadShareCard(shareMessage.content, true)} className="focus-ring flex h-11 items-center justify-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.04] text-sm font-semibold hover:bg-white/[0.07]"><Download size={15} /> 16:9</button></div></div></div>}
 
       <Dialog open={savePromptOpen} onOpenChange={(open) => { if (!open && !savingGuestChat) { setSavePromptOpen(false); setTemporaryChat(true); } }}>

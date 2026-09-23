@@ -55,6 +55,7 @@ export function PrelaunchExperience({
         xUrl={settings.xUrl}
         communityUrl={settings.communityUrl}
         showSocial={settings.showSocial}
+        clankTradeUrl={wallet.cpu.clankTradeUrl}
       />
 
       {settings.announcement ? (
@@ -67,10 +68,13 @@ export function PrelaunchExperience({
 
       <main className="relative z-20 mx-auto w-full max-w-[1240px] px-5 pb-16 sm:px-8">
         <div className="grid items-start gap-10 pt-8 sm:pt-12 lg:grid-cols-[minmax(0,1.02fr)_minmax(0,.98fr)] lg:gap-14 lg:pt-14">
-          {/* Mobile shows Cabi first; desktop places her on the right. */}
+          {/* Mobile shows Cabi first; desktop places her on the right. The frame
+              grows on wider phones so the square 500x500 render is never
+              cropped — at 320px a 320px-tall frame would clip the top of the
+              artwork. */}
           <div className="order-1 lg:hidden">
             <Reveal y={16}>
-              <CabiCharacter className="mx-auto h-[320px] w-full max-w-[420px] sm:h-[420px]" />
+              <CabiCharacter className="mx-auto h-[340px] w-full max-w-[420px] sm:h-[420px]" />
             </Reveal>
           </div>
 

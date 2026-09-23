@@ -1,23 +1,17 @@
 import type { MetadataRoute } from "next";
 
-import { env } from "@/lib/config/env";
-
-function origin() {
-  const configured = env("APP_URL");
-  if (!configured) return null;
-  try {
-    return new URL(configured).origin;
-  } catch {
-    return null;
-  }
-}
+import { siteOrigin } from "@/lib/site/origin";
 
 /**
  * Public routes only. `/settings` is included because it is a real public route
  * in LIVE mode; it self-reports `noindex` while the site is in prelaunch.
+ *
+ * The origin comes from `APP_URL`, falling back to the hosting platform's own
+ * deployment host, so a deploy that forgets to set `APP_URL` still emits a
+ * usable sitemap instead of an empty one.
  */
 export default function sitemap(): MetadataRoute.Sitemap {
-  const base = origin();
+  const base = siteOrigin();
   if (!base) return [];
   const now = new Date();
   return [

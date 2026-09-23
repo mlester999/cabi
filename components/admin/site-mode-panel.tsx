@@ -93,7 +93,7 @@ export function SiteModePanel() {
           <AlertTriangle size={15} className="mt-0.5 shrink-0" aria-hidden="true" />
           <p>
             <span className="font-semibold">Environment override is active.</span>{" "}
-            <code className="font-mono">SITE_MODE={state.environmentMode}</code> wins over this dashboard, so changes saved here will not
+            <code className="font-mono">SITE_MODE_OVERRIDE={state.environmentMode}</code> wins over this dashboard, so changes saved here will not
             affect the public site until that variable is removed.
           </p>
         </div>

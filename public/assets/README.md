@@ -4,12 +4,18 @@ Place the supplied brand files here using these names:
 
 - `cabi-logo.png` — the official close-up Cabi logo used in headers, utility
   surfaces, and browser/PWA icon generation.
-- `cabi-main.png` — the main anime Cabi character wearing the purple CPU shirt.
+- `cabi-cpu-model.png` — the official Cabi character render used for the
+  prelaunch hero. 500×500.
+- `cabi-main.png` — the higher-resolution Cabi character render (1086×1448),
+  used as the hero's only fallback if `cabi-cpu-model.png` cannot load.
 - `cabi-mascot.png` — the purple mini Cabi mascot.
-- `cabi-cpu-model.png` — an additional owner-provided render retained for future use; it is not substituted for the main prelaunch character.
-- `cpu-reference.png` — design reference only; the application does not render it.
 
 The interface reserves stable dimensions. `cabi-logo.png` is the canonical brand
-mark. The prelaunch character uses the exact supplied `cabi-main.png`; if that
-asset cannot load, it falls back to a Cabi-branded monogram stand-in — never to
-a different character.
+mark. The prelaunch hero prefers `cabi-cpu-model.png` and falls back to
+`cabi-main.png`; if neither loads, it shows the official logo inside the shared
+orb treatment — never a different character.
+
+Browser and PWA icons are committed as real PNG files in `public/`
+(`favicon.png`, `cabi-icon-192.png`, `cabi-icon-512.png`,
+`apple-touch-icon.png`), so they are served directly and are not derived from the
+assets in this folder at build time.
