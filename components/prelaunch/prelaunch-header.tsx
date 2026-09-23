@@ -4,6 +4,8 @@ import { WalletButton } from "@/components/wallet/wallet-button";
 import { MiniCabi } from "@/components/cabi/mini-cabi";
 import { ArrowUpRight, X } from "lucide-react";
 
+const clankInfoUrl = "https://clank.trade/";
+
 /**
  * Prelaunch top bar: CABI · $CPU · X.
  *
@@ -36,7 +38,10 @@ export function PrelaunchHeader({
 
       <nav aria-label="Prelaunch links" className="flex items-center gap-2">
         <a
-          href="#cpu"
+          href={clankInfoUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label={`${ticker} on Clank.trade`}
           className="focus-ring hidden rounded-xl px-3 py-2 text-xs font-semibold tracking-[.08em] text-[#a8a3b3] transition hover:bg-white/[0.04] hover:text-white sm:block"
         >
           ${ticker}
