@@ -1,0 +1,3 @@
+"use client";
+import { MiniCabi } from "@/components/cabi/mini-cabi";
+export default function GlobalError({ reset }: { error: Error & { digest?: string }; reset: () => void }) { return <main className="grid min-h-[100dvh] place-items-center bg-[#07070d] p-6 text-center text-white"><div><MiniCabi className="mx-auto h-20 w-20" /><h1 className="mt-5 text-3xl font-semibold">Looks like my brain needs a second.</h1><p className="mt-2 text-sm text-[#8e889b]">Nothing you did. Let&apos;s try that again.</p><button onClick={reset} className="focus-ring mt-6 h-11 rounded-xl bg-violet-200 px-5 text-sm font-semibold text-[#160f27]">Try again</button></div></main>; }

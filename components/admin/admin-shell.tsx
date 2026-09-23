@@ -1,0 +1,16 @@
+"use client";
+
+import { MiniCabi } from "@/components/cabi/mini-cabi";
+import { Activity, Bot, Brain, Coins, DatabaseZap, FileText, Gauge, LogOut, MessageSquareText, Palette, Settings, ShieldCheck, UsersRound } from "lucide-react";
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
+
+const links = [
+  ["/admin", "Overview", Gauge], ["/admin/ai", "AI", Bot], ["/admin/personality", "Personality", Brain], ["/admin/knowledge", "Knowledge", DatabaseZap], ["/admin/users", "Users", UsersRound], ["/admin/conversations", "Conversations", MessageSquareText], ["/admin/memories", "Memories", FileText], ["/admin/branding", "Branding", Palette], ["/admin/cpu", "$CPU", Coins], ["/admin/settings", "Settings", Settings], ["/admin/audit", "Audit", ShieldCheck],
+] as const;
+
+export function AdminShell({ children, email }: { children: React.ReactNode; email: string }) {
+  const pathname = usePathname(); const router = useRouter();
+  const logout = async () => { await fetch("/api/admin/logout", { method: "POST" }); router.replace("/admin/login"); router.refresh(); };
+  return <main className="min-h-[100dvh] bg-[#07070d] text-white"><div className="grid min-h-[100dvh] grid-cols-[248px_minmax(0,1fr)] max-lg:grid-cols-[76px_minmax(0,1fr)] max-sm:grid-cols-1"><aside className="sticky top-0 flex h-[100dvh] flex-col border-r border-white/[0.06] bg-[#09080f] p-3 max-sm:relative max-sm:h-auto max-sm:flex-row max-sm:items-center max-sm:border-b max-sm:border-r-0"><Link href="/" className="focus-ring flex h-14 items-center gap-3 rounded-xl px-2"><MiniCabi className="h-9 w-9" /><div className="max-lg:hidden"><p className="text-sm font-bold tracking-[.12em]">CABI</p><p className="text-[9px] uppercase tracking-[.16em] text-[#706a7d]">Admin console</p></div></Link><nav className="scrollbar-cabi mt-5 flex-1 space-y-1 overflow-y-auto max-sm:ml-3 max-sm:mt-0 max-sm:flex max-sm:gap-1 max-sm:overflow-x-auto" aria-label="Admin navigation">{links.map(([href, label, Icon]) => { const active = href === "/admin" ? pathname === href : pathname.startsWith(href); return <Link key={href} href={href} className={`focus-ring flex min-h-11 items-center gap-3 rounded-xl px-3 text-sm max-lg:justify-center max-lg:px-0 max-sm:h-11 max-sm:min-w-11 ${active ? "bg-violet-300/[0.09] text-violet-200" : "text-[#8e889b] hover:bg-white/[0.035] hover:text-white"}`} title={label}><Icon size={17} /><span className="max-lg:hidden">{label}</span></Link>; })}</nav><div className="mt-3 border-t border-white/[0.06] pt-3 max-sm:ml-auto max-sm:mt-0 max-sm:border-0 max-sm:pt-0"><div className="px-3 py-2 max-lg:hidden"><p className="truncate text-xs text-[#a8a3b3]">{email}</p><p className="mt-1 flex items-center gap-1 text-[10px] text-emerald-300"><Activity size={10} /> secured</p></div><button onClick={() => void logout()} className="focus-ring flex h-11 w-full items-center gap-3 rounded-xl px-3 text-sm text-[#706a7d] hover:bg-white/[0.035] hover:text-white max-lg:justify-center max-lg:px-0" title="Sign out"><LogOut size={17} /><span className="max-lg:hidden">Sign out</span></button></div></aside><section className="min-w-0 p-5 sm:p-7 lg:p-9">{children}</section></div></main>;
+}
