@@ -8,8 +8,8 @@ export type SiteMode = "PRELAUNCH" | "LIVE" | "MAINTENANCE";
 
 export const siteModes: readonly SiteMode[] = ["PRELAUNCH", "LIVE", "MAINTENANCE"] as const;
 
-/** The product opens directly into Cabi unless the owner explicitly pauses it. */
-export const defaultSiteMode: SiteMode = "LIVE";
+/** Keep the unfinished application private until the owner explicitly launches it. */
+export const defaultSiteMode: SiteMode = "PRELAUNCH";
 
 export const siteModeLabels: Record<SiteMode, string> = {
   PRELAUNCH: "Prelaunch",

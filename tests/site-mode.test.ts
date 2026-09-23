@@ -6,12 +6,12 @@ import { cpuPublicationState, parsePrelaunchSettings, prelaunchSettingsSchema } 
 import { defaultPrelaunchSettings } from "@/lib/site/prelaunch-shared";
 
 describe("site mode precedence", () => {
-  it("defaults to LIVE so the main route opens directly into Cabi", () => {
+  it("defaults to PRELAUNCH so the main route stays private until launch", () => {
     const resolved = resolveSiteModePrecedence({});
-    expect(resolved.mode).toBe("LIVE");
+    expect(resolved.mode).toBe("PRELAUNCH");
     expect(resolved.source).toBe("default");
     expect(resolved.override).toBe(false);
-    expect(defaultSiteMode).toBe("LIVE");
+    expect(defaultSiteMode).toBe("PRELAUNCH");
   });
 
   it("uses the saved database mode when the environment is silent", () => {
@@ -30,7 +30,7 @@ describe("site mode precedence", () => {
   });
 
   it("ignores unparsable environment or database values instead of guessing", () => {
-    expect(resolveSiteModePrecedence({ environmentMode: "  ", databaseMode: "banana" }).mode).toBe("LIVE");
+    expect(resolveSiteModePrecedence({ environmentMode: "  ", databaseMode: "banana" }).mode).toBe("PRELAUNCH");
     expect(resolveSiteModePrecedence({ environmentMode: "banana", databaseMode: "LIVE" }).mode).toBe("LIVE");
   });
 

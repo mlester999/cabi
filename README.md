@@ -2,7 +2,7 @@
 
 Cabi is a wallet-optional AI companion built as a real **Next.js 16 App Router** application. The current `*.chatgpt.site` URL is only its hosting domain; the source is Next.js, React 19, TypeScript, Tailwind CSS, route handlers, and Supabase/PostgreSQL.
 
-The product opens directly into chat. A wallet is never required to talk to Cabi.
+When the site is live, it opens directly into chat. A wallet is never required to talk to Cabi.
 
 ## Product behavior
 
@@ -129,7 +129,7 @@ Admin routes never appear in ordinary public navigation and are protected server
 
 ## Optional site modes and prelaunch
 
-The default application mode is `LIVE`, so `/` opens directly into chat as required. The owner may explicitly switch to `PRELAUNCH` or `MAINTENANCE` from `/admin/settings` or with the emergency `SITE_MODE` environment override.
+The default application mode is `PRELAUNCH`, so `/` stays on the prelaunch page until the owner explicitly launches Cabi. The owner may switch to `LIVE` or `MAINTENANCE` from `/admin/settings` or use the emergency `SITE_MODE` environment override.
 
 The prelaunch page uses the exact supplied transparent character artwork at `public/assets/cabi-main.png`, with responsive desktop/mobile framing, reduced-motion support, and truthful `$CPU` state. If the asset cannot load, the reserved frame falls back to a neutral Cabi monogram rather than substituting a different character. The page does not show fake progress, a release date, a contract, market data, or a buy link.
 
@@ -137,7 +137,7 @@ Mode precedence is:
 
 1. `SITE_MODE` or `NEXT_PUBLIC_SITE_MODE`
 2. `app_settings.site_mode`
-3. built-in `LIVE`
+3. built-in `PRELAUNCH` (safe fallback)
 
 `/preview` lets an authenticated admin inspect the application while an explicit prelaunch or maintenance mode is active.
 
@@ -182,6 +182,7 @@ Never expose `SUPABASE_SERVICE_ROLE_KEY`, `APP_ENCRYPTION_KEY`, `SESSION_SECRET`
 5. `0005_admin_operations_and_security.sql` — encrypted config, usage, audit, rate limits
 6. `0006_wallet_identity_and_persistence.sql` — wallet accounts, nonce/session auth, wallet ownership, supported chains, `$CPU`, and wallet-scoped RPCs
 7. `0007_site_mode_and_prelaunch.sql` — optional site modes and prelaunch settings
+8. `0008_prelaunch_until_explicit_launch.sql` — moves the old implicit LIVE default back behind prelaunch
 
 Migration `0006` removes only rows owned by the retired anonymous/guest identity model. If it detects any legacy `auth.users`-owned profile, it aborts the transaction instead of guessing a wallet or deleting real data. Export or explicitly backfill those profiles to wallet accounts before retrying, and always back up an existing production database first.
 
@@ -199,8 +200,13 @@ Retrieved webpage content, memories, nicknames, and summaries are passed as lowe
 
 ```bash
 npm run check
+npm run build:next
 npm run build
 ```
+
+`build:next` verifies the native Next.js production output. The canonical
+`build` command then creates the Cloudflare Worker bundle expected by the
+current OpenAI Sites deployment target.
 
 The automated suite covers, among other cases:
 

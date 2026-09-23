@@ -27,7 +27,7 @@ export function normalizeSiteMode(value: string | undefined | null): SiteMode | 
  * 1. Environment override (`SITE_MODE`, then `NEXT_PUBLIC_SITE_MODE`). Any
  *    valid explicit value wins, including over the database.
  * 2. Database site setting — changeable from the dashboard without a redeploy.
- * 3. `LIVE` — the product requirement is to open directly into Cabi.
+ * 3. `PRELAUNCH` — fail closed if no explicit launch decision exists.
  *
  * Leave the environment value blank for normal dashboard control. Setting it is
  * an emergency operator lock and the admin UI cannot override it.

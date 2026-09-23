@@ -3,13 +3,14 @@ begin;
 -- Public launch state for the Cabi application.
 --
 -- Precedence is: SITE_MODE / NEXT_PUBLIC_SITE_MODE environment override, then
--- this row, then the built-in LIVE default. The owner changes this row
+-- this row, then the built-in PRELAUNCH default. The owner changes this row
 -- from /admin/settings, so PRELAUNCH -> LIVE needs no redeploy.
 --
--- The product opens directly into Cabi. Prelaunch and maintenance remain
--- explicit owner-controlled modes rather than an accidental deployment default.
+-- The product stays private until the owner explicitly launches it. Prelaunch
+-- and maintenance remain owner-controlled modes rather than an accidental
+-- deployment default.
 insert into public.app_settings (key, value_json) values
-  ('site_mode', '{"mode":"LIVE"}'::jsonb)
+  ('site_mode', '{"mode":"PRELAUNCH"}'::jsonb)
 on conflict (key) do nothing;
 
 -- Owner-editable copy and switches for the public prelaunch page. Every value
