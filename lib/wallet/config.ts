@@ -4,6 +4,7 @@ import { getAddress, isAddress } from "viem";
 import { z } from "zod";
 
 import { getServiceClient } from "@/lib/db/supabase";
+import { fallbackCpuContractAddress, fallbackCpuTradeUrl } from "@/lib/wallet/public-defaults";
 
 export type SupportedChainConfig = {
   id: number;
@@ -38,9 +39,9 @@ export const defaultCpuConfig: CpuTokenConfig = {
   tokenName: "Cat Partner Unit",
   ticker: "CPU",
   launchStatus: "PRELAUNCH",
-  contractAddress: "",
+  contractAddress: fallbackCpuContractAddress,
   chainId: null,
-  clankTradeUrl: "",
+  clankTradeUrl: fallbackCpuTradeUrl,
   explorerUrl: "",
   xUrl: "",
   websiteUrl: "",
@@ -173,9 +174,9 @@ export async function getWalletProductConfig(): Promise<PublicWalletConfig> {
     tokenName: cpuRow.token_name,
     ticker: cpuRow.ticker,
     launchStatus: cpuRow.launch_status,
-    contractAddress: cpuRow.contract_address ?? "",
+    contractAddress: cpuRow.contract_address || fallbackCpuContractAddress,
     chainId: cpuRow.chain_id == null ? null : Number(cpuRow.chain_id),
-    clankTradeUrl: cpuRow.clank_trade_url ?? "",
+    clankTradeUrl: cpuRow.clank_trade_url || fallbackCpuTradeUrl,
     explorerUrl: cpuRow.block_explorer_url ?? "",
     xUrl: cpuRow.x_url ?? "",
     websiteUrl: cpuRow.website_url ?? "",

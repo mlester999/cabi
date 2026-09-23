@@ -2,9 +2,10 @@
 
 import { WalletButton } from "@/components/wallet/wallet-button";
 import { MiniCabi } from "@/components/cabi/mini-cabi";
+import { fallbackCpuTradeUrl } from "@/lib/wallet/public-defaults";
 import { ArrowUpRight, X } from "lucide-react";
 
-const clankInfoUrl = "https://clank.trade/";
+const clankInfoUrl = fallbackCpuTradeUrl;
 
 /**
  * Prelaunch top bar: CABI · $CPU · X.
