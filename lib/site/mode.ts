@@ -33,10 +33,13 @@ export async function readDatabaseSiteMode(): Promise<SiteMode | null> {
     .select("value_json")
     .eq("key", siteModeSettingKey)
     .maybeSingle();
-  if (error) throw new Error("SITE_MODE_UNAVAILABLE");
+  // The public site must fail closed if Supabase is unavailable or migrations
+  // are behind. An unset/invalid database value resolves to PRELAUNCH below,
+  // while admin writes still surface their own errors explicitly.
+  if (error) return null;
   if (!data) return null;
   const value = data.value_json as { mode?: unknown } | null;
-  if (!isSiteMode(value?.mode)) throw new Error("SITE_MODE_INVALID");
+  if (!isSiteMode(value?.mode)) return null;
   return normalizeSiteMode(String(value!.mode))!;
 }
 

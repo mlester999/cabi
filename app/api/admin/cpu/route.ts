@@ -4,6 +4,34 @@ import { getServiceClient } from "@/lib/db/supabase";
 import { assertSameOrigin, jsonError } from "@/lib/security/request";
 import { defaultChainConfig, defaultCpuConfig, getWalletProductConfig, parseWalletProductConfig } from "@/lib/wallet/config";
 
+const knownCpuSaveErrors = [
+  "invalid chain configuration",
+  "invalid supported chain",
+  "duplicate chain id",
+  "primary chain must be enabled",
+  "invalid CPU launch status",
+  "invalid CPU contract address",
+  "CPU chain must be enabled",
+  "live CPU configuration is incomplete",
+  "invalid Clank.trade URL",
+  "live CPU chain must be enabled",
+];
+
+function cpuSaveError(error: unknown) {
+  const details = error && typeof error === "object" ? error as { code?: unknown; message?: unknown } : {};
+  const code = typeof details.code === "string" ? details.code : "";
+  const message = typeof details.message === "string" ? details.message : "";
+
+  if (code === "PGRST202" || /replace_wallet_product_config/i.test(message)) {
+    return jsonError("The CPU save function is missing in Supabase. Apply migrations 0006–0008, then redeploy.", 503, "DATABASE_SCHEMA_OUTDATED");
+  }
+
+  const known = knownCpuSaveErrors.find((candidate) => message.toLowerCase().includes(candidate.toLowerCase()));
+  if (known) return jsonError(`CPU settings rejected: ${known}.`, 400, "INVALID_INPUT");
+
+  return jsonError("Couldn't save CPU settings. Check that the Supabase migrations are applied and the server-only service-role key is valid.", 503, "SAVE_FAILED");
+}
+
 export async function GET() {
   const auth = await adminOrResponse();
   if (auth.response) return auth.response;
@@ -28,7 +56,7 @@ export async function PATCH(request: Request) {
     p_primary_chain_id: value.primaryChainId,
     p_cpu: value.cpu,
   });
-  if (error) return jsonError("Couldn't save CPU settings.", 503, "SAVE_FAILED");
+  if (error) return cpuSaveError(error);
   await auditAdmin(request, auth.session!.email, "cpu.update", "cpu_settings", "singleton", "success", {
     launchStatus: value.cpu.launchStatus,
     chainId: value.cpu.chainId,

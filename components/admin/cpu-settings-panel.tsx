@@ -99,18 +99,23 @@ export function CpuSettingsPanel() {
     event.preventDefault();
     setBusy(true);
     setNotice(undefined);
-    const response = await fetch("/api/admin/cpu", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(value),
-    });
-    const payload = await response.json().catch(() => ({})) as { error?: string; value?: Value };
-    setBusy(false);
-    if (!response.ok) return setNotice(payload.error ?? "Save failed.");
-    const saved = payload.value ?? value;
-    setValue(saved);
-    setInitial(saved);
-    setNotice("CPU and supported-chain settings saved.");
+    try {
+      const response = await fetch("/api/admin/cpu", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(value),
+      });
+      const payload = await response.json().catch(() => ({})) as { error?: string; value?: Value };
+      if (!response.ok) return setNotice(payload.error ?? "Save failed.");
+      const saved = payload.value ?? value;
+      setValue(saved);
+      setInitial(saved);
+      setNotice("CPU and supported-chain settings saved.");
+    } catch {
+      setNotice("Couldn't reach the CPU settings API. Check the deployment and try again.");
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
@@ -128,7 +133,7 @@ export function CpuSettingsPanel() {
           <Field label="Ticker"><input className="field" value={value.cpu.ticker} onChange={(event) => updateCpu("ticker", event.target.value)} /></Field>
           <Field label="Contract address" help="Syntax validation does not prove this is a token contract."><input className="field font-mono" placeholder="0x…" value={value.cpu.contractAddress} onChange={(event) => updateCpu("contractAddress", event.target.value)} /></Field>
           <Field label="CPU chain"><select className="field" value={value.cpu.chainId ?? ""} onChange={(event) => updateCpu("chainId", event.target.value ? Number(event.target.value) : null)}><option value="">Not configured</option>{value.chains.filter((chain) => chain.enabled).map((chain) => <option key={chain.id} value={chain.id}>{chain.name || `Chain ${chain.id}`} · {chain.id}</option>)}</select></Field>
-          <Field label="Exact Clank.trade coin URL"><input className="field" type="url" placeholder="https://clank.trade/…" value={value.cpu.clankTradeUrl} onChange={(event) => updateCpu("clankTradeUrl", event.target.value)} /></Field>
+          <Field label="Exact Clank.trade coin URL" help="Use the token page, not the generic homepage."><input className="field" type="url" placeholder="https://clank.trade/…" value={value.cpu.clankTradeUrl} onChange={(event) => updateCpu("clankTradeUrl", event.target.value)} /></Field>
           <Field label="Explicit contract explorer URL" help="Optional; otherwise the selected chain explorer is used."><input className="field" type="url" placeholder="https://…/address/0x…" value={value.cpu.explorerUrl} onChange={(event) => updateCpu("explorerUrl", event.target.value)} /></Field>
           <Field label="X URL"><input className="field" type="url" value={value.cpu.xUrl} onChange={(event) => updateCpu("xUrl", event.target.value)} /></Field>
           <Field label="Website URL"><input className="field" type="url" value={value.cpu.websiteUrl} onChange={(event) => updateCpu("websiteUrl", event.target.value)} /></Field>

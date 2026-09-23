@@ -6,11 +6,16 @@ let serviceClient: SupabaseClient | undefined;
 
 export function getServiceClient(): SupabaseClient | null {
   if (!supabaseConfigured()) return null;
-  serviceClient ??= createClient(
-    env("NEXT_PUBLIC_SUPABASE_URL")!,
-    env("SUPABASE_SERVICE_ROLE_KEY")!,
-    { auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false }, global: { headers: { "X-Client-Info": "cabi-server/1.0" } } },
-  );
+  try {
+    serviceClient ??= createClient(
+      env("NEXT_PUBLIC_SUPABASE_URL")!,
+      env("SUPABASE_SERVICE_ROLE_KEY")!,
+      { auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false }, global: { headers: { "X-Client-Info": "cabi-server/1.0" } } },
+    );
+  } catch {
+    // A malformed deployment URL must not crash the public prelaunch page.
+    return null;
+  }
   return serviceClient;
 }
 
