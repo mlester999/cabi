@@ -1,6 +1,7 @@
 "use client";
 
 import { explorerAddressUrl } from "@/lib/wallet/client";
+import { fallbackCpuContractAddress, fallbackCpuTradeUrl } from "@/lib/wallet/public-defaults";
 import { ArrowUpRight, Check, Clock3, Copy, Network, ShieldCheck } from "lucide-react";
 import { useState } from "react";
 
@@ -10,24 +11,26 @@ import type { PublicWalletConfig } from "@/lib/wallet/config";
  * $CPU on the prelaunch page.
  *
  * The token and the application have independent launch states, so this block
- * only ever publishes a contract address and buy link when the owner has marked
- * CPU live *and* supplied both a validated address and the exact verified
- * Clank.trade coin URL. Otherwise it states plainly that nothing is published,
- * and never renders a placeholder contract or a dead Buy button.
+ * It can show the owner-supplied fallback contract and Clank page while the
+ * application itself remains PRELAUNCH. Network-specific wallet controls stay
+ * gated until the admin record has a verified enabled chain.
  */
 export function CupStage({ settings, wallet }: { settings: { cpuStatus: "PRELAUNCH" | "LIVE" }; wallet: PublicWalletConfig }) {
   const [copied, setCopied] = useState(false);
   const cpu = wallet.cpu;
+  const contractAddress = cpu.contractAddress || fallbackCpuContractAddress;
+  const clankTradeUrl = cpu.clankTradeUrl || fallbackCpuTradeUrl;
   const chain = cpu.chainId == null ? undefined : wallet.chains.find((candidate) => candidate.id === cpu.chainId && candidate.enabled);
-  const live = settings.cpuStatus === "LIVE" && cpu.launchStatus === "LIVE" && Boolean(cpu.contractAddress && chain);
-  const explorerUrl = live && cpu.contractAddress && chain
-    ? cpu.explorerUrl || explorerAddressUrl(chain, cpu.contractAddress)
+  const published = Boolean(contractAddress && clankTradeUrl);
+  const live = settings.cpuStatus === "LIVE" && cpu.launchStatus === "LIVE" && Boolean(contractAddress && chain && clankTradeUrl);
+  const explorerUrl = live && contractAddress && chain
+    ? cpu.explorerUrl || explorerAddressUrl(chain, contractAddress)
     : null;
 
   const copyContract = async () => {
-    if (!cpu.contractAddress) return;
+    if (!contractAddress) return;
     try {
-      await navigator.clipboard.writeText(cpu.contractAddress);
+      await navigator.clipboard.writeText(contractAddress);
       setCopied(true);
       window.setTimeout(() => setCopied(false), 1_800);
     } catch {
@@ -48,6 +51,10 @@ export function CupStage({ settings, wallet }: { settings: { cpuStatus: "PRELAUN
           <span className="rounded-full border border-emerald-300/15 bg-emerald-300/[0.06] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[.12em] text-emerald-200">
             Live
           </span>
+        ) : published ? (
+          <span className="rounded-full border border-emerald-300/15 bg-emerald-300/[0.06] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[.12em] text-emerald-200">
+            Published
+          </span>
         ) : (
           <span className="rounded-full border border-violet-200/[0.14] bg-violet-300/[0.05] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[.12em] text-violet-200">
             Coming soon
@@ -59,7 +66,7 @@ export function CupStage({ settings, wallet }: { settings: { cpuStatus: "PRELAUN
         <p className="mt-4 max-w-[52rem] text-[13px] leading-6 text-[#a8a3b3] sm:text-sm sm:leading-7">{cpu.description}</p>
       ) : null}
 
-      {live && cpu.contractAddress && chain ? (
+      {live && contractAddress && chain ? (
         <div className="mt-6 grid gap-3 sm:grid-cols-2">
           <div className="rounded-[22px] border border-white/[0.06] bg-white/[0.025] p-4 sm:col-span-2">
             <p className="text-[10px] uppercase tracking-[.16em] text-[#706a7d]">Contract</p>
@@ -69,9 +76,9 @@ export function CupStage({ settings, wallet }: { settings: { cpuStatus: "PRELAUN
                 target={explorerUrl ? "_blank" : undefined}
                 rel={explorerUrl ? "noopener noreferrer" : undefined}
                 className="focus-ring min-w-0 truncate rounded-lg font-mono text-xs text-[#ddd6fe] hover:text-white"
-                title={cpu.contractAddress}
+                title={contractAddress}
               >
-                {cpu.contractAddress}
+                {contractAddress}
               </a>
               <button
                 type="button"
@@ -92,9 +99,9 @@ export function CupStage({ settings, wallet }: { settings: { cpuStatus: "PRELAUN
             <p className="mt-2 text-sm font-medium">{chain.name}</p>
           </div>
 
-          {cpu.clankTradeUrl ? (
+          {clankTradeUrl ? (
             <a
-              href={cpu.clankTradeUrl}
+              href={clankTradeUrl}
               target="_blank"
               rel="noopener noreferrer"
               className="focus-ring flex h-full min-h-[74px] items-center justify-center gap-2 rounded-[22px] bg-violet-200 px-4 text-sm font-semibold text-[#160f27] transition hover:brightness-105"
@@ -106,6 +113,32 @@ export function CupStage({ settings, wallet }: { settings: { cpuStatus: "PRELAUN
               Trading links appear once the owner publishes the verified Clank.trade coin page.
             </p>
           )}
+        </div>
+      ) : published ? (
+        <div className="mt-6 space-y-3">
+          <div className="rounded-[22px] border border-emerald-300/15 bg-emerald-300/[0.04] p-4">
+            <p className="text-[10px] uppercase tracking-[.16em] text-emerald-200/80">Official contract</p>
+            <div className="mt-2 flex items-center justify-between gap-3">
+              <span className="min-w-0 truncate font-mono text-xs text-[#ddd6fe]" title={contractAddress}>{contractAddress}</span>
+              <button
+                type="button"
+                onClick={() => void copyContract()}
+                className="focus-ring grid h-10 w-10 shrink-0 place-items-center rounded-xl text-[#8e889b] transition hover:bg-white/[0.05] hover:text-white"
+                aria-label="Copy $CPU contract address"
+              >
+                {copied ? <Check size={15} className="text-emerald-300" /> : <Copy size={15} />}
+              </button>
+            </div>
+            <p role="status" className="mt-1 min-h-[14px] text-[10px] text-emerald-300">{copied ? "Copied" : ""}</p>
+          </div>
+          <a
+            href={clankTradeUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="focus-ring flex h-11 items-center justify-center gap-2 rounded-[22px] bg-violet-200 px-4 text-sm font-semibold text-[#160f27] transition hover:brightness-105"
+          >
+            View $CPU on Clank.trade <ArrowUpRight size={15} aria-hidden="true" />
+          </a>
         </div>
       ) : (
         <div className="mt-6 flex items-start gap-3 rounded-[22px] border border-white/[0.06] bg-white/[0.02] p-4">
@@ -124,8 +157,8 @@ export function CupStage({ settings, wallet }: { settings: { cpuStatus: "PRELAUN
 
       <p className="mt-5 flex items-start gap-2.5 text-[11px] leading-5 text-[#777180]">
         <ShieldCheck size={14} className="mt-0.5 shrink-0 text-violet-300" aria-hidden="true" />
-        No contract address, price, market data, or buy link is invented before launch. Cabi never asks for a seed
-        phrase or private key.
+        {published ? "The contract and Clank.trade page above are owner-provided. No price or market data is shown here. " : "No contract address, price, market data, or buy link is invented before launch. "}
+        Cabi never asks for a seed phrase or private key.
       </p>
     </section>
   );

@@ -122,9 +122,11 @@ export function PrelaunchExperience({
           <FeaturePreview chips={settings.featureChips} />
         </Reveal>
 
-        <Reveal className="mt-10 sm:mt-14">
-          <CupStage settings={settings} wallet={wallet} />
-        </Reveal>
+        {settings.showCpu ? (
+          <Reveal className="mt-10 sm:mt-14">
+            <CupStage settings={settings} wallet={wallet} />
+          </Reveal>
+        ) : null}
       </main>
 
       <footer className="relative z-20 mx-auto w-full max-w-[1240px] px-5 pb-10 sm:px-8">
