@@ -156,3 +156,107 @@ export function looksLikeImageRequest(message: string): boolean {
   if (new RegExp(`(?:${GENERATE}|draw|render|paint)[^.!?]{0,20}${NOT_VISUAL}`, "iu").test(text)) return false;
   return true;
 }
+/* ---------------------------------------------------------------------------
+ * Relevance classification with conversation context.
+ *
+ * A literal search for the word "Cabi" is not enough. After a turn about her, a
+ * person naturally says "put her in a gaming chair" and expects that to work.
+ * The classifier therefore has three outcomes:
+ *
+ *   CABI_RELATED      - generate
+ *   NOT_CABI_RELATED  - refuse, and offer the Cabi version
+ *   UNCERTAIN         - ask what they want involving her, then generate
+ *
+ * It is pure, synchronous and free: no model call runs before this, so a refused
+ * request never spends a provider credit.
+ * ------------------------------------------------------------------------- */
+
+export type RelevanceVerdict = "CABI_RELATED" | "NOT_CABI_RELATED" | "UNCERTAIN";
+
+/** Pronouns that refer back to Cabi only when she has just been discussed. */
+const backReferences = /\b(?:her|she|hers|herself)\b/iu;
+
+/** Context-free pronouns: "you" always means Cabi in this product. */
+const directAddress = /\b(?:you|your|yours|yourself|u)\b/iu;
+
+/** Subjects that are plainly their own thing, not a Cabi scene. */
+const standaloneSubjects = [
+  /\b(?:cristiano ronaldo|messi|elon musk|taylor swift|donald trump|beyonce)\b/iu,
+  /\b(?:a|an|the)?\s*(?:random\s+)?(?:landscape|scenery|sunset|mountains?|forest|beach)\s*$/iu,
+  /\b(?:bitcoin|ethereum|solana|doge)\s+(?:logo|coin|chart)\b/iu,
+  /\b(?:a|an|the)\s+(?:dog|cat|puppy|kitten|horse|bird)\s*$/iu,
+  /\b(?:lamborghini|ferrari|porsche|tesla|bmw|sports car|supercar)\s*$/iu,
+  /\b(?:anime girlfriend|waifu)\b/iu,
+];
+
+/**
+ * Classifies a request.
+ *
+ * `conversationContext` is the recent transcript, most recent last. It is used
+ * only to decide whether a back-reference resolves to Cabi; it can never make an
+ * unrelated subject relevant on its own.
+ */
+export function classifyCabiRelevance(prompt: string, conversationContext: readonly string[] = []): RelevanceVerdict {
+  const scene = extractScene(prompt);
+  if (!scene) return "UNCERTAIN";
+
+  // An explicit mention always settles it.
+  if (cabiMarkers.some((pattern) => pattern.test(scene))) return "CABI_RELATED";
+
+  // Direct address ("you in a hoodie") always means her.
+  if (directAddress.test(scene)) return "CABI_RELATED";
+
+  const mentionsCabiRecently = conversationContext
+    .slice(-6)
+    .some((turn) => cabiMarkers.some((pattern) => pattern.test(turn)));
+
+  // A back-reference with no recent mention of Cabi is genuinely ambiguous: "put
+  // her in a chair" could be about anyone, so we ask rather than guess.
+  if (backReferences.test(scene)) return mentionsCabiRecently ? "CABI_RELATED" : "UNCERTAIN";
+
+  // "make a picture of a Lamborghini" - its own subject, no Cabi anywhere.
+  if (standaloneSubjects.some((pattern) => pattern.test(scene))) return "NOT_CABI_RELATED";
+
+  // "Cabi riding in a Lamborghini" is already CABI_RELATED above, so reaching
+  // here with a bare object means no Cabi connection.
+  const framedAsCharacter = characterFramings.some((pattern) => pattern.test(scene));
+  if (framedAsCharacter) return "UNCERTAIN";
+
+  return "NOT_CABI_RELATED";
+}
+
+/**
+ * Natural refusals for an unrelated request.
+ *
+ * Several variants so Cabi does not repeat one sentence, chosen deterministically
+ * from the prompt so the same request gives the same reply (which keeps tests and
+ * behaviour stable) while different requests vary.
+ */
+const offTopicReplies: readonly string[] = [
+  "That one's not really about me. Give me something with Cabi in it and I'll make it for you.",
+  "I only draw myself, hehe. Want me to make one of me doing that?",
+  "Hmm, that is not very Cabi. Tell me what I am doing in it and I am on it.",
+  "I am a one-character studio. Say the word and I will put myself in that scene.",
+  "That one is not about me! Ask for me instead and I will draw it.",
+];
+
+const uncertainReplies: readonly string[] = [
+  "Wait, who am I drawing? Tell me what I am doing and I will make it.",
+  "I want to make sure it is me in the picture. What am I doing?",
+  "Hmm, is this about me? Say what I am up to and I will draw it.",
+];
+
+/** Stable pick: the same prompt always yields the same variant. */
+function pickVariant(variants: readonly string[], seed: string): string {
+  let hash = 0;
+  for (let index = 0; index < seed.length; index += 1) hash = (hash * 31 + seed.charCodeAt(index)) >>> 0;
+  return variants[hash % variants.length];
+}
+
+export function offTopicReply(prompt: string): string {
+  return pickVariant(offTopicReplies, prompt);
+}
+
+export function uncertainReply(prompt: string): string {
+  return pickVariant(uncertainReplies, prompt);
+}

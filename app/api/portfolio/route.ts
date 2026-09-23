@@ -1,4 +1,5 @@
-﻿import { guardAppApi } from "@/lib/site/guard";
+import { featureGate } from "@/lib/config/feature-gate";
+import { guardAppApi } from "@/lib/site/guard";
 import { jsonError } from "@/lib/security/request";
 import { readWalletSnapshot } from "@/lib/wallet-data/client";
 import { readWalletAuth } from "@/lib/wallet/session";
@@ -18,6 +19,9 @@ export const dynamic = "force-dynamic";
  * because no verified source for those exists in this product.
  */
 export async function GET(request: Request) {
+  // Closed while this feature is unreleased, before anything else runs.
+  const locked = await featureGate("portfolio_enabled");
+  if (locked) return locked;
   const blocked = await guardAppApi();
   if (blocked) return blocked;
 

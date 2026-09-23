@@ -3,6 +3,7 @@ import { z } from "zod";
 import { getServiceClient } from "@/lib/db/supabase";
 import { generationBucket, signedImageUrl } from "@/lib/image-generation/storage";
 import { assertSameOrigin, jsonError } from "@/lib/security/request";
+import { featureGate } from "@/lib/config/feature-gate";
 import { guardAppApi } from "@/lib/site/guard";
 import { walletAuthOrResponse } from "@/lib/wallet/session";
 
@@ -19,6 +20,9 @@ export const dynamic = "force-dynamic";
  * is never stored on the row and is never part of a response.
  */
 export async function GET() {
+  // Closed while this feature is unreleased, before anything else runs.
+  const locked = await featureGate("gallery_enabled");
+  if (locked) return locked;
   const blocked = await guardAppApi();
   if (blocked) return blocked;
   const auth = await walletAuthOrResponse();
@@ -61,6 +65,9 @@ const deleteSchema = z.object({ id: z.string().uuid() });
  * another user's id removes nothing rather than removing the wrong row.
  */
 export async function DELETE(request: Request) {
+  // Closed while this feature is unreleased, before anything else runs.
+  const locked = await featureGate("gallery_enabled");
+  if (locked) return locked;
   const blocked = await guardAppApi();
   if (blocked) return blocked;
   try { assertSameOrigin(request); } catch { return jsonError("Invalid request.", 403, "INVALID_ORIGIN"); }

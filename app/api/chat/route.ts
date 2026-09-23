@@ -140,6 +140,11 @@ export async function POST(request: Request) {
       walletAccountId,
       conversationId,
       messageId: userMessageId,
+      // Recent transcript, so "put her in a gaming chair" resolves to Cabi after
+      // a turn about her. Context can never make an unrelated subject relevant.
+      // Sourced from the same value `localRecent` uses; that variable is declared
+      // after this block, so it cannot be referenced here.
+      conversationContext: (persistent ? context.recent : (parsed.data.guestHistory ?? [])).map((turn) => turn.content),
     }).catch(() => ({ handled: false }) as const),
   ]);
   const mood: CabiMood = inferMood({

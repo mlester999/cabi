@@ -102,6 +102,43 @@ describe("locked routes cannot be bypassed", () => {
   });
 });
 
+describe("locked APIs are closed too, not just the pages", () => {
+  const apiGates: Array<[string, string]> = [
+    ["app/api/leaderboard/route.ts", "leaderboard_enabled"],
+    ["app/api/portfolio/route.ts", "portfolio_enabled"],
+    ["app/api/gallery/route.ts", "gallery_enabled"],
+    ["app/api/cabi/route.ts", "leaderboard_enabled"],
+  ];
+
+  it.each(apiGates)("%s refuses when its feature is locked", (file, flag) => {
+    const source = read(file);
+    expect(source).toContain("featureGate");
+    expect(source).toContain(`featureGate("${flag}")`);
+  });
+
+  it("gates before any handler does work, so no data is read", () => {
+    for (const [file] of apiGates) {
+      const source = read(file);
+      const gateAt = source.indexOf("featureGate(");
+      // A gate placed after the database read would still have fetched the data.
+      const readAt = source.indexOf("getServiceClient()");
+      if (readAt >= 0) expect(gateAt).toBeLessThan(readAt);
+    }
+  });
+
+  it("answers 404 rather than 403, so a locked endpoint is not confirmed", () => {
+    const gate = read("lib/config/feature-gate.ts");
+    expect(gate).toContain("404");
+    expect(gate).toContain("FEATURE_LOCKED");
+  });
+
+  it("keeps the live image API open, since image generation is shipping", () => {
+    const source = read("app/api/images/route.ts");
+    expect(source).toContain('featureGate("image_generation_enabled")');
+    expect(defaultFeatureFlags.image_generation_enabled).toBe(true);
+  });
+});
+
 describe("locked copy never claims a feature works", () => {
   it("has copy for every lockable flag", () => {
     for (const key of lockedFeatureOrder) {

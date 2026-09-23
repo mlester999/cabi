@@ -13,6 +13,11 @@ begin;
 -- a memory, a conversation, or an admin field.
 -- ===========================================================================
 
+-- PostgreSQL cannot change a function's OUT-parameter row type with
+-- CREATE OR REPLACE FUNCTION. 0002/0012 created this function with a smaller
+-- projection, so replace it explicitly before installing the corrected shape.
+drop function if exists public.public_profile(text);
+
 create or replace function public.public_profile(p_username text)
 returns table (
   username text,

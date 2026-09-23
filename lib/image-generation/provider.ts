@@ -1,5 +1,6 @@
 import "server-only";
 
+import { generateTogetherImage } from "@/lib/ai/image/together";
 import { buildCabiImagePrompt, cabiNegativePrompt, cabiReferenceAsset } from "@/lib/image-generation/cabi-character";
 import {
   aspectRatioSizes,
@@ -194,6 +195,34 @@ function createCustomProvider(config: ImageProviderConfig): ImageGenerationProvi
   return { ...createOpenAiCompatibleProvider(config), id: "custom", label: "Custom endpoint" };
 }
 
+/**
+ * Together AI adapter.
+ *
+ * Delegates to the dedicated service so there is exactly one implementation of
+ * the Together call — the chat path and the endpoint both reach the same code.
+ */
+function createTogetherProvider(config: ImageProviderConfig): ImageGenerationProvider {
+  const model = config.model || undefined;
+  return {
+    id: "together",
+    label: "Together AI",
+    // Depends on the selected model, not the provider.
+    supportsReferenceImage: false,
+    async generateCabiImage({ scene, aspectRatio }) {
+      const result = await generateTogetherImage(
+        { prompt: scene, aspectRatio },
+        { apiKey: config.apiKey, model },
+      );
+      if (result.ok) return result;
+      return { ok: false, error: result.error, message: result.message };
+    },
+    async testConnection() {
+      const { testTogetherConnection } = await import("@/lib/ai/image/together");
+      return testTogetherConnection({ apiKey: config.apiKey, model });
+    },
+  };
+}
+
 export function createImageProvider(config: ImageProviderConfig): ImageGenerationProvider {
   if (!config.apiKey) {
     // A provider with no key reports NOT_CONFIGURED for every call rather than
@@ -208,6 +237,7 @@ export function createImageProvider(config: ImageProviderConfig): ImageGeneratio
     return unconfigured;
   }
   switch (config.provider) {
+    case "together": return createTogetherProvider(config);
     case "stability": return createStabilityProvider(config);
     case "custom": return createCustomProvider(config);
     case "replicate": return createOpenAiCompatibleProvider({ ...config, baseUrl: config.baseUrl || "https://api.replicate.com/v1" });

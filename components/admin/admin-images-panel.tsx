@@ -117,6 +117,7 @@ export function AdminImagesPanel() {
           <label className="block">
             <span className={label}>Provider</span>
             <select value={settings.provider} onChange={(event) => setSettings({ ...settings, provider: event.target.value as Settings["provider"] })} className={`mt-2 ${field}`}>
+              <option value="together">Together AI</option>
               <option value="openai">OpenAI-compatible</option>
               <option value="stability">Stability AI</option>
               <option value="replicate">Replicate</option>
@@ -135,7 +136,7 @@ export function AdminImagesPanel() {
           <label className="block">
             <span className={label}>Default aspect ratio</span>
             <select value={settings.defaultAspectRatio} onChange={(event) => setSettings({ ...settings, defaultAspectRatio: event.target.value })} className={`mt-2 ${field}`}>
-              {["1:1", "16:9", "9:16", "3:2", "2:3"].map((ratio) => <option key={ratio} value={ratio}>{ratio}</option>)}
+              {["1:1", "16:9", "9:16"].map((ratio) => <option key={ratio} value={ratio}>{ratio}</option>)}
             </select>
           </label>
           <label className="block">

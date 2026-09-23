@@ -1,7 +1,7 @@
 import "server-only";
 
 import { getServiceClient } from "@/lib/db/supabase";
-import { checkImageScope, looksLikeImageRequest } from "@/lib/image-generation/scope";
+import { classifyCabiRelevance, checkImageScope, extractScene, looksLikeImageRequest, offTopicReply, uncertainReply } from "@/lib/image-generation/scope";
 import { createImageProvider } from "@/lib/image-generation/provider";
 import { readImageProviderConfig, readImageSettings } from "@/lib/image-generation/settings";
 import { generationBucket, signedImageUrl, uploadGenerationImage } from "@/lib/image-generation/storage";
@@ -25,6 +25,11 @@ import type { ActionCard } from "@/lib/actions/types";
  */
 
 export type ChatImageOptions = {
+  /**
+   * Recent transcript, most recent last. Used only to resolve a back-reference
+   * such as "put her in a gaming chair" to Cabi.
+   */
+  conversationContext?: readonly string[];
   walletAccountId: string | null;
   conversationId: string | null;
   messageId: string | null;
@@ -49,25 +54,35 @@ export async function generateChatImage(message: string, options: ChatImageOptio
   // off-topic request must be redirected in her own voice even while the feature
   // is switched off, rather than being answered with a generic "it is off".
   const scope = checkImageScope(message);
-  if (!scope.allowed) {
-    if (scope.reason === "BLOCKED_CONTENT") {
-      return {
-        handled: true,
-        usedProvider: false,
-        reply: "I am not going to draw that one.",
-        card: noticeCard({ title: "I will not draw that", message: scope.message, tone: "caution" }),
-      };
-    }
-    // Scenario 6: refuse the unrelated subject, then offer the Cabi version.
+  if (!scope.allowed && scope.reason === "BLOCKED_CONTENT") {
     return {
       handled: true,
       usedProvider: false,
-      reply: "I only make Cabi-related images. Want me to make one of me doing that?",
+      reply: "I am not going to draw that one.",
+      card: noticeCard({ title: "I will not draw that", message: scope.message, tone: "caution" }),
+    };
+  }
+
+  /*
+   * Relevance is decided with conversation context, so "put her in a gaming
+   * chair" works after a turn about Cabi. An UNCERTAIN verdict asks rather than
+   * guessing, and neither verdict reaches the provider, so no credit is spent.
+   */
+  // Derived directly rather than read off the scope union: the classifier, not
+  // the scope helper, is now the authority on whether we generate.
+  const scene = extractScene(message);
+  const verdict = classifyCabiRelevance(message, options.conversationContext ?? []);
+  if (verdict !== "CABI_RELATED") {
+    const suggestion = scope.allowed ? null : scope.suggestion;
+    return {
+      handled: true,
+      usedProvider: false,
+      reply: verdict === "UNCERTAIN" ? uncertainReply(message) : offTopicReply(message),
       card: noticeCard({
-        title: "I only draw Cabi",
-        message: `I can make "${scope.suggestion}" instead. Say the word and I will.`,
+        title: verdict === "UNCERTAIN" ? "Who am I drawing?" : "I only draw Cabi",
+        message: suggestion ? `I can make "${suggestion}" instead. Say the word and I will.` : "Tell me what I am doing in the picture and I will make it.",
         tone: "caution",
-        rows: [{ label: "Try instead", value: scope.suggestion }],
+        rows: suggestion ? [{ label: "Try instead", value: suggestion }] : [],
       }),
     };
   }
@@ -150,7 +165,7 @@ export async function generateChatImage(message: string, options: ChatImageOptio
 
   const aspectRatio = providerConfig.settings.defaultAspectRatio;
   const generated = await provider.generateCabiImage({
-    scene: scope.scene,
+    scene: scene,
     aspectRatio,
     quality: providerConfig.settings.defaultQuality,
   });
@@ -161,7 +176,7 @@ export async function generateChatImage(message: string, options: ChatImageOptio
     await db.from("image_generations").insert({
       wallet_account_id: walletAccountId,
       conversation_id: options.conversationId,
-      user_prompt: scope.scene,
+      user_prompt: scene,
       aspect_ratio: aspectRatio,
       provider: providerConfig.settings.provider,
       model: providerConfig.settings.model,
@@ -199,7 +214,7 @@ export async function generateChatImage(message: string, options: ChatImageOptio
       wallet_account_id: walletAccountId,
       conversation_id: options.conversationId,
       message_id: options.messageId,
-      user_prompt: scope.scene,
+      user_prompt: scene,
       aspect_ratio: aspectRatio,
       image_path: uploaded.path,
       provider: generated.image.provider,
@@ -226,7 +241,7 @@ export async function generateChatImage(message: string, options: ChatImageOptio
     : null;
   const profile = options.walletAccountId ? await readProfile(walletAccountId) : null;
 
-  const prompt = scope.scene;
+  const prompt = scene;
   const reply = "Okayyy, give me a second. Here you go.";
 
   return {

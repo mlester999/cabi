@@ -24,10 +24,10 @@ export const imageSecretKey = "image_generation_api_key";
 
 export const imageSettingsSchema = z.object({
   enabled: z.boolean(),
-  provider: z.enum(["openai", "stability", "replicate", "custom"]),
+  provider: z.enum(["together", "openai", "stability", "replicate", "custom"]),
   baseUrl: z.string().trim().max(2_000).refine((value) => !value || value.startsWith("https://"), "Use a complete HTTPS URL."),
   model: z.string().trim().max(120),
-  defaultAspectRatio: z.enum(["1:1", "16:9", "9:16", "3:2", "2:3"]),
+  defaultAspectRatio: z.enum(["1:1", "16:9", "9:16"]),
   defaultQuality: z.enum(["standard", "high"]),
   dailyLimit: z.number().int().min(1).max(100),
   allowGuestGeneration: z.boolean(),

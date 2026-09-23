@@ -5,19 +5,25 @@
  * image generation, and an image provider outage must not break chat.
  */
 
-export type AspectRatio = "1:1" | "16:9" | "9:16" | "3:2" | "2:3";
+/**
+ * The three supported ratios.
+ *
+ * Deliberately a closed set: an open width/height pair would let a caller ask
+ * for an extreme resolution, which costs more per generation. `3:2` and `2:3`
+ * were dropped because they have no equivalent in the current model's supported
+ * sizes.
+ */
+export type AspectRatio = "1:1" | "16:9" | "9:16";
 
-export const aspectRatios: readonly AspectRatio[] = ["1:1", "16:9", "9:16", "3:2", "2:3"] as const;
+export const aspectRatios: readonly AspectRatio[] = ["1:1", "16:9", "9:16"] as const;
 
 export const aspectRatioSizes: Record<AspectRatio, { width: number; height: number }> = {
   "1:1": { width: 1024, height: 1024 },
   "16:9": { width: 1344, height: 768 },
   "9:16": { width: 768, height: 1344 },
-  "3:2": { width: 1216, height: 832 },
-  "2:3": { width: 832, height: 1216 },
 };
 
-export type ImageProviderId = "openai" | "stability" | "replicate" | "custom";
+export type ImageProviderId = "together" | "openai" | "stability" | "replicate" | "custom";
 
 export type ImageQuality = "standard" | "high";
 

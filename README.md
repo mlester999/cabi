@@ -163,6 +163,40 @@ only, so a visitor can read the standings before connecting a wallet.
 
 Admin routes never appear in ordinary public navigation and are protected server-side.
 
+
+## What is open, and what is not
+
+This phase ships five surfaces and presents everything else as intentionally
+unreleased. Feature flags are resolved **server-side** from `app_settings` under the
+`feature_flags` key; nothing reads a flag from a request body, a query parameter, or
+client storage, and an unavailable database resolves to the built-in defaults rather
+than to "everything on".
+
+| Flag | Default | Surface |
+| --- | --- | --- |
+| `chat_enabled` | on | Cabi chat |
+| `image_generation_enabled` | on | Cabi image generation |
+| `wallet_auth_enabled` | on | EVM wallet connection and sign-in |
+| `memory_enabled` | on | Cross-conversation memory |
+| `profile_enabled` | on | Name and profile photo |
+| `ranking_enabled` | **off** | Rank tiers and progression |
+| `leaderboard_enabled` | **off** | Weekly and monthly boards, public profiles |
+| `portfolio_enabled` | **off** | Wallet portfolio view |
+| `direct_trading_enabled` | **off** | Trade intents from chat |
+| `rewards_enabled` | **off** | Community rewards |
+| `gallery_enabled` | **off** | Standalone image gallery |
+
+Admin can inspect and change every flag at `/admin/flags`.
+
+**A locked feature closes both of its entry points.** Locking a page alone is not
+enough: the page and the API are separate entry points, so each unfinished route *and*
+its endpoint is gated. `featureGate()` answers `404 FEATURE_LOCKED` rather than `403`,
+so a locked endpoint does not confirm that it exists.
+
+Locked surfaces appear as "In the works" cards — dark overlay, reduced opacity, lock
+icon, no data of any kind, and no link into the unfinished interface. Activating one
+shows a short acknowledgement and returns the user to chat. Grep-verified: the locked
+card component contains no `href` and no `router.push`.
 ## Rank and seasons
 
 Rank is **separate from bond**. Bond is the relationship with Cabi and never resets; rank

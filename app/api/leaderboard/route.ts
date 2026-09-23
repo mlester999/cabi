@@ -1,4 +1,5 @@
 import { readLeaderboard, readStanding } from "@/lib/ranking/service";
+import { featureGate } from "@/lib/config/feature-gate";
 import { guardAppApi } from "@/lib/site/guard";
 import { readWalletAuth } from "@/lib/wallet/session";
 
@@ -13,6 +14,9 @@ export const dynamic = "force-dynamic";
  * so the client countdown is anchored to real data rather than a local guess.
  */
 export async function GET(request: Request) {
+  // Closed while this feature is unreleased, before anything else runs.
+  const locked = await featureGate("leaderboard_enabled");
+  if (locked) return locked;
   const blocked = await guardAppApi();
   if (blocked) return blocked;
 
