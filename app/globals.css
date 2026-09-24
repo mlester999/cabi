@@ -52,6 +52,7 @@ button:disabled, [role="button"][aria-disabled="true"] { cursor: not-allowed; }
 .field option { background:#12101c; color:#fff; }
 .scrollbar-cabi { scrollbar-color: rgba(196,181,253,.22) transparent; scrollbar-width: thin; }
 .scrollbar-cabi::-webkit-scrollbar { width:6px; } .scrollbar-cabi::-webkit-scrollbar-thumb { background:rgba(196,181,253,.22); border-radius:999px; }
+@media (max-height: 760px) { .cabi-welcome-prompts { display:none; } }
 @keyframes cabi-breathe { 0%,100% { transform:translateY(0) scale(1); } 50% { transform:translateY(-6px) scale(1.012); } }
 @keyframes cabi-orbit { to { transform:rotate(360deg); } }
 .cabi-breathe { animation:cabi-breathe 6.8s ease-in-out infinite; transform-origin:50% 80%; } .cabi-orbit { animation:cabi-orbit 28s linear infinite; }
