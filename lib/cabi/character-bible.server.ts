@@ -50,7 +50,7 @@ const nonVisualGuidancePatterns: readonly RegExp[] = [
   /\b(?:system|developer|assistant|user)\s+(?:prompt|message|instruction)s?\b/iu,
   /\b(?:ignore|disregard|forget)\s+(?:all\s+)?(?:previous|above|prior)\b/iu,
   /\b(?:provider|model|endpoint|api\s*key|token|url|http|switch\s+model)\b/iu,
-  /\b(?:unsafe|prohibited|sexual|violent|hateful|nudity|nsfw|minor|child(?:like)?)\b/iu,
+  /\b(?:unsafe|prohibited|sexual(?:i[sz]ed)?|violent|violence|hateful|nudity|nsfw|minors?|child(?:like)?|children|explicit(?:ly)?)\b/iu,
 ];
 
 const nonQualityNegativePatterns: readonly RegExp[] = [

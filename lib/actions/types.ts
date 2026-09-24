@@ -46,11 +46,7 @@ export type BaseCard = {
     prompt: string;
     parentGenerationId?: string;
   };
-  /**
-   * Safe pipeline metadata for an explicitly authorized owner preview only.
-   * Chat persistence strips this field before writing a message, and normal
-   * requests never receive it.
-   */
+  /** Legacy response field; current chat generation keeps diagnostics in Admin/server logs only. */
   debugDetails?: ImagePipelineDebugDetails;
 };
 

@@ -26,7 +26,8 @@ export const dynamic = "force-dynamic";
  * Everything that costs money happens after every check has passed:
  *
  *   1. site mode, 2. same-origin, 3. rate limit, 4. authenticated wallet,
- *   5. schema validation, 6. Cabi relevance, 7. daily allowance, 8. provider.
+ *   5. schema validation, 6. application safety, 7. Cabi relevance,
+ *   8. daily allowance, 9. provider.
  *
  * A refused or ambiguous request returns `type: "chat_response"` with a friendly
  * line, so the UI renders it as Cabi speaking rather than as an API error — and
@@ -118,25 +119,8 @@ export async function POST(request: Request) {
     }
   }
 
-  // Cabi relevance runs BEFORE any allowance is touched or any provider call is
-  // made, so an unrelated request costs nothing.
-  const verdict = classifyCabiRelevance(prompt);
-  if (verdict !== "CABI_RELATED") {
-    return Response.json(
-      {
-        type: "chat_response",
-        verdict,
-        message: verdict === "UNCERTAIN" ? uncertainReply(prompt) : offTopicReply(prompt),
-      },
-      { status: 200, headers: { "Cache-Control": "private, no-store" } },
-    );
-  }
-
-  /*
-   * Safety is a separate question from relevance, and both must pass: "Cabi
-   * holding a knife" is unmistakably about Cabi and still must not be drawn.
-   * Checked before the provider so a refusal costs no call and no allowance.
-   */
+  // Safety is the first content decision and runs before relevance, quota, or
+  // provider configuration. Refused content can never reach a paid call.
   const safetyScene = extractScene(prompt);
   trace.update({ scene: safetyScene });
   const safety = checkImageSafety(safetyScene);
@@ -160,6 +144,20 @@ export async function POST(request: Request) {
     });
     return Response.json(
       { type: "chat_response", verdict: "UNSAFE", message: safety.message },
+      { status: 200, headers: { "Cache-Control": "private, no-store" } },
+    );
+  }
+
+  // Cabi relevance is independent of safety; unrelated requests are redirected
+  // without reading provider credentials or spending allowance.
+  const verdict = classifyCabiRelevance(prompt);
+  if (verdict !== "CABI_RELATED") {
+    return Response.json(
+      {
+        type: "chat_response",
+        verdict,
+        message: verdict === "UNCERTAIN" ? uncertainReply(prompt) : offTopicReply(prompt),
+      },
       { status: 200, headers: { "Cache-Control": "private, no-store" } },
     );
   }

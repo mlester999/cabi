@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   imageCalls: [] as Array<{ message: string; options: unknown }>,
   modelCalls: 0,
   previewActive: false,
+  imageMode: "notice" as "notice" | "image",
 }));
 
 vi.mock("@/lib/ai/config", () => ({ getProviderConfig: vi.fn(async () => ({
@@ -23,6 +24,21 @@ vi.mock("@/lib/image-generation/chat", () => ({
     if (!message.startsWith("Generate an image")) return { handled: false as const };
     mocks.imageCalls.push({ message, options });
     const ownerPreview = Boolean((options as { ownerPreview?: boolean }).ownerPreview);
+    const imageCard = {
+      kind: "IMAGE" as const,
+      id: "image-card",
+      title: "Cabi image",
+      rows: [],
+      links: [],
+      generationId: "33333333-3333-4333-8333-333333333333",
+      url: "https://storage.example.com/signed/gen.png",
+      prompt: message,
+      aspectRatio: "1:1",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      canUseAsAvatar: false,
+      xp: null,
+    };
+    if (mocks.imageMode === "image") return { handled: true as const, usedProvider: true, reply: "Here you go.", card: imageCard };
     return {
       handled: true as const,
       usedProvider: true,
@@ -36,7 +52,7 @@ vi.mock("@/lib/image-generation/chat", () => ({
         tone: "error",
         message: "I couldn't make that image right now.",
         retry: { label: "Try Again", prompt: message },
-        ...(ownerPreview ? { debugDetails: { requestId: "owner-preview-trace", source: "CHAT_GENERATION", events: [] } } : {}),
+        ...(ownerPreview ? { links: [{ label: "View in Admin", url: "/admin/images#recent-generation-runs", kind: "INTERNAL" }] } : {}),
       },
     };
   }),
@@ -65,16 +81,26 @@ vi.mock("@/lib/wallet/session", () => ({ readWalletAuth: mocks.wallet }));
 
 import { POST as chat } from "@/app/api/chat/route";
 
-function databaseDouble(options: { assistantInsertFails?: boolean; assistantCompletionFails?: boolean } = {}) {
+function databaseDouble(options: {
+  assistantInsertFails?: boolean;
+  assistantCompletionFails?: boolean;
+  retryConversationId?: string;
+  retryMessageId?: string;
+  originalUserId?: string;
+  originalUserContent?: string;
+} = {}) {
   let messageInsertCount = 0;
   const db = {
     from: vi.fn((table: string) => {
       let written: unknown;
       let operation = "";
+      let selected = "";
+      const filters = new Map<string, unknown>();
       const query: Record<string, unknown> = {};
-      for (const method of ["select", "eq", "in", "neq", "order", "limit", "gt"]) {
-        query[method] = vi.fn(() => query);
-      }
+      query.select = vi.fn((value: string) => { selected = value; return query; });
+      query.eq = vi.fn((column: string, value: unknown) => { filters.set(column, value); return query; });
+      query.lt = vi.fn((column: string, value: unknown) => { filters.set(`lt:${column}`, value); return query; });
+      for (const method of ["in", "neq", "order", "limit", "gt"]) query[method] = vi.fn(() => query);
       query.insert = vi.fn((value: unknown) => {
         operation = "insert";
         written = value;
@@ -99,7 +125,18 @@ function databaseDouble(options: { assistantInsertFails?: boolean; assistantComp
           : { id: typeof written === "object" && written && "id" in written ? (written as { id: string }).id : `${table}-id` },
         error: options.assistantInsertFails && table === "messages" && messageInsertCount === 2 ? { code: "write_failed" } : null,
       }));
-      query.maybeSingle = vi.fn(async () => ({ data: null, error: null }));
+      query.maybeSingle = vi.fn(async () => {
+        if (table === "conversations" && filters.get("id") === options.retryConversationId) {
+          return { data: { id: options.retryConversationId }, error: null };
+        }
+        if (table === "messages" && selected === "id,role,created_at" && filters.get("id") === options.retryMessageId) {
+          return { data: { id: options.retryMessageId, role: "assistant", created_at: "2026-02-01T00:00:01.000Z" }, error: null };
+        }
+        if (table === "messages" && selected === "id,content" && filters.get("role") === "user" && filters.has("lt:created_at")) {
+          return { data: { id: options.originalUserId, content: options.originalUserContent }, error: null };
+        }
+        return { data: null, error: null };
+      });
       query.then = (resolve: (value: unknown) => unknown, reject: (reason: unknown) => unknown) =>
         Promise.resolve({
           data: null,
@@ -111,11 +148,11 @@ function databaseDouble(options: { assistantInsertFails?: boolean; assistantComp
   return db;
 }
 
-function request(persist: boolean, message = "Hello Cabi") {
+function request(persist: boolean, message = "Hello Cabi", extra: Record<string, unknown> = {}) {
   return new Request("http://localhost:5173/api/chat", {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ message, persist, clientRequestId: "cf2ad16e-6cd2-4fb2-830a-4759ac8d963f", guestHistory: [] }),
+    body: JSON.stringify({ message, persist, clientRequestId: "cf2ad16e-6cd2-4fb2-830a-4759ac8d963f", guestHistory: [], ...extra }),
   });
 }
 
@@ -127,6 +164,7 @@ describe("chat persistence boundary", () => {
     mocks.imageCalls.length = 0;
     mocks.modelCalls = 0;
     mocks.previewActive = false;
+    mocks.imageMode = "notice";
   });
 
   it("does not create a database client or write messages for a guest", async () => {
@@ -165,15 +203,53 @@ describe("chat persistence boundary", () => {
     expect(assistantUpdate?.value?.metadata_json?.actionCard?.debugDetails).toBeUndefined();
   });
 
-  it("streams owner-preview diagnostics but strips them from persisted chat", async () => {
+  it("reuses the original user message when retrying an assistant response", async () => {
+    mocks.wallet.mockResolvedValue({ walletAccountId: "wallet-a", profileId: "profile-a", walletAddress: "0x00000000000000000000000000000000000000A1" });
+    const retryConversationId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    const retryMessageId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+    mocks.database.mockReturnValue(databaseDouble({
+      retryConversationId,
+      retryMessageId,
+      originalUserId: "user-original",
+      originalUserContent: "Generate an image of Cabi",
+    }));
+    const response = await chat(request(true, "Generate an image of Cabi", {
+      conversationId: retryConversationId,
+      retryOfMessageId: retryMessageId,
+    }));
+    await response.text();
+    expect(response.status).toBe(200);
+    const messageInserts = mocks.writes.filter((write) => write.table === "messages" && write.operation === "insert");
+    expect(messageInserts).toHaveLength(1);
+    expect(messageInserts[0].value).toMatchObject({ role: "assistant", retry_of_message_id: retryMessageId });
+    expect(mocks.imageCalls[0]?.options).toMatchObject({ messageId: "user-original" });
+  });
+
+  it("keeps owner-preview diagnostics out of chat and points to Admin", async () => {
     mocks.previewActive = true;
     mocks.wallet.mockResolvedValue({ walletAccountId: "wallet-a", profileId: "profile-a", walletAddress: "0x00000000000000000000000000000000000000A1" });
     mocks.database.mockReturnValue(databaseDouble());
     const response = await chat(request(true, "Generate an image of you at the beach"));
     const body = await response.text();
-    expect(body).toContain("owner-preview-trace");
+    expect(body).toContain("View in Admin");
+    expect(body).not.toContain("owner-preview-trace");
     const assistantUpdate = mocks.writes.find((write) => write.table === "messages" && write.operation === "update" && typeof write.value === "object" && write.value !== null && "metadata_json" in write.value) as { value?: { metadata_json?: { actionCard?: Record<string, unknown> } } } | undefined;
     expect(assistantUpdate?.value?.metadata_json?.actionCard).not.toHaveProperty("debugDetails");
+  });
+
+  it("downgrades to the friendly failure card when the durable generation/message link fails", async () => {
+    mocks.wallet.mockResolvedValue({ walletAccountId: "wallet-a", profileId: "profile-a", walletAddress: "0x00000000000000000000000000000000000000A1" });
+    mocks.database.mockReturnValue(databaseDouble());
+    mocks.imageMode = "image";
+    const response = await chat(request(true, "Generate an image of Cabi"));
+    const body = await response.text();
+    expect(response.status).toBe(200);
+    expect(body).toContain("Couldn't make that image.");
+    expect(body).not.toContain("https://storage.example.com/signed/gen.png");
+    const generationLink = mocks.writes.find((write) => write.table === "image_generations" && write.operation === "update");
+    expect(generationLink?.value).toEqual({ assistant_message_id: expect.any(String) });
+    const assistantUpdate = mocks.writes.find((write) => write.table === "messages" && write.operation === "update" && typeof write.value === "object" && write.value !== null && "metadata_json" in write.value) as { value?: { metadata_json?: { actionCard?: { kind?: string; title?: string } } } } | undefined;
+    expect(assistantUpdate?.value?.metadata_json?.actionCard).toMatchObject({ kind: "NOTICE", title: "Couldn't make that image." });
   });
 
   it("returns 503 instead of silently downgrading when wallet authentication storage fails", async () => {

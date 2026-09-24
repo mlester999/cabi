@@ -13,11 +13,13 @@ const mocks = vi.hoisted(() => ({
   capabilities: vi.fn(),
   testConnection: vi.fn(),
   fullTest: vi.fn(),
+  database: vi.fn(),
   configs: [] as Array<Record<string, unknown>>,
 }));
 
 vi.mock("@/lib/admin/auth", () => ({ adminOrResponse: mocks.admin }));
 vi.mock("@/lib/admin/audit", () => ({ auditAdmin: mocks.audit }));
+vi.mock("@/lib/db/supabase", () => ({ getServiceClient: mocks.database }));
 vi.mock("@/lib/image-generation/provider", () => ({
   createImageProvider: mocks.create,
   imageCapabilitiesFor: mocks.capabilities,
@@ -39,7 +41,7 @@ vi.mock("@/lib/image-generation/settings", () => ({
 }));
 vi.mock("@/lib/image-generation/full-test", () => ({ runFullCabiImageTest: mocks.fullTest }));
 
-import { POST } from "@/app/api/admin/images/route";
+import { GET, POST } from "@/app/api/admin/images/route";
 
 const settings = {
   enabled: true,
@@ -60,7 +62,7 @@ function request(body: Record<string, unknown>) {
 }
 
 beforeEach(() => {
-  for (const mock of [mocks.admin, mocks.audit, mocks.readSettings, mocks.readStored, mocks.readEnvironment, mocks.resolveConfig, mocks.write, mocks.remove, mocks.create, mocks.capabilities, mocks.testConnection, mocks.fullTest]) mock.mockReset();
+  for (const mock of [mocks.admin, mocks.audit, mocks.readSettings, mocks.readStored, mocks.readEnvironment, mocks.resolveConfig, mocks.write, mocks.remove, mocks.create, mocks.capabilities, mocks.testConnection, mocks.fullTest, mocks.database]) mock.mockReset();
   mocks.configs.length = 0;
   mocks.admin.mockResolvedValue({ session: { email: "owner@example.test" }, response: null });
   mocks.audit.mockResolvedValue(undefined);
@@ -170,5 +172,55 @@ describe("admin Together connection route", () => {
     }));
     expect(mocks.create).not.toHaveBeenCalled();
     expect(await response.json()).toMatchObject({ ok: true, referenceConditioned: true, referenceFallbackUsed: false });
+  });
+
+  it("returns recent generation activity across all lifecycle states", async () => {
+    const rows = [
+      { id: "queued-1", created_at: "2026-03-01T00:00:00Z", status: "QUEUED", wallet_account_id: "wallet-1", pipeline_request_id: "trace-1" },
+      { id: "running-1", created_at: "2026-03-01T00:01:00Z", status: "GENERATING", provider: "together", model: settings.model, http_status: 403, provider_error_category: "organization_permission" },
+      { id: "complete-1", created_at: "2026-03-01T00:02:00Z", status: "COMPLETED", model: settings.model },
+    ];
+    mocks.database.mockReturnValue({
+      from: () => {
+        const query: Record<string, unknown> = {};
+        query.select = vi.fn(() => query);
+        query.order = vi.fn(() => query);
+        query.limit = vi.fn(async () => ({ data: rows, error: null }));
+        return query;
+      },
+    });
+    const response = await GET(new Request("http://localhost:5173/api/admin/images?section=errors"));
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      detailedDiagnosticsAvailable: true,
+      errors: [
+        { id: "queued-1", status: "QUEUED" },
+        { id: "running-1", status: "GENERATING", httpStatus: 403, category: "organization_permission" },
+        { id: "complete-1", status: "COMPLETED" },
+      ],
+    });
+  });
+
+  it("falls back to basic activity when optional diagnostic columns are missing", async () => {
+    let queryCount = 0;
+    mocks.database.mockReturnValue({
+      from: () => {
+        queryCount += 1;
+        const current = queryCount;
+        const query: Record<string, unknown> = {};
+        query.select = vi.fn(() => query);
+        query.order = vi.fn(() => query);
+        query.limit = vi.fn(async () => current === 1
+          ? { data: null, error: { code: "PGRST204", message: "Could not find the 'pipeline_request_id' column of 'image_generations' in the schema cache" } }
+          : { data: [{ id: "run-1", created_at: "2026-03-01T00:00:00Z", status: "GENERATING" }], error: null });
+        return query;
+      },
+    });
+    const response = await GET(new Request("http://localhost:5173/api/admin/images?section=errors"));
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      detailedDiagnosticsAvailable: false,
+      errors: [{ id: "run-1", status: "GENERATING" }],
+    });
   });
 });

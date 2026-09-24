@@ -8,9 +8,18 @@ import {
 
 describe("admin Cabi visual guidance", () => {
   it.each([
-    "never childlike",
-    "avoid unsafe content",
-    "no sexual themes",
+    "sexual",
+    "violent",
+    "hateful",
+    "nudity",
+    "NSFW",
+    "minor",
+    "childlike",
+    "children's book",
+    "sexualized pose",
+    "explicit",
+    "unsafe",
+    "prohibited",
     "use the provider model",
   ])("rejects policy or provider wording: %s", (value) => {
     expect(() => sanitizeVisualGuidance(value, "artDirection")).toThrow("VISUAL_GUIDANCE_ONLY");

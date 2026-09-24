@@ -94,7 +94,7 @@ describe("image execution fallback", () => {
       source: "CHAT_GENERATION",
       config,
       provider: client,
-      request: { ...request, negativePrompt: "quality terms" },
+      request: { ...request, seed: 987, negativePrompt: "quality terms" },
       minimalPrompt: "Cabi is a young adult anime catgirl in a cozy setting.",
       referenceVersion: 4,
     });
@@ -102,10 +102,13 @@ describe("image execution fallback", () => {
     expect(result.ok).toBe(true);
     expect(result.promptFallbackUsed).toBe(true);
     expect(result.referenceFallbackUsed).toBe(false);
+    expect(result.referenceConditioned).toBe(false);
     expect(client.generateCabiImage).toHaveBeenCalledTimes(2);
     expect(client.generateCabiImage).toHaveBeenNthCalledWith(2, expect.objectContaining({
       preparedPrompt: "Cabi is a young adult anime catgirl in a cozy setting.",
       negativePrompt: undefined,
+      referenceImages: undefined,
+      seed: undefined,
     }));
   });
 
@@ -134,6 +137,7 @@ describe("image execution fallback", () => {
     [402, "PROVIDER_ERROR"],
     [429, "RATE_LIMITED"],
     [503, "PROVIDER_ERROR"],
+    [400, "PROVIDER_ERROR"],
   ] as const)("does not retry a %i provider response", async (httpStatus, error) => {
     const client = provider([{ ok: false, error, message: "provider detail", httpStatus }]);
     const result = await executeImageGeneration({
@@ -193,6 +197,10 @@ describe("image execution fallback", () => {
     spy.mockRestore();
     const record = logged.join(" ");
     expect(record).toContain("CHAT_GENERATION");
+    expect(record).toContain('"keySource":"admin"');
+    expect(record).toContain('"keyLength":25');
+    expect(record).toContain('"requestFields":["model","prompt","n","response_format","width","height","steps","image_url"]');
+    expect(record).toContain('"stepsPresent":true');
     expect(record).toContain("https-url");
     expect(record).not.toContain("stored-key-never-returned");
     expect(record).not.toContain("storage.example/signed/reference.png");

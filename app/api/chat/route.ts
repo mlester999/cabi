@@ -24,10 +24,12 @@ import { isPreviewActive } from "@/lib/site/preview";
 import { readOwnerPreviewAuth } from "@/lib/site/owner-preview";
 import { recordChatTurnSocial } from "@/lib/chat/social";
 import { achievementCopy } from "@/lib/ranking/achievements";
+import { noticeCard } from "@/lib/actions/cards";
 import { generateChatImage, isImageRequest } from "@/lib/image-generation/chat";
-import { linkGenerationToMessage, readLatestGenerationContext } from "@/lib/image-generation/lifecycle";
+import { linkGenerationToMessage, markFailed, readGeneration, readLatestGenerationContext } from "@/lib/image-generation/lifecycle";
 import { createImagePipelineTrace } from "@/lib/image-generation/pipeline-trace";
-import { logImagePipelineTrace } from "@/lib/image-generation/diagnostics";
+import { imagePipelineDatabaseFields, logImagePipelineTrace } from "@/lib/image-generation/diagnostics";
+import { deleteGenerationImage } from "@/lib/image-generation/storage";
 
 export const dynamic = "force-dynamic";
 
@@ -65,9 +67,8 @@ export async function POST(request: Request) {
   const parsed = chatRequestSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return jsonError("That message doesn't look right.", 400, "INVALID_MESSAGE");
   const imageRequested = isImageRequest(parsed.data.message);
-  // Technical image traces are only returned to the explicitly opened owner
-  // preview. A normal wallet session, even an approved admin wallet on LIVE,
-  // never turns on browser-facing diagnostics.
+  // Owner preview is used only for an Admin shortcut on safe image failures;
+  // pipeline traces stay in server logs and the Admin activity surface.
   const ownerPreview = imageRequested
     ? await Promise.all([
       isPreviewActive().catch(() => false),
@@ -113,20 +114,43 @@ export async function POST(request: Request) {
         }
       }
     }
+    const isRetry = Boolean(parsed.data.retryOfMessageId);
     if (parsed.data.retryOfMessageId) {
-      const { data: retryTarget } = await db.from("messages").select("id").eq("id", parsed.data.retryOfMessageId).eq("conversation_id", conversationId).maybeSingle();
-      if (!retryTarget) return jsonError("That message can't be retried.", 404, "RETRY_MESSAGE_NOT_FOUND");
+      const { data: retryTarget } = await db.from("messages")
+        .select("id,role,created_at")
+        .eq("id", parsed.data.retryOfMessageId)
+        .eq("conversation_id", conversationId)
+        .eq("role", "assistant")
+        .maybeSingle();
+      if (!retryTarget || typeof retryTarget.created_at !== "string") {
+        return jsonError("That message can't be retried.", 404, "RETRY_MESSAGE_NOT_FOUND");
+      }
+      // A retry is another assistant attempt at the same user turn. Reuse the
+      // original user row, rather than persisting a duplicate user message.
+      const { data: originalUser } = await db.from("messages")
+        .select("id,content")
+        .eq("conversation_id", conversationId)
+        .eq("role", "user")
+        .lt("created_at", retryTarget.created_at)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (!originalUser || originalUser.content !== parsed.data.message) {
+        return jsonError("That message can't be retried.", 404, "RETRY_MESSAGE_NOT_FOUND");
+      }
+      userMessageId = originalUser.id;
+    } else {
+      const { data: insertedUser, error: userError } = await db.from("messages").insert({ id: userMessageId, conversation_id: conversationId, role: "user", content: parsed.data.message, status: "complete", client_request_id: parsed.data.clientRequestId ?? crypto.randomUUID() }).select("id").single();
+      if (userError || !insertedUser) {
+        if (createdConversation) await db.from("conversations").delete().eq("id", conversationId).eq("wallet_account_id", walletAccountId);
+        return jsonError("Cabi couldn't save your message.", 503, "MESSAGE_SAVE_FAILED");
+      }
+      userMessageId = insertedUser.id;
     }
-    const { data: insertedUser, error: userError } = await db.from("messages").insert({ id: userMessageId, conversation_id: conversationId, role: "user", content: parsed.data.message, status: "complete", client_request_id: parsed.data.clientRequestId ?? crypto.randomUUID() }).select("id").single();
-    if (userError || !insertedUser) {
-      if (createdConversation) await db.from("conversations").delete().eq("id", conversationId).eq("wallet_account_id", walletAccountId);
-      return jsonError("Cabi couldn't save your message.", 503, "MESSAGE_SAVE_FAILED");
-    }
-    userMessageId = insertedUser.id;
     const { data: insertedAssistant, error: assistantError } = await db.from("messages").insert({ id: assistantMessageId, conversation_id: conversationId, role: "assistant", content: "", status: "streaming", retry_of_message_id: parsed.data.retryOfMessageId ?? null }).select("id").single();
     if (assistantError || !insertedAssistant) {
       if (createdConversation) await db.from("conversations").delete().eq("id", conversationId).eq("wallet_account_id", walletAccountId);
-      else await db.from("messages").delete().eq("id", userMessageId).eq("conversation_id", conversationId);
+      else if (!isRetry) await db.from("messages").delete().eq("id", userMessageId).eq("conversation_id", conversationId);
       return jsonError("Cabi couldn't reserve the reply in your saved chat.", 503, "MESSAGE_SAVE_FAILED");
     }
     assistantMessageId = insertedAssistant.id;
@@ -221,7 +245,34 @@ export async function POST(request: Request) {
 
   // Deterministic answers (wallet reads, token lookups, slash commands) are
   // produced entirely by trusted code, so the model is not called at all.
-  const card = image.handled ? image.card : action.card;
+  let card = image.handled ? image.card : action.card;
+  if (card?.kind === "IMAGE" && db && walletAccountId && profileId) {
+    const linked = await linkGenerationToMessage(card.generationId, assistantMessageId).catch(() => false);
+    if (!linked) {
+      imageTrace?.record("GENERATION_ROW_UPDATED", { error: "DATABASE_UPDATE_FAILED" });
+      const generation = await readGeneration(walletAccountId, card.generationId).catch(() => null);
+      if (generation?.imagePath) {
+        const removed = await deleteGenerationImage(generation.imagePath).catch(() => false);
+        if (!removed) imageTrace?.record("SUPABASE_UPLOAD_COMPLETED", { error: "STORAGE_CLEANUP_FAILED" });
+      }
+      await markFailed({
+        generationId: card.generationId,
+        code: "DATABASE_UPDATE_FAILED",
+        message: "The image could not be saved.",
+        diagnostics: imageTrace ? imagePipelineDatabaseFields(imageTrace) : undefined,
+      });
+      const retryLink = ownerPreview
+        ? [{ label: "View in Admin", url: "/admin/images#recent-generation-runs", kind: "INTERNAL" as const }]
+        : [];
+      card = noticeCard({
+        title: "Couldn't make that image.",
+        message: "I ran into a problem while making it.",
+        tone: "error",
+        retry: { label: "Try Again", prompt: parsed.data.message, parentGenerationId: card.generationId },
+        links: retryLink,
+      });
+    }
+  }
   const persistedCard = card ? stripActionCardDebugDetails(card) : null;
   // An image request is fully answered by the pipeline: the reply is the short
   // deterministic line that accompanies the picture, so the model is not called.
@@ -277,15 +328,6 @@ export async function POST(request: Request) {
           ]);
           if (messageWrite.error || conversationWrite.error) throw new Error("PERSISTENCE_WRITE_FAILED");
           imageTrace?.record("CHAT_MESSAGE_PERSISTED");
-          /*
-           * Link the generation to the message that now displays it. This is the
-           * durable relationship between conversation, message, generation and
-           * stored object: without it a reopened conversation could only rely on
-           * the signed URL baked into metadata_json, which has expired.
-           */
-          if (card?.kind === "IMAGE") {
-            await linkGenerationToMessage(card.generationId, assistantMessageId).catch(() => undefined);
-          }
           // Usage logging is telemetry, not conversation durability. A logging
           // outage must not turn a correctly saved reply into a failed chat.
           await db.from("usage_logs").insert({ user_id: profileId, wallet_account_id: walletAccountId, conversation_id: conversationId, provider: isDeterministic ? "cabi-actions" : "deepseek", model: isDeterministic ? "deterministic" : activeConfig?.model ?? "auto", input_tokens: usage?.input ?? null, output_tokens: usage?.output ?? null, latency_ms: Date.now() - started, status: "success" });

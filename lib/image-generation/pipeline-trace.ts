@@ -1,9 +1,9 @@
 /**
  * Safe, serialisable trace data for one Cabi image request.
  *
- * This module intentionally has no server-only import because the owner-preview
- * error card may carry the already-sanitised snapshot to the browser. Prompts,
- * signed URLs, response bodies, and credentials never belong in this type.
+ * This module intentionally has no server-only import so its serialisable types
+ * can be shared by server utilities and tests. Snapshots stay in server logs and
+ * admin diagnostics; they are not included in chat cards or user responses.
  */
 
 export const imagePipelineStages = [

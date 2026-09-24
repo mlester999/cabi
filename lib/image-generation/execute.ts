@@ -7,6 +7,7 @@ import type {
 import type { ImageGenerationProvider, ImageGenerationRequest } from "@/lib/image-generation/provider";
 import type { ResolvedImageGenerationConfig } from "@/lib/image-generation/settings";
 import type { ImagePipelineTrace } from "@/lib/image-generation/pipeline-trace";
+import { buildTogetherRequestBody } from "@/lib/ai/image/together";
 import {
   imageDiagnosticErrorCategory,
   imageReferenceInputType,
@@ -32,6 +33,16 @@ function diagnosticFor(input: {
 }): void {
   const reference = input.request.referenceImages?.[0];
   const size = aspectRatioSizes[input.request.aspectRatio];
+  const togetherBody = input.config.provider === "together"
+    ? buildTogetherRequestBody({
+        prompt: input.request.scene,
+        aspectRatio: input.request.aspectRatio,
+        seed: input.request.seed,
+        negativePrompt: input.request.negativePrompt,
+        referenceImages: input.request.referenceImages,
+        preparedPrompt: input.request.preparedPrompt,
+      }, input.config.model).body
+    : null;
   const providerErrorCategory = input.result.ok
     ? "none"
     : imageDiagnosticErrorCategory({
@@ -48,6 +59,8 @@ function diagnosticFor(input: {
     endpoint: input.config.endpoint,
     keyPresent: Boolean(input.config.apiKey),
     keySuffix: safeImageKeySuffix(input.config.apiKey),
+    keySource: input.config.apiKeySource,
+    keyLength: input.config.apiKey?.length ?? null,
     referenceAttached: Boolean(reference),
     referenceVersion: input.referenceVersion,
     referenceInputType: imageReferenceInputType(reference),
@@ -57,16 +70,19 @@ function diagnosticFor(input: {
     requestStarted: true,
     httpStatus: input.result.ok ? null : input.result.httpStatus ?? null,
     providerErrorCategory,
+    requestFields: togetherBody ? Object.keys(togetherBody) : undefined,
+    seedPresent: togetherBody ? Object.hasOwn(togetherBody, "seed") : undefined,
+    negativePromptPresent: togetherBody ? Object.hasOwn(togetherBody, "negative_prompt") : undefined,
+    stepsPresent: togetherBody ? Object.hasOwn(togetherBody, "steps") : undefined,
   });
 }
 
 /**
- * Executes one generation and applies the only permitted fallback:
- * a reference-bearing Together request that is explicitly classified as a
- * reference-input failure gets one text-only retry. Auth, billing, rate-limit,
- * timeout, outage, and generic permission responses do not enter this branch. A
- * text-only success proves the reference input was the rejected part; a second
- * failure is returned unchanged.
+ * Executes one generation and applies at most one targeted retry:
+ * an explicit unsafe-prompt rejection gets a positive-only prompt retry, or a
+ * reference-specific rejection gets a text-only retry. These branches are
+ * mutually exclusive. Auth, billing, malformed requests, rate limits, timeouts,
+ * outages, and generic permission responses are returned without retry.
  */
 export async function executeImageGeneration(input: {
   source: "ADMIN_TEST" | "CHAT_GENERATION" | "HTTP_GENERATION";
@@ -98,13 +114,15 @@ export async function executeImageGeneration(input: {
       ...request,
       preparedPrompt: input.minimalPrompt,
       negativePrompt: undefined,
+      referenceImages: undefined,
+      seed: undefined,
     };
     input.trace?.update({ retryCount: 1 });
     const fallback = await input.provider.generateCabiImage(fallbackRequest);
     diagnosticFor({ ...input, request: fallbackRequest, result: fallback });
     return {
       ...fallback,
-      referenceConditioned: Boolean(fallbackRequest.referenceImages?.length),
+      referenceConditioned: false,
       referenceFallbackUsed: false,
       promptFallbackUsed: true,
     } as ImageGenerationExecutionResult;

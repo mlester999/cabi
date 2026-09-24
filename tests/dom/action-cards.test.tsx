@@ -11,6 +11,7 @@ import { ChatMessage } from "@/components/chat/chat-message";
 import { SlashCommandPalette } from "@/components/chat/slash-command-palette";
 import { noticeCard, tokenCard, tradeCard, clarifyCard } from "@/lib/actions/cards";
 import { cabiStatusAnnouncements, cabiStatusDefaults } from "@/lib/cabi/status-messages";
+import type { ActionCard as ActionCardModel } from "@/lib/actions/types";
 import type { TokenMetadata } from "@/lib/tokens/metadata";
 
 const CPU_ADDRESS = "0x1a421A5065316d9b4062939E9959DDEcE6630528";
@@ -81,6 +82,21 @@ describe("action card rendering", () => {
   it("renders no card when the message has none", () => {
     render(<ChatMessage message={{ id: "m2", role: "assistant", content: "Just talking.", status: "complete" }} />);
     expect(screen.queryByRole("region", { name: /card$/ })).toBeNull();
+  });
+
+  it("never renders technical image diagnostics inside a chat card", () => {
+    const card = {
+      ...noticeCard({
+        title: "Couldn't make that image.",
+        message: "I ran into a problem while making it.",
+        tone: "error",
+        links: [{ label: "View in Admin", url: "/admin/images#recent-generation-runs", kind: "INTERNAL" }],
+      }),
+      debugDetails: { requestId: "private-trace-id", httpStatus: 403, provider: "Together AI" },
+    } as unknown as ActionCardModel;
+    render(<ActionCardView card={card} />);
+    expect(screen.getByRole("link", { name: "View in Admin" })).toHaveAttribute("href", "/admin/images#recent-generation-runs");
+    expect(screen.queryByText(/private-trace-id|403|Together AI|Owner preview details/i)).toBeNull();
   });
 
   it("renders one retry action without a duplicate empty assistant bubble", () => {

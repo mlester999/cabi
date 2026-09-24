@@ -22,9 +22,9 @@ const mocks = {
  * tests/image-lifecycle.test.ts.
  */
 vi.mock("@/lib/image-generation/lifecycle", () => ({
-  markGenerating: vi.fn(async () => undefined),
-  markCompleted: vi.fn(async () => undefined),
-  markFailed: vi.fn(async () => undefined),
+  markGenerating: vi.fn(async () => true),
+  markCompleted: vi.fn(async () => true),
+  markFailed: vi.fn(async () => true),
   linkGenerationToMessage: vi.fn(async () => undefined),
   refreshCardUrl: vi.fn(async (card: unknown) => card),
   refreshStoredCards: vi.fn(async (messages: unknown) => messages),

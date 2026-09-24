@@ -103,17 +103,53 @@ function mentionsReferenceInput(value: unknown): boolean {
   return /(?:image_url|reference[_ ]?images?|reference image|input image|image format|unsupported image|invalid image)/iu.test(text);
 }
 
+function isUnsafePromptResponse(value: unknown): boolean {
+  const text = providerErrorText(value);
+  return /\b(?:unsafe[_ -]prompt|prompt.{0,60}(?:unsafe|blocked|rejected)|(?:safety|moderation|content[_ -]?policy).{0,60}(?:reject(?:ed)?|block(?:ed)?|fail(?:ed)?|violat(?:e|ed|ion))|(?:reject(?:ed)?|block(?:ed)?|fail(?:ed)?|violat(?:e|ed|ion)).{0,60}(?:safety|moderation|content[_ -]?policy|prompt))\b/iu.test(text);
+}
+
+function classifyTogether403Reason(providerBody: unknown): Extract<ImageProviderErrorCategory,
+  "third_party_data_sharing_required" | "model_access_restricted" | "organization_permission" | "invalid_project" | "other_provider_permission"> {
+  const text = providerErrorText(providerBody);
+  if (/(?:third[-_ ]party.{0,40}data.{0,30}sharing|data.{0,30}sharing.{0,40}third[-_ ]party)/iu.test(text)) {
+    return "third_party_data_sharing_required";
+  }
+  if (/(?:model.{0,50}(?:access|permission|restricted|authori[sz]ation)|(?:access|permission).{0,50}model)/iu.test(text)) {
+    return "model_access_restricted";
+  }
+  if (/(?:organi[sz]ation|workspace).{0,50}(?:permission|access|restricted|authori[sz]ation)|(?:permission|access).{0,50}(?:organi[sz]ation|workspace)/iu.test(text)) {
+    return "organization_permission";
+  }
+  if (/(?:invalid|unknown|missing|not found).{0,30}project|project.{0,30}(?:invalid|unknown|missing|not found)/iu.test(text)) {
+    return "invalid_project";
+  }
+  return "other_provider_permission";
+}
+
 export function classifyTogetherHttpError(status: number, input: { referenceAttached?: boolean; providerBody?: unknown } = {}): { error: ImageGenerationError; message: string; providerErrorCategory?: ImageProviderErrorCategory } {
   if ((status === 400 || status === 403 || status === 422) && input.referenceAttached && mentionsReferenceInput(input.providerBody)) {
     return { error: "PROVIDER_ERROR", message: "Reference image rejected", providerErrorCategory: "reference_input" };
   }
   if (status === 401) return { error: "NOT_CONFIGURED", message: "Authentication failed" };
   if (status === 402) return { error: "PROVIDER_ERROR", message: "Insufficient credits or billing issue" };
-  if (status === 403) return { error: "PROVIDER_ERROR", message: "Permission or account restriction" };
+  if (status === 403) {
+    return {
+      error: "PROVIDER_ERROR",
+      message: "Permission or account restriction",
+      providerErrorCategory: classifyTogether403Reason(input.providerBody),
+    };
+  }
   if (status === 404) return { error: "PROVIDER_ERROR", message: "Model or endpoint unavailable" };
   if (status === 429) return { error: "RATE_LIMITED", message: "Rate limited" };
   if (status === 400 || status === 422) {
-    return { error: "UNSAFE_PROMPT", message: "I could not draw that one. Try describing it differently?" };
+    if (isUnsafePromptResponse(input.providerBody)) {
+      return {
+        error: "UNSAFE_PROMPT",
+        message: "I could not draw that one. Try describing it differently?",
+        providerErrorCategory: "unsafe_prompt",
+      };
+    }
+    return { error: "PROVIDER_ERROR", message: "Together rejected the image request", providerErrorCategory: "provider_error" };
   }
   if (status >= 500) return { error: "PROVIDER_ERROR", message: "Together AI service unavailable" };
   return { error: "PROVIDER_ERROR", message: "Together AI request failed" };
@@ -320,7 +356,7 @@ export async function generateTogetherImage(
     });
 
     if (!response.ok) {
-      const providerBodyText = await response.text().catch(() => "");
+      const providerBodyText = (await response.text().catch(() => "")).slice(0, 8_192);
       let providerBody: unknown = providerBodyText;
       try { providerBody = providerBodyText ? JSON.parse(providerBodyText) : null; } catch { /* plain text is still classified by its safe keywords */ }
       const classified = classifyTogetherHttpError(response.status, {
@@ -430,7 +466,14 @@ export async function testTogetherConnection(config?: Partial<TogetherProviderCo
     });
     const responseDiagnostics = diagnostics(response.status, apiKey);
     if (!response.ok) {
-      return { ok: false, ...classifyTogetherHttpError(response.status), diagnostics: responseDiagnostics };
+      const providerBodyText = (await response.text().catch(() => "")).slice(0, 8_192);
+      let providerBody: unknown = providerBodyText;
+      try { providerBody = providerBodyText ? JSON.parse(providerBodyText) : null; } catch { /* plain text is still classified by its safe keywords */ }
+      return {
+        ok: false,
+        ...classifyTogetherHttpError(response.status, { providerBody }),
+        diagnostics: responseDiagnostics,
+      };
     }
 
     const payload = await response.json().catch(() => null) as TogetherPayload | null;

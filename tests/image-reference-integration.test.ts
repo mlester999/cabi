@@ -176,7 +176,15 @@ describe("the prompt always carries the fixed identity", () => {
     const prompt = String(mocks.generated[0].preparedPrompt);
     expect(prompt).toContain("a cute, cheerful portrait of Cabi in a cozy setting");
     expect(prompt).not.toContain("Generate an image of your cuteness");
-    expect(prompt.toLowerCase()).not.toMatch(/never childlike|clearly adult|prohibited|unsafe|sexual|violent|hateful/iu);
+    expect(prompt).not.toMatch(/\b(?:sexual(?:i[sz]ed)?|violent|violence|hateful|nudity|nsfw|minors?|child(?:like)?|children|explicit(?:ly)?|unsafe|prohibited)\b/iu);
+  });
+
+  it("rejects an unsafe Cabi request before invoking the provider", async () => {
+    const response = await POST(request({ prompt: "Cabi stabbing someone", aspectRatio: "1:1" }));
+    expect(response.status).toBe(200);
+    expect(mocks.generated).toHaveLength(0);
+    expect(mocks.inserted.some((row) => row.failure_code === "SAFETY_REFUSED")).toBe(true);
+    expect(await response.json()).toMatchObject({ type: "chat_response", verdict: "UNSAFE" });
   });
 
   it("strips an attempt to redefine Cabi while keeping her identity", async () => {

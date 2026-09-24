@@ -106,6 +106,11 @@ export type ImageProviderErrorCategory =
   | "reference_input"
   | "model_or_endpoint"
   | "unsafe_prompt"
+  | "third_party_data_sharing_required"
+  | "model_access_restricted"
+  | "organization_permission"
+  | "invalid_project"
+  | "other_provider_permission"
   | "provider_outage"
   | "timeout"
   | "provider_error";
@@ -147,7 +152,7 @@ export type ImageConnectionTest =
       referenceConditioning?: boolean;
       diagnostics?: ImageConnectionDiagnostics;
     }
-  | { ok: false; error: ImageGenerationError; message: string; diagnostics?: ImageConnectionDiagnostics };
+  | { ok: false; error: ImageGenerationError; message: string; diagnostics?: ImageConnectionDiagnostics; providerErrorCategory?: ImageProviderErrorCategory };
 
 export type ImageGenerationSettings = {
   enabled: boolean;

@@ -164,6 +164,17 @@ describe("request construction", () => {
     expect(body).not.toHaveProperty("reference_images");
   });
 
+  it("sends a clean visual prompt and visual-only negative guidance for the harmless cuteness request", () => {
+    const { body } = buildTogetherRequestBody({
+      prompt: "Generate an image of your cuteness",
+      aspectRatio: "1:1",
+      negativePrompt: cabiImageIdentity.negative,
+    }, "Qwen/Qwen-Image-2.0");
+    const providerText = `${String(body.prompt)} ${String(body.negative_prompt)}`;
+    expect(body.prompt).toContain("a cute, cheerful portrait of Cabi in a cozy setting");
+    expect(providerText).not.toMatch(/\b(?:sexual(?:i[sz]ed)?|violent|violence|hateful|nudity|nsfw|minors?|child(?:like)?|children|explicit(?:ly)?|unsafe|prohibited)\b/iu);
+  });
+
   it("does not put data URLs or local paths on the Together reference field", () => {
     const data = buildTogetherRequestBody({
       prompt: "Cabi at a desk",
@@ -332,7 +343,7 @@ describe("error handling", () => {
     [403, "PROVIDER_ERROR", "Permission or account restriction"],
     [402, "PROVIDER_ERROR", "Insufficient credits or billing issue"],
     [429, "RATE_LIMITED", "Rate limited"],
-    [400, "UNSAFE_PROMPT", "I could not draw that one. Try describing it differently?"],
+    [400, "PROVIDER_ERROR", "Together rejected the image request"],
     [404, "PROVIDER_ERROR", "Model or endpoint unavailable"],
     [500, "PROVIDER_ERROR", "Together AI service unavailable"],
     [503, "PROVIDER_ERROR", "Together AI service unavailable"],
@@ -353,6 +364,40 @@ describe("error handling", () => {
     expect(classifyTogetherHttpError(404).message).toBe("Model or endpoint unavailable");
     expect(classifyTogetherHttpError(429).error).toBe("RATE_LIMITED");
     expect(classifyTogetherHttpError(503).message).toBe("Together AI service unavailable");
+  });
+
+  it("classifies explicit Together safety rejections separately from ordinary bad requests", () => {
+    expect(classifyTogetherHttpError(400, { providerBody: { error: { code: "UNSAFE_PROMPT" } } })).toMatchObject({
+      error: "UNSAFE_PROMPT",
+      providerErrorCategory: "unsafe_prompt",
+    });
+    expect(classifyTogetherHttpError(422, { providerBody: { error: { message: "Prompt blocked by the safety filter" } } })).toMatchObject({
+      error: "UNSAFE_PROMPT",
+      providerErrorCategory: "unsafe_prompt",
+    });
+    expect(classifyTogetherHttpError(400, { providerBody: { error: { message: "Invalid width parameter" } } })).toMatchObject({
+      error: "PROVIDER_ERROR",
+      providerErrorCategory: "provider_error",
+    });
+  });
+
+  it.each([
+    ["third party data sharing must be enabled", "third_party_data_sharing_required"],
+    ["model access is restricted for this account", "model_access_restricted"],
+    ["organization permission denied", "organization_permission"],
+    ["invalid project identifier", "invalid_project"],
+    ["forbidden", "other_provider_permission"],
+  ] as const)("classifies safe 403 reason %s", (providerMessage, category) => {
+    const classified = classifyTogetherHttpError(403, { providerBody: { error: { message: providerMessage } } });
+    expect(classified).toMatchObject({ error: "PROVIDER_ERROR", providerErrorCategory: category });
+    expect(JSON.stringify(classified)).not.toContain(providerMessage);
+  });
+
+  it("does not leak Together 403 bodies through image failures", async () => {
+    stubFetch(() => new Response(JSON.stringify({ error: { message: "organization permission denied for private prompt and sk-private" } }), { status: 403 }));
+    const result = await generateTogetherImage({ prompt: "Cabi waving", aspectRatio: "1:1" });
+    expect(result).toMatchObject({ ok: false, error: "PROVIDER_ERROR", httpStatus: 403, providerErrorCategory: "organization_permission" });
+    expect(JSON.stringify(result)).not.toMatch(/private prompt|sk-private/u);
   });
 
   it("never forwards the provider's own error text to the caller", async () => {

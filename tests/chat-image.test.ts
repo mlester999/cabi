@@ -16,8 +16,10 @@ const mocks = {
   hasProvider: true,
   quotaAllowed: true,
   providerOk: true,
+  insertError: null as unknown,
   inserted: [] as Array<Record<string, unknown>>,
   generated: [] as Array<Record<string, unknown>>,
+  deletedObjects: [] as string[],
   /** How many image XP grants the ledger already holds for today. */
   xpGrantedToday: 0,
   /** Mirrors `xpRules.imageXpPerDay`. */
@@ -34,9 +36,9 @@ const mocks = {
  * so a plain object would still be uninitialised when the factory runs.
  */
 const lifecycle = vi.hoisted(() => ({
-  markGenerating: vi.fn(async () => undefined),
-  markCompleted: vi.fn(async () => undefined),
-  markFailed: vi.fn(async () => undefined),
+  markGenerating: vi.fn(async () => true),
+  markCompleted: vi.fn(async () => true),
+  markFailed: vi.fn(async () => true),
 }));
 vi.mock("@/lib/image-generation/lifecycle", () => ({
   ...lifecycle,
@@ -118,6 +120,7 @@ vi.mock("@/lib/image-generation/provider", () => ({
 vi.mock("@/lib/image-generation/storage", () => ({
   generationBucket: "cabi-generations",
   avatarBucket: "avatars",
+  deleteGenerationImage: vi.fn(async (path: string) => { mocks.deletedObjects.push(path); return true; }),
   uploadGenerationImage: vi.fn(async () => ({ ok: true, path: "wallet/gen.png" })),
   signedImageUrl: vi.fn(async () => "https://storage.example.com/signed/gen.png?token=abc"),
   uploadAvatar: vi.fn(async () => ({ ok: true, path: "wallet/avatar.png" })),
@@ -130,7 +133,7 @@ vi.mock("@/lib/db/supabase", () => ({
     from: (table: string) => ({
       insert: (row: Record<string, unknown>) => {
         mocks.inserted.push({ table, ...row });
-        return { select: () => ({ maybeSingle: async () => ({ data: { id: "11111111-1111-1111-1111-111111111111", created_at: "2026-01-01T00:00:00.000Z" }, error: null }) }) };
+        return mocks.insertError ? { error: mocks.insertError } : { error: null };
       },
     }),
     rpc: async () => ({ data: [{ allowed: mocks.quotaAllowed, remaining: mocks.quotaAllowed ? 4 : 0 }], error: null }),
@@ -168,9 +171,17 @@ beforeEach(() => {
   mocks.hasProvider = true;
   mocks.quotaAllowed = true;
   mocks.providerOk = true;
+  mocks.insertError = null;
   mocks.inserted = [];
   mocks.generated = [];
+  mocks.deletedObjects = [];
   mocks.xpGrantedToday = 0;
+  lifecycle.markGenerating.mockClear();
+  lifecycle.markCompleted.mockClear();
+  lifecycle.markFailed.mockClear();
+  lifecycle.markGenerating.mockResolvedValue(true);
+  lifecycle.markCompleted.mockResolvedValue(true);
+  lifecycle.markFailed.mockResolvedValue(true);
 });
 
 describe("image request detection", () => {
@@ -224,6 +235,17 @@ describe("scenario 6: an unrelated subject is redirected, not drawn", () => {
     if (!result.handled) return;
     expect(result.usedProvider).toBe(false);
     expect(JSON.stringify(result.card).toLowerCase()).toContain("lamborghini");
+  });
+});
+
+describe("application image safety", () => {
+  it("refuses unsafe requests before resolving provider settings or calling the provider", async () => {
+    const result = await generateChatImage("Generate an image of Cabi stabbing someone", wallet);
+    expect(result.handled).toBe(true);
+    if (!result.handled) return;
+    expect(result.usedProvider).toBe(false);
+    expect(mocks.generated).toHaveLength(0);
+    expect(result.reply).toMatch(/not draw/i);
   });
 });
 
@@ -310,14 +332,34 @@ describe("provider failure", () => {
     expect((result.card as Record<string, unknown>).debugDetails).toBeUndefined();
   });
 
-  it("returns safe trace details only to an owner preview", async () => {
+  it("keeps diagnostics out of owner-preview chat and links the owner to Admin", async () => {
     mocks.providerOk = false;
     const result = await generateChatImage("Generate a picture of you at the beach", { ...wallet, ownerPreview: true });
     expect(result.handled).toBe(true);
     if (!result.handled) return;
-    const details = (result.card as Record<string, unknown>).debugDetails as Record<string, unknown> | undefined;
-    expect(details).toMatchObject({ source: "CHAT_GENERATION", lastStage: "FINAL_RESPONSE_RETURNED" });
-    expect(JSON.stringify(details)).not.toContain("sk-test-not-a-real-key");
+    expect(result.card).not.toHaveProperty("debugDetails");
+    expect(result.card.links).toContainEqual({ label: "View in Admin", url: "/admin/images#recent-generation-runs", kind: "INTERNAL" });
+    expect(JSON.stringify(result.card)).not.toMatch(/requestId|wallet|provider|model|httpStatus|latency|UNSAFE_PROMPT/u);
+  });
+
+  it("stops before the paid provider request when the generation row insert fails", async () => {
+    mocks.insertError = { code: "42703", message: "column \"reference_conditioned\" does not exist" };
+    const result = await generateChatImage("Generate a picture of you at the beach", wallet);
+    expect(result.handled).toBe(true);
+    if (!result.handled) return;
+    expect(result.usedProvider).toBe(false);
+    expect(mocks.generated).toHaveLength(0);
+    expect(lifecycle.markGenerating).not.toHaveBeenCalled();
+    expect(result.card).toMatchObject({ title: "Couldn't make that image.", message: "I ran into a problem while making it.", retry: { label: "Try Again" } });
+  });
+
+  it("stops before the paid provider request when QUEUED-to-GENERATING fails", async () => {
+    lifecycle.markGenerating.mockResolvedValue(false);
+    const result = await generateChatImage("Generate a picture of you at the beach", wallet);
+    expect(result.handled).toBe(true);
+    if (!result.handled) return;
+    expect(result.usedProvider).toBe(false);
+    expect(mocks.generated).toHaveLength(0);
   });
 });
 
@@ -344,6 +386,17 @@ describe("successful generation", () => {
     expect(String(queued?.user_prompt)).toContain("coffee");
     expect(String(queued?.user_prompt)).not.toContain("ash-gray");
     expect(lifecycle.markCompleted).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not return an image card if the completion update fails, and cleans up the upload", async () => {
+    lifecycle.markCompleted.mockResolvedValue(false);
+    const result = await generateChatImage("Generate a picture of you drinking coffee.", wallet);
+    expect(result.handled).toBe(true);
+    if (!result.handled) return;
+    expect(result.usedProvider).toBe(true);
+    expect(result.card.kind).toBe("NOTICE");
+    expect(mocks.deletedObjects).toEqual(["wallet/gen.png"]);
+    expect(lifecycle.markFailed).toHaveBeenCalledWith(expect.objectContaining({ code: "DATABASE_UPDATE_FAILED" }));
   });
 
   it("offers the avatar option only because the profile is complete", async () => {

@@ -34,7 +34,7 @@ const linkSchema = z.object({
   kind: z.enum(["CLANK_TRADE", "EXPLORER", "INTERNAL"]),
 }).superRefine((value, context) => {
   if (value.kind === "INTERNAL") {
-    if (!value.url.startsWith("/") || value.url.startsWith("//")) {
+    if (!value.url.startsWith("/") || value.url.startsWith("//") || value.url.includes("\\")) {
       context.addIssue({ code: z.ZodIssueCode.custom, path: ["url"], message: "Internal links must be app-relative." });
     }
     return;

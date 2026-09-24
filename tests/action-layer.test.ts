@@ -212,12 +212,15 @@ describe("action cards", () => {
   it("drops unsafe links instead of rendering them", () => {
     const links = safeLinks([
       { label: "ok", url: "https://clank.trade/coin/cpu", kind: "CLANK_TRADE" },
+      { label: "internal", url: "/admin/images#recent-generation-runs", kind: "INTERNAL" },
       { label: "js", url: "javascript:alert(1)", kind: "CLANK_TRADE" },
       { label: "http", url: "http://clank.trade/coin/cpu", kind: "CLANK_TRADE" },
+      { label: "escaped", url: "/\\evil.test", kind: "INTERNAL" },
       null,
     ]);
-    expect(links).toHaveLength(1);
+    expect(links).toHaveLength(2);
     expect(links[0].url).toBe("https://clank.trade/coin/cpu");
+    expect(links[1].url).toBe("/admin/images#recent-generation-runs");
   });
 
   it("builds a clarify card with options when a choice is required", () => {
@@ -264,6 +267,7 @@ describe("stored card validation", () => {
   it("allows an app-relative internal link but not a protocol-relative one", () => {
     expect(parseActionCard({ ...valid, links: [{ label: "p", url: "/portfolio", kind: "INTERNAL" }] })).not.toBeNull();
     expect(parseActionCard({ ...valid, links: [{ label: "p", url: "//evil.test", kind: "INTERNAL" }] })).toBeNull();
+    expect(parseActionCard({ ...valid, links: [{ label: "p", url: "/\\evil.test", kind: "INTERNAL" }] })).toBeNull();
   });
 
   it("strips owner-preview diagnostics before card persistence", () => {

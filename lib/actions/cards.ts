@@ -23,10 +23,13 @@ function nextId(prefix: string) {
   return `${prefix}-${Date.now().toString(36)}-${cardCounter.toString(36)}`;
 }
 
-/** Only absolute HTTPS links may be rendered as card actions. */
+/** External card links must be HTTPS; internal links must be app-relative. */
 export function safeLinks(links: Array<ActionCardLink | null | undefined>): ActionCardLink[] {
   return links.filter((link): link is ActionCardLink => {
     if (!link) return false;
+    if (link.kind === "INTERNAL") {
+      return link.url.startsWith("/") && !link.url.startsWith("//") && !link.url.includes("\\");
+    }
     try {
       return new URL(link.url).protocol === "https:";
     } catch {

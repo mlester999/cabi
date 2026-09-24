@@ -13,8 +13,9 @@ import { checkImageSafety } from "@/lib/image-generation/safety";
 import { noticeCard, imageCard } from "@/lib/actions/cards";
 import type { ActionCard } from "@/lib/actions/types";
 import { createImagePipelineTrace, type ImagePipelineTrace } from "@/lib/image-generation/pipeline-trace";
-import { imagePipelineDatabaseFields, logImagePipelineTrace } from "@/lib/image-generation/diagnostics";
+import { imagePipelineDatabaseFields, logImageDatabaseFailure, logImagePipelineTrace } from "@/lib/image-generation/diagnostics";
 import { recordCabiPlanStages, runCabiImagePipeline } from "@/lib/image-generation/pipeline";
+import { deleteGenerationImage } from "@/lib/image-generation/storage";
 
 /**
  * Chat-driven Cabi image generation.
@@ -63,6 +64,16 @@ export function isImageRequest(message: string): boolean {
   return looksLikeImageRequest(message);
 }
 
+function imageFailureCard(message: string, ownerPreview: boolean, parentGenerationId?: string): ActionCard {
+  return noticeCard({
+    title: "Couldn't make that image.",
+    message: "I ran into a problem while making it.",
+    tone: "error",
+    retry: { label: "Try Again", prompt: message, ...(parentGenerationId ? { parentGenerationId } : {}) },
+    links: ownerPreview ? [{ label: "View in Admin", url: "/admin/images#recent-generation-runs", kind: "INTERNAL" }] : [],
+  });
+}
+
 export async function generateChatImage(message: string, options: ChatImageOptions): Promise<ChatImageResult> {
   if (!isImageRequest(message)) return { handled: false };
 
@@ -77,23 +88,15 @@ export async function generateChatImage(message: string, options: ChatImageOptio
     const result = await generateChatImageInternal(message, { ...options, trace });
     trace.record("FINAL_RESPONSE_RETURNED");
     logImagePipelineTrace(trace);
-    if (!options.ownerPreview || !result.handled) return result;
-    return { ...result, card: { ...result.card, debugDetails: trace.snapshot() } };
+    return result;
   } catch {
     trace.record("FINAL_RESPONSE_RETURNED", { error: "UNEXPECTED_PIPELINE_ERROR" });
     logImagePipelineTrace(trace);
-    const card = noticeCard({
-      title: "Couldn't make that image",
-      message: "I couldn't make that image right now. You can try again when you're ready.",
-      tone: "error",
-      retry: { label: "Try Again", prompt: message },
-      ...(options.ownerPreview ? { debugDetails: trace.snapshot() } : {}),
-    });
     return {
       handled: true,
       usedProvider: false,
       reply: "",
-      card,
+      card: imageFailureCard(message, Boolean(options.ownerPreview)),
     };
   }
 }
@@ -101,21 +104,20 @@ export async function generateChatImage(message: string, options: ChatImageOptio
 async function generateChatImageInternal(message: string, options: ChatImageOptions & { trace: ImagePipelineTrace }): Promise<ChatImageResult> {
   const trace = options.trace;
 
-  // This is the same live resolver used by the admin test. It reads the saved
-  // model, endpoint, key source, capabilities, quality and limits together, so
-  // chat cannot silently use a different model or stale provider setting.
-  const imageConfig = await resolveImageGenerationConfig();
-  const settings = imageConfig.settings;
-  trace.record("IMAGE_CONFIG_RESOLVED", {
-    provider: imageConfig.provider,
-    model: imageConfig.model,
-    aspectRatio: imageConfig.aspectRatio,
-  });
+  const scene = extractScene(message);
+  const safety = checkImageSafety(scene);
+  if (!safety.safe) {
+    return {
+      handled: true,
+      usedProvider: false,
+      reply: safety.message,
+      card: noticeCard({ title: "I will not draw that", message: safety.message, tone: "caution" }),
+    };
+  }
 
-  // Scope is decided FIRST, before the enabled check and before the wallet
-  // check. Cabi-only enforcement is a product rule, not a feature flag: an
-  // off-topic request must be redirected in her own voice even while the feature
-  // is switched off, rather than being answered with a generic "it is off".
+  // Scope follows application safety and still runs before the enabled check or
+  // wallet check. Cabi-only enforcement is a product rule, not a feature flag:
+  // off-topic requests are redirected even while the feature is switched off.
   const scope = checkImageScope(message);
   if (!scope.allowed && scope.reason === "BLOCKED_CONTENT") {
     return {
@@ -133,7 +135,6 @@ async function generateChatImageInternal(message: string, options: ChatImageOpti
    */
   // Derived directly rather than read off the scope union: the classifier, not
   // the scope helper, is now the authority on whether we generate.
-  const scene = extractScene(message);
   const verdict = classifyCabiRelevance(message, options.conversationContext ?? []);
   if (verdict !== "CABI_RELATED") {
     const suggestion = scope.allowed ? null : scope.suggestion;
@@ -150,6 +151,16 @@ async function generateChatImageInternal(message: string, options: ChatImageOpti
     };
   }
 
+  // Resolve provider settings only after the free application-safety and
+  // relevance checks have passed. This is the same resolver used by admin test.
+  const imageConfig = await resolveImageGenerationConfig();
+  const settings = imageConfig.settings;
+  trace.record("IMAGE_CONFIG_RESOLVED", {
+    provider: imageConfig.provider,
+    model: imageConfig.model,
+    aspectRatio: imageConfig.aspectRatio,
+  });
+
   // Switched off in admin: say so plainly, but only once the request has already
   // been shown to be an in-scope Cabi image.
   if (!settings.enabled) {
@@ -161,21 +172,6 @@ async function generateChatImageInternal(message: string, options: ChatImageOpti
         title: "Image generation is off",
         message: "The owner has not enabled Cabi image generation yet.",
       }),
-    };
-  }
-
-  /*
-   * Safety runs AFTER relevance and BEFORE the wallet/quota/provider steps, and
-   * is a separate question: "Cabi holding a knife" is unmistakably about Cabi and
-   * still must not be drawn. Checking relevance alone would spend a credit on it.
-   */
-  const safety = checkImageSafety(scene);
-  if (!safety.safe) {
-    return {
-      handled: true,
-      usedProvider: false,
-      reply: safety.message,
-      card: noticeCard({ title: "I will not draw that", message: safety.message, tone: "caution" }),
     };
   }
 
@@ -279,15 +275,9 @@ async function generateChatImageInternal(message: string, options: ChatImageOpti
    * generation is visible to a refresh rather than existing only inside this
    * request. The same row is then transitioned forward, which is what gives the
    * UI three honest, recoverable states instead of one.
-   */
+  */
   const queuedAt = new Date().toISOString();
   const generationId = crypto.randomUUID();
-  /*
-   * A failure to write the QUEUED row must not abort the generation: the user
-   * asked for an image, and losing the audit trail is a smaller harm than losing
-   * the image. The lifecycle transitions below are independently guarded for the
-   * same reason.
-   */
   try {
     const insertResult = await db.from("image_generations").insert({
       id: generationId,
@@ -311,15 +301,25 @@ async function generateChatImageInternal(message: string, options: ChatImageOpti
       reference_conditioned: plan.capabilities.referenceConditioning,
       ...imagePipelineDatabaseFields(trace),
     });
-    trace.record("GENERATION_ROW_CREATED", { error: insertResult?.error ? "DATABASE_INSERT_FAILED" : null });
-  } catch {
-    // Generation continues; the row simply will not exist to transition.
+    if (insertResult?.error) {
+      trace.record("GENERATION_ROW_CREATED", { error: "DATABASE_INSERT_FAILED" });
+      logImageDatabaseFailure({ requestId: trace.requestId, operation: "insert", error: insertResult.error });
+      return { handled: true, usedProvider: false, reply: "", card: imageFailureCard(message, Boolean(options.ownerPreview)) };
+    }
+    trace.record("GENERATION_ROW_CREATED");
+  } catch (error) {
     trace.record("GENERATION_ROW_CREATED", { error: "DATABASE_INSERT_FAILED" });
+    logImageDatabaseFailure({ requestId: trace.requestId, operation: "insert", error });
+    return { handled: true, usedProvider: false, reply: "", card: imageFailureCard(message, Boolean(options.ownerPreview)) };
   }
   // QUEUED -> GENERATING, recorded before the request leaves the process so a
   // refresh mid-flight recovers to "still working" rather than to a placeholder.
   const markedGenerating = await markGenerating(generationId);
-  trace.record("GENERATION_ROW_UPDATED", { error: markedGenerating === false ? "DATABASE_UPDATE_FAILED" : null });
+  if (!markedGenerating) {
+    trace.record("GENERATION_ROW_UPDATED", { error: "DATABASE_UPDATE_FAILED" });
+    return { handled: true, usedProvider: false, reply: "", card: imageFailureCard(message, Boolean(options.ownerPreview)) };
+  }
+  trace.record("GENERATION_ROW_UPDATED");
   const pipeline = await runCabiImagePipeline({
     source: "CHAT_GENERATION",
     config: imageConfig,
@@ -328,16 +328,6 @@ async function generateChatImageInternal(message: string, options: ChatImageOpti
     walletAccountId,
     generationId,
   });
-
-  // If the reference-specific retry was used, the stored row must describe the
-  // request that actually succeeded rather than the request that first failed.
-  if (pipeline.ok && pipeline.generated.referenceConditioned !== plan.capabilities.referenceConditioning) {
-    try {
-      await db.from("image_generations").update({ reference_conditioned: pipeline.generated.referenceConditioned }).eq("id", generationId);
-    } catch {
-      // The image itself remains valid; this is best-effort metadata repair.
-    }
-  }
 
   if (!pipeline.ok) {
     // FAILED does not consume the daily allowance, so a provider outage never
@@ -349,17 +339,11 @@ async function generateChatImageInternal(message: string, options: ChatImageOpti
       diagnostics: imagePipelineDatabaseFields(trace),
     });
     trace.record("GENERATION_ROW_UPDATED", { error: markedFailed === false ? "DATABASE_UPDATE_FAILED" : null });
-    const storageFailure = pipeline.error === "STORAGE_FAILED" || pipeline.error === "SIGNED_URL_FAILED";
     return {
       handled: true,
       usedProvider: true,
-      reply: storageFailure ? "I drew it but could not save it." : "",
-      card: noticeCard({
-        title: storageFailure ? "Could not save that image" : "Couldn't make that image",
-        message: storageFailure ? pipeline.message : "I couldn't make that image right now. You can try again when you're ready.",
-        tone: storageFailure ? "caution" : "error",
-        retry: { label: "Try Again", prompt: message, parentGenerationId: generationId },
-      }),
+      reply: "",
+      card: imageFailureCard(message, Boolean(options.ownerPreview), generationId),
     };
   }
 
@@ -372,8 +356,21 @@ async function generateChatImageInternal(message: string, options: ChatImageOpti
     imagePath: uploaded.path,
     provider: generated.image.provider,
     model: generated.image.model,
+    referenceConditioned: generated.referenceConditioned,
   });
-  trace.record("GENERATION_ROW_UPDATED", { error: markedCompleted === false ? "DATABASE_UPDATE_FAILED" : null });
+  if (!markedCompleted) {
+    trace.record("GENERATION_ROW_UPDATED", { error: "DATABASE_UPDATE_FAILED" });
+    const removed = await deleteGenerationImage(uploaded.path).catch(() => false);
+    if (!removed) trace.record("SUPABASE_UPLOAD_COMPLETED", { error: "STORAGE_CLEANUP_FAILED" });
+    await markFailed({
+      generationId,
+      code: "DATABASE_UPDATE_FAILED",
+      message: "The image could not be saved.",
+      diagnostics: imagePipelineDatabaseFields(trace),
+    });
+    return { handled: true, usedProvider: true, reply: "", card: imageFailureCard(message, Boolean(options.ownerPreview), generationId) };
+  }
+  trace.record("GENERATION_ROW_UPDATED");
   const row = { id: generationId, created_at: queuedAt };
 
   // First image of the day only, capped hard so paid API calls can never become

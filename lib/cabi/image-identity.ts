@@ -72,7 +72,7 @@ export const cabiNegativePrompt =
  * Together prompt where a provider moderation heuristic can misread them.
  */
 const cabiProviderPolicyTermPattern =
-  /\b(?:sexual|violent|hateful|nudity|nsfw|minor|child(?:like)?|explicit|unsafe|prohibited)\b/iu;
+  /\b(?:sexual(?:i[sz]ed)?|violent|violence|hateful|nudity|nsfw|minors?|child(?:like)?|children|explicit(?:ly)?|unsafe|prohibited)\b/iu;
 
 export function hasCabiProviderPolicyTerms(value: string): boolean {
   return cabiProviderPolicyTermPattern.test(value);
@@ -331,9 +331,10 @@ export function buildCabiImagePrompt(scene: string, layers: Omit<CabiImageLayers
 }
 
 /**
- * Minimal positive fallback used only after Together labels the assembled
- * request as unsafe. It drops owner notes, negative guidance, reference
- * parameters, and free-form wording while retaining typed scene controls.
+ * Minimal positive fallback used only after Together explicitly labels the
+ * assembled request as unsafe. It keeps the normalized scene and approved
+ * expression/outfit details, while omitting owner art direction and all negative
+ * guidance. The execution layer also removes reference images and seed values.
  */
 export function buildCabiMinimalPrompt(layers: CabiImageLayers): string {
   const scene = cleanCabiScene([layers.scene, layers.sceneNote].filter(Boolean).join(", "));

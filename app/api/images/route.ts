@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import { getServiceClient } from "@/lib/db/supabase";
 import { checkImageScope } from "@/lib/image-generation/scope";
+import { checkImageSafety } from "@/lib/image-generation/safety";
 import { buildCabiGenerationPlan } from "@/lib/image-generation/plan.server";
 import { createImageProvider } from "@/lib/image-generation/provider";
 import { executeImageGeneration } from "@/lib/image-generation/execute";
@@ -68,6 +69,10 @@ export async function POST(request: Request) {
   const parsed = requestSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return jsonError("Tell me what you would like me to draw.", 400, "INVALID_INPUT");
 
+  // Application safety runs before scope classification, allowance, and provider.
+  const safety = checkImageSafety(parsed.data.prompt);
+  if (!safety.safe) return jsonError("I am not going to draw that one.", 400, "BLOCKED_CONTENT");
+
   // Cabi-only enforcement happens before any provider call.
   const scope = checkImageScope(parsed.data.prompt);
   if (!scope.allowed) {
@@ -125,6 +130,7 @@ export async function POST(request: Request) {
     config: imageConfig,
     provider,
     referenceVersion: plan.reference.version,
+    minimalPrompt: plan.minimalPrompt,
     request: {
       scene: plan.scene,
       aspectRatio: aspectRatio as "1:1" | "16:9" | "9:16",

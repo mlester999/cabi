@@ -20,7 +20,7 @@ import {
   removeImageApiKey,
   writeImageSettings,
 } from "@/lib/image-generation/settings";
-import { imageDiagnosticErrorCategory, logImageGenerationDiagnostic, safeImageKeySuffix } from "@/lib/image-generation/diagnostics";
+import { imageDiagnosticErrorCategory, logImageDatabaseFailure, logImageGenerationDiagnostic, safeImageKeySuffix } from "@/lib/image-generation/diagnostics";
 import { createImagePipelineTrace } from "@/lib/image-generation/pipeline-trace";
 import { runFullCabiImageTest } from "@/lib/image-generation/full-test";
 import type { ImageGenerationSettings } from "@/lib/image-generation/types";
@@ -139,20 +139,36 @@ export async function GET(request: Request) {
   if (new URL(request.url).searchParams.get("section") === "errors") {
     const db = getServiceClient();
     if (!db) return Response.json({ errors: [] }, { headers: responseHeaders() });
-    const { data, error } = await db
+    const detailed = await db
       .from("image_generations")
-      .select("id,created_at,failed_at,wallet_account_id,provider,model,failure_code,failure_message,diagnostic_stage,provider_error_category,http_status,pipeline_request_id,prompt_hash,prompt_length,diagnostic_scene,diagnostic_expression,diagnostic_outfit,prompt_retry_count,reference_conditioned")
-      .eq("status", "FAILED")
+      .select("id,created_at,queued_at,started_at,completed_at,failed_at,status,wallet_account_id,provider,model,failure_code,failure_message,diagnostic_stage,provider_error_category,http_status,pipeline_request_id,prompt_hash,prompt_length,diagnostic_scene,diagnostic_expression,diagnostic_outfit,prompt_retry_count,reference_conditioned")
       .order("created_at", { ascending: false })
       .limit(50);
-    if (error) return jsonError("Recent image diagnostics could not be loaded.", 503, "DIAGNOSTICS_UNAVAILABLE");
-    const errors = (data ?? []).map((row) => {
-      const record = row as Record<string, unknown>;
+    let rows = (detailed.data ?? []) as Array<Record<string, unknown>>;
+    let activityError = detailed.error;
+    let detailedDiagnosticsAvailable = true;
+    if (activityError) {
+      logImageDatabaseFailure({ requestId: "admin-image-activity", operation: "admin_activity", error: activityError });
+      detailedDiagnosticsAvailable = false;
+      const fallback = await db
+        .from("image_generations")
+        .select("id,created_at,status,wallet_account_id,provider,model,failure_code,failure_message")
+        .order("created_at", { ascending: false })
+        .limit(50);
+      rows = (fallback.data ?? []) as Array<Record<string, unknown>>;
+      activityError = fallback.error;
+    }
+    if (activityError) {
+      logImageDatabaseFailure({ requestId: "admin-image-activity", operation: "admin_activity", error: activityError });
+      return jsonError("Recent generation activity could not be loaded.", 503, "DIAGNOSTICS_UNAVAILABLE");
+    }
+    const errors = rows.map((record) => {
       const wallet = typeof record.wallet_account_id === "string" ? record.wallet_account_id : "";
       return {
         id: typeof record.id === "string" ? record.id : null,
-        time: typeof record.failed_at === "string" ? record.failed_at : record.created_at,
+        time: typeof record.created_at === "string" ? record.created_at : null,
         requestId: typeof record.pipeline_request_id === "string" ? record.pipeline_request_id : null,
+        status: typeof record.status === "string" ? record.status : "UNKNOWN",
         user: wallet ? shortAddress(wallet, 8, 4) : "—",
         stage: typeof record.diagnostic_stage === "string" ? record.diagnostic_stage : null,
         provider: typeof record.provider === "string" ? record.provider : null,
@@ -171,7 +187,7 @@ export async function GET(request: Request) {
         },
       };
     });
-    return Response.json({ errors }, { headers: responseHeaders() });
+    return Response.json({ errors, detailedDiagnosticsAvailable }, { headers: responseHeaders() });
   }
 
   const settings = await readImageSettings();
@@ -205,6 +221,8 @@ export async function POST(request: Request) {
         endpoint,
         keyPresent: false,
         keySuffix: null,
+        keySource: resolved.apiKeySource,
+        keyLength: null,
         referenceAttached: false,
         referenceVersion: null,
         referenceInputType: "none",
@@ -214,6 +232,10 @@ export async function POST(request: Request) {
         requestStarted: false,
         httpStatus: null,
         providerErrorCategory: "authentication",
+        requestFields: ["model", "prompt", "width", "height", "n", "response_format"],
+        seedPresent: false,
+        negativePromptPresent: false,
+        stepsPresent: false,
       });
       return Response.json({
         error: "Add a Together AI API key first.",
@@ -247,6 +269,8 @@ export async function POST(request: Request) {
       endpoint,
       keyPresent: true,
       keySuffix: safeImageKeySuffix(candidate),
+      keySource: resolved.apiKeySource,
+      keyLength: candidate.length,
       referenceAttached: false,
       referenceVersion: null,
       referenceInputType: "none",
@@ -261,7 +285,12 @@ export async function POST(request: Request) {
             httpStatus: result.diagnostics?.httpStatus,
             error: result.error,
             referenceAttached: false,
+            providerErrorCategory: result.providerErrorCategory,
           }),
+      requestFields: ["model", "prompt", "width", "height", "n", "response_format"],
+      seedPresent: false,
+      negativePromptPresent: false,
+      stepsPresent: false,
     });
     await auditAdmin(request, admin.email, "image_settings.test", "image_settings", "singleton", result.ok ? "success" : "failure", {
       provider: resolved.provider,

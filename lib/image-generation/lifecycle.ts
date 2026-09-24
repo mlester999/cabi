@@ -3,6 +3,7 @@ import "server-only";
 import { getServiceClient } from "@/lib/db/supabase";
 import { generationBucket, signedImageUrl } from "@/lib/image-generation/storage";
 import { imageGenerationTtlMs } from "@/lib/image-generation/cache";
+import { logImageDatabaseFailure } from "@/lib/image-generation/diagnostics";
 import type { ActionCard } from "@/lib/actions/types";
 import { parseActionCard } from "@/lib/actions/guards";
 
@@ -42,6 +43,28 @@ export type GenerationRecord = {
 /** How long a signed URL stays valid when the UI renders a stored image. */
 export const cardUrlTtlSeconds = Math.floor(imageGenerationTtlMs / 1_000);
 
+async function trackedGenerationUpdate(
+  generationId: string,
+  operation: "mark_generating" | "mark_completed" | "mark_failed" | "link_message",
+  query: PromiseLike<{ data?: unknown; error?: unknown }>,
+): Promise<boolean> {
+  try {
+    const result = await query;
+    if (result.error) {
+      logImageDatabaseFailure({ requestId: generationId, operation, error: result.error });
+      return false;
+    }
+    if (!result.data || typeof result.data !== "object" || !("id" in result.data)) {
+      logImageDatabaseFailure({ requestId: generationId, operation, reason: "no_row_updated" });
+      return false;
+    }
+    return true;
+  } catch (error) {
+    logImageDatabaseFailure({ requestId: generationId, operation, error });
+    return false;
+  }
+}
+
 const recordColumns = "id,status,user_prompt,aspect_ratio,image_path,created_at,queued_at,started_at,completed_at,failed_at,failure_message,parent_generation_id";
 
 function toRecord(row: Record<string, unknown>): GenerationRecord {
@@ -70,11 +93,16 @@ function toRecord(row: Record<string, unknown>): GenerationRecord {
  */
 export async function linkGenerationToMessage(generationId: string, assistantMessageId: string) {
   const db = getServiceClient();
-  if (!db) return;
-  await db
+  if (!db) {
+    logImageDatabaseFailure({ requestId: generationId, operation: "link_message", reason: "database_not_configured" });
+    return false;
+  }
+  return trackedGenerationUpdate(generationId, "link_message", db
     .from("image_generations")
     .update({ assistant_message_id: assistantMessageId })
-    .eq("id", generationId);
+    .eq("id", generationId)
+    .select("id")
+    .maybeSingle());
 }
 
 /** One generation, scoped to its owner so a caller cannot read another wallet's. */
@@ -112,13 +140,17 @@ export async function readGenerationsForMessages(messageIds: readonly string[]):
 /** Marks a row as in progress. Called immediately before the provider request. */
 export async function markGenerating(generationId: string): Promise<boolean> {
   const db = getServiceClient();
-  if (!db) return false;
-  const { error } = await db
+  if (!db) {
+    logImageDatabaseFailure({ requestId: generationId, operation: "mark_generating", reason: "database_not_configured" });
+    return false;
+  }
+  return trackedGenerationUpdate(generationId, "mark_generating", db
     .from("image_generations")
     .update({ status: "GENERATING", started_at: new Date().toISOString() })
     .eq("id", generationId)
-    .eq("status", "QUEUED");
-  return !error;
+    .eq("status", "QUEUED")
+    .select("id")
+    .maybeSingle());
 }
 
 export async function markCompleted(input: {
@@ -126,24 +158,31 @@ export async function markCompleted(input: {
   imagePath: string;
   provider: string;
   model: string;
+  referenceConditioned?: boolean;
   assistantMessageId?: string | null;
 }): Promise<boolean> {
   const db = getServiceClient();
-  if (!db) return false;
-  const { error } = await db
+  if (!db) {
+    logImageDatabaseFailure({ requestId: input.generationId, operation: "mark_completed", reason: "database_not_configured" });
+    return false;
+  }
+  const { referenceConditioned, ...fields } = input;
+  return trackedGenerationUpdate(input.generationId, "mark_completed", db
     .from("image_generations")
     .update({
       status: "COMPLETED",
-      image_path: input.imagePath,
-      provider: input.provider,
-      model: input.model,
+      image_path: fields.imagePath,
+      provider: fields.provider,
+      model: fields.model,
       completed_at: new Date().toISOString(),
-      assistant_message_id: input.assistantMessageId ?? null,
+      assistant_message_id: fields.assistantMessageId ?? null,
       failure_code: null,
       failure_message: null,
+      ...(referenceConditioned !== undefined ? { reference_conditioned: referenceConditioned } : {}),
     })
-    .eq("id", input.generationId);
-  return !error;
+    .eq("id", input.generationId)
+    .select("id")
+    .maybeSingle());
 }
 
 export async function markFailed(input: {
@@ -154,8 +193,11 @@ export async function markFailed(input: {
   diagnostics?: Record<string, unknown>;
 }): Promise<boolean> {
   const db = getServiceClient();
-  if (!db) return false;
-  const { error } = await db
+  if (!db) {
+    logImageDatabaseFailure({ requestId: input.generationId, operation: "mark_failed", reason: "database_not_configured" });
+    return false;
+  }
+  return trackedGenerationUpdate(input.generationId, "mark_failed", db
     .from("image_generations")
     .update({
       status: "FAILED",
@@ -165,8 +207,9 @@ export async function markFailed(input: {
       assistant_message_id: input.assistantMessageId ?? null,
       ...input.diagnostics,
     })
-    .eq("id", input.generationId);
-  return !error;
+    .eq("id", input.generationId)
+    .select("id")
+    .maybeSingle());
 }
 
 /**

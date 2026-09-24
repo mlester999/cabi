@@ -351,8 +351,7 @@ export function CabiExperience({ flags = defaultFeatureFlags, viewport = "full",
     const userId = crypto.randomUUID();
     const assistantId = crypto.randomUUID();
     assistantServerIdRef.current = null;
-    const persistedRetry = persistent && Boolean(retryOfMessageId);
-    if (!persistedRetry) setMessages((current) => [...current, { id: userId, role: "user", content: text, status: "complete", createdAt: new Date().toISOString() }, { id: assistantId, role: "assistant", content: "", status: "streaming", createdAt: new Date().toISOString() }]);
+    if (!retryOfMessageId) setMessages((current) => [...current, { id: userId, role: "user", content: text, status: "complete", createdAt: new Date().toISOString() }, { id: assistantId, role: "assistant", content: "", status: "streaming", createdAt: new Date().toISOString() }]);
     else setMessages((current) => [...current, { id: assistantId, role: "assistant", content: "", status: "streaming", createdAt: new Date().toISOString() }]);
     const guestHistory = persistent ? undefined : messages
       .filter((message) => (message.role === "user" || message.role === "assistant") && message.content.trim())
