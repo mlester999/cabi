@@ -33,7 +33,7 @@ export default async function PreviewSubpage({ params }: { params: Promise<{ pat
   const flags = await readFeatureFlags();
   let content: React.ReactNode;
   switch (route) {
-    case "chat": content = <CabiExperience flags={flags} />; break;
+    case "chat": content = <CabiExperience flags={flags} viewport="preview" />; break;
     case "profile": {
       const wallet = await readWalletAuth().catch(() => null);
       content = <Section title="Your profile">{wallet ? <ProfileExperience /> : <p className="mt-8 text-sm text-[#a8a3b3]">Connect your wallet to see your profile.</p>}</Section>;

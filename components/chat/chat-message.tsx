@@ -1,7 +1,7 @@
 "use client";
 
 import { BadgeCheck, Check, Copy, Heart, Laugh, Pencil, RotateCcw, Share2, Sparkles, ThumbsUp, Trash2 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import rehypeSanitize from "rehype-sanitize";
 import remarkGfm from "remark-gfm";
@@ -33,6 +33,15 @@ type Props = {
   onUseImageAsAvatar?: (card: Extract<ActionCard, { kind: "IMAGE" }>) => void;
 };
 
+const CABI_THINKING_LINES = [
+  "Cabi is fluffing her thoughts",
+  "Cabi is chasing a clever idea",
+  "Cabi is checking the cozy corners",
+  "Cabi is polishing a tiny answer",
+  "Cabi is untangling her whiskers",
+  "Cabi is warming up a sweet reply",
+] as const;
+
 export function ChatMessage({ message, onRetry, onDelete, onEdit, onShare, onReact, onRegenerateImage, onUseImageAsAvatar }: Props) {
   const [copied, setCopied] = useState(false);
   const isCabi = message.role === "assistant";
@@ -48,15 +57,17 @@ export function ChatMessage({ message, onRetry, onDelete, onEdit, onShare, onRea
         <div className={`relative rounded-[20px] px-4 py-3.5 text-[15px] leading-7 shadow-lg ${isCabi ? "rounded-tl-[7px] border border-violet-300/[0.14] bg-violet-300/[0.055] text-[#ece9f3]" : "rounded-tr-[7px] border border-white/[0.07] bg-[#17141f] text-white"}`}>
           {isCabi ? (
             <div className="cabi-markdown break-words">
-              <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSanitize]} components={{
-                a: ({ href, children }) => <a href={href} target="_blank" rel="noreferrer noopener" className="text-violet-300 underline decoration-violet-300/35 underline-offset-4 hover:text-violet-200">{children}</a>,
-                code: ({ children, className }) => className ? <code className={`${className} block overflow-x-auto rounded-xl bg-black/35 p-3 font-mono text-[13px] leading-6 text-violet-100`}>{children}</code> : <code className="rounded bg-white/[0.07] px-1.5 py-0.5 font-mono text-[13px] text-violet-200">{children}</code>,
-                pre: ({ children }) => <pre className="my-3 max-w-full overflow-hidden">{children}</pre>,
-                ul: ({ children }) => <ul className="my-2 list-disc space-y-1 pl-5">{children}</ul>,
-                ol: ({ children }) => <ol className="my-2 list-decimal space-y-1 pl-5">{children}</ol>,
-                p: ({ children }) => <p className="my-1.5 first:mt-0 last:mb-0">{children}</p>,
-              }}>{message.content || (message.status === "streaming" ? "" : "…")}</ReactMarkdown>
-              {message.status === "streaming" && <span className="ml-1 inline-block h-4 w-1.5 animate-pulse rounded-full bg-violet-300 align-middle" aria-label="Cabi is typing" />}
+              {message.content.trim() ? <>
+                <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSanitize]} components={{
+                  a: ({ href, children }) => <a href={href} target="_blank" rel="noreferrer noopener" className="text-violet-300 underline decoration-violet-300/35 underline-offset-4 hover:text-violet-200">{children}</a>,
+                  code: ({ children, className }) => className ? <code className={`${className} block overflow-x-auto rounded-xl bg-black/35 p-3 font-mono text-[13px] leading-6 text-violet-100`}>{children}</code> : <code className="rounded bg-white/[0.07] px-1.5 py-0.5 font-mono text-[13px] text-violet-200">{children}</code>,
+                  pre: ({ children }) => <pre className="my-3 max-w-full overflow-hidden">{children}</pre>,
+                  ul: ({ children }) => <ul className="my-2 list-disc space-y-1 pl-5">{children}</ul>,
+                  ol: ({ children }) => <ol className="my-2 list-decimal space-y-1 pl-5">{children}</ol>,
+                  p: ({ children }) => <p className="my-1.5 first:mt-0 last:mb-0">{children}</p>,
+                }}>{message.content}</ReactMarkdown>
+                {message.status === "streaming" && <span className="ml-1 inline-block h-4 w-1.5 animate-pulse rounded-full bg-violet-300 align-middle" aria-label="Cabi is typing" />}
+              </> : message.status === "streaming" ? <CabiThinking /> : <span>…</span>}
             </div>
           ) : <p className="whitespace-pre-wrap break-words">{message.content}</p>}
           {message.status === "failed" && <div className="mt-3 flex items-center gap-2 border-t border-white/[0.06] pt-2.5 text-xs text-rose-300"><span className="flex-1">Looks like my brain needs a second.</span><button onClick={onRetry} className="focus-ring rounded-lg px-2 py-1 hover:bg-white/[0.05]">Try again</button></div>}
@@ -81,5 +92,16 @@ function Reaction({ label, active, onClick, children }: { label: string; active:
 }
 
 export function CabiThinking() {
-  return <div role="status" className="flex items-center gap-3"><MiniCabi className="h-9 w-9" /><div className="flex items-center gap-2 rounded-[18px] rounded-tl-[7px] border border-violet-300/[0.12] bg-violet-300/[0.05] px-4 py-3 text-xs text-[#9f99aa]"><Sparkles size={14} className="animate-pulse text-violet-300" /> Cabi is thinking<span className="flex gap-1"><i className="h-1 w-1 animate-bounce rounded-full bg-violet-300 [animation-delay:-.2s]" /><i className="h-1 w-1 animate-bounce rounded-full bg-violet-300 [animation-delay:-.1s]" /><i className="h-1 w-1 animate-bounce rounded-full bg-violet-300" /></span></div></div>;
+  const [line, setLine] = useState(0);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setLine((current) => (current + 1) % CABI_THINKING_LINES.length), 1_900);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  return <span role="status" aria-live="polite" className="inline-flex min-w-0 max-w-full items-center gap-2 text-[13px] text-[#b9b1c8]">
+    <Sparkles size={14} className="shrink-0 animate-pulse text-violet-300" aria-hidden="true" />
+    <span className="truncate">{CABI_THINKING_LINES[line]}</span>
+    <span className="flex shrink-0 gap-1" aria-hidden="true"><i className="h-1 w-1 animate-bounce rounded-full bg-violet-300 [animation-delay:-.2s]" /><i className="h-1 w-1 animate-bounce rounded-full bg-violet-300 [animation-delay:-.1s]" /><i className="h-1 w-1 animate-bounce rounded-full bg-violet-300" /></span>
+  </span>;
 }

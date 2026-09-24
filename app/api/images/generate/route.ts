@@ -5,7 +5,8 @@ import { getServiceClient } from "@/lib/db/supabase";
 import { aspectRatios } from "@/lib/image-generation/types";
 import { generationBucket, signedImageUrl, uploadGenerationImage } from "@/lib/image-generation/storage";
 import { imageGenerationTtlMs } from "@/lib/image-generation/cache";
-import { offTopicReply, uncertainReply, classifyCabiRelevance } from "@/lib/image-generation/scope";
+import { offTopicReply, uncertainReply, classifyCabiRelevance, extractScene } from "@/lib/image-generation/scope";
+import { checkImageSafety, safetyCodeFor } from "@/lib/image-generation/safety";
 import { assertSameOrigin, clientAddress, jsonError } from "@/lib/security/request";
 import { checkRateLimit } from "@/lib/security/rate-limit";
 import { guardAppApi } from "@/lib/site/guard";
@@ -81,7 +82,7 @@ export async function POST(request: Request) {
       .eq("idempotency_key", idempotencyKey)
       .maybeSingle();
     const prior = existing as { id: string; user_prompt: string; aspect_ratio: string; image_path: string | null; created_at: string; status: string } | null;
-    if (prior?.image_path && prior.status === "SUCCEEDED") {
+    if (prior?.image_path && prior.status === "COMPLETED") {
       const url = await signedImageUrl(generationBucket, prior.image_path, Math.floor(imageGenerationTtlMs / 1_000));
       if (url) {
         return Response.json(
@@ -102,6 +103,34 @@ export async function POST(request: Request) {
         verdict,
         message: verdict === "UNCERTAIN" ? uncertainReply(prompt) : offTopicReply(prompt),
       },
+      { status: 200, headers: { "Cache-Control": "private, no-store" } },
+    );
+  }
+
+  /*
+   * Safety is a separate question from relevance, and both must pass: "Cabi
+   * holding a knife" is unmistakably about Cabi and still must not be drawn.
+   * Checked before the provider so a refusal costs no call and no allowance.
+   */
+  const safety = checkImageSafety(extractScene(prompt));
+  if (!safety.safe) {
+    // Recorded so the admin view can see what is being asked for, without
+    // spending a generation on it.
+    await db.from("image_generations").insert({
+      wallet_account_id: wallet.walletAccountId,
+      conversation_id: conversationId ?? null,
+      user_prompt: prompt,
+      aspect_ratio: aspectRatio,
+      provider: "together",
+      model: resolveTogetherModel(),
+      status: "FAILED",
+      failure_code: "SAFETY_REFUSED",
+      safety_code: safetyCodeFor(safety),
+      failure_message: safety.message,
+      failed_at: new Date().toISOString(),
+    });
+    return Response.json(
+      { type: "chat_response", verdict: "UNSAFE", message: safety.message },
       { status: 200, headers: { "Cache-Control": "private, no-store" } },
     );
   }
@@ -166,7 +195,7 @@ export async function POST(request: Request) {
       image_path: uploaded.path,
       provider: "together",
       model: generated.image.model,
-      status: "SUCCEEDED",
+      status: "COMPLETED",
       idempotency_key: idempotencyKey ?? null,
     })
     .select("id,created_at")

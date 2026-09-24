@@ -24,5 +24,5 @@ export const metadata: Metadata = {
  * rendered, and the gated application APIs repeat the same check themselves.
  */
 export default async function PreviewPage() {
-  return <PreviewApplication><CabiExperience flags={await readFeatureFlags()} /></PreviewApplication>;
+  return <PreviewApplication><CabiExperience flags={await readFeatureFlags()} viewport="preview" /></PreviewApplication>;
 }

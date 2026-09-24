@@ -9,6 +9,8 @@ import { awardImageXp, countImageXpToday } from "@/lib/ranking/service";
 import { readProfile } from "@/lib/profiles/service";
 import { initialsFor } from "@/lib/profiles/username";
 import { imageGenerationTtlMs } from "@/lib/image-generation/cache";
+import { markCompleted, markFailed, markGenerating } from "@/lib/image-generation/lifecycle";
+import { checkImageSafety } from "@/lib/image-generation/safety";
 import { noticeCard, imageCard } from "@/lib/actions/cards";
 import type { ActionCard } from "@/lib/actions/types";
 
@@ -30,6 +32,11 @@ export type ChatImageOptions = {
    * such as "put her in a gaming chair" to Cabi.
    */
   conversationContext?: readonly string[];
+  /**
+   * The generation being regenerated, when the user pressed Regenerate. The new
+   * row points at the original, so regenerating never destroys the old image.
+   */
+  parentGenerationId?: string | null;
   walletAccountId: string | null;
   conversationId: string | null;
   messageId: string | null;
@@ -101,6 +108,21 @@ export async function generateChatImage(message: string, options: ChatImageOptio
     };
   }
 
+  /*
+   * Safety runs AFTER relevance and BEFORE the wallet/quota/provider steps, and
+   * is a separate question: "Cabi holding a knife" is unmistakably about Cabi and
+   * still must not be drawn. Checking relevance alone would spend a credit on it.
+   */
+  const safety = checkImageSafety(scene);
+  if (!safety.safe) {
+    return {
+      handled: true,
+      usedProvider: false,
+      reply: safety.message,
+      card: noticeCard({ title: "I will not draw that", message: safety.message, tone: "caution" }),
+    };
+  }
+
   // Generation costs money per call, so it is tied to a wallet for quota.
   if (!options.walletAccountId && !settings.allowGuestGeneration) {
     return {
@@ -155,6 +177,39 @@ export async function generateChatImage(message: string, options: ChatImageOptio
     }
   }
 
+  /*
+   * The row is created as QUEUED before the provider is called, so an in-flight
+   * generation is visible to a refresh rather than existing only inside this
+   * request. The same row is then transitioned forward, which is what gives the
+   * UI three honest, recoverable states instead of one.
+   */
+  const aspectRatio = providerConfig.settings.defaultAspectRatio;
+  const queuedAt = new Date().toISOString();
+  const generationId = crypto.randomUUID();
+  /*
+   * A failure to write the QUEUED row must not abort the generation: the user
+   * asked for an image, and losing the audit trail is a smaller harm than losing
+   * the image. The lifecycle transitions below are independently guarded for the
+   * same reason.
+   */
+  try {
+    await db.from("image_generations").insert({
+      id: generationId,
+      wallet_account_id: walletAccountId,
+      conversation_id: options.conversationId ?? null,
+      message_id: options.messageId ?? null,
+      user_prompt: scene,
+      aspect_ratio: aspectRatio,
+      provider: providerConfig.settings.provider,
+      model: providerConfig.settings.model,
+      status: "QUEUED",
+      queued_at: queuedAt,
+      parent_generation_id: options.parentGenerationId ?? null,
+    });
+  } catch {
+    // Generation continues; the row simply will not exist to transition.
+  }
+
   const provider = createImageProvider({
     provider: providerConfig.settings.provider,
     apiKey: providerConfig.apiKey,
@@ -163,7 +218,9 @@ export async function generateChatImage(message: string, options: ChatImageOptio
     supportsReferenceImage: true,
   });
 
-  const aspectRatio = providerConfig.settings.defaultAspectRatio;
+  // QUEUED -> GENERATING, recorded before the request leaves the process so a
+  // refresh mid-flight recovers to "still working" rather than to a placeholder.
+  await markGenerating(generationId);
   const generated = await provider.generateCabiImage({
     scene: scene,
     aspectRatio,
@@ -171,18 +228,9 @@ export async function generateChatImage(message: string, options: ChatImageOptio
   });
 
   if (!generated.ok) {
-    // Recorded FAILED, which the quota function does not count, so a provider
-    // outage never burns the user's allowance.
-    await db.from("image_generations").insert({
-      wallet_account_id: walletAccountId,
-      conversation_id: options.conversationId,
-      user_prompt: scene,
-      aspect_ratio: aspectRatio,
-      provider: providerConfig.settings.provider,
-      model: providerConfig.settings.model,
-      status: "FAILED",
-      failure_code: generated.error,
-    });
+    // FAILED does not consume the daily allowance, so a provider outage never
+    // burns one of the user's images.
+    await markFailed({ generationId, code: generated.error, message: generated.message });
     return {
       handled: true,
       usedProvider: true,
@@ -191,7 +239,6 @@ export async function generateChatImage(message: string, options: ChatImageOptio
     };
   }
 
-  const generationId = crypto.randomUUID();
   const uploaded = await uploadGenerationImage({
     walletAccountId,
     generationId,
@@ -207,22 +254,15 @@ export async function generateChatImage(message: string, options: ChatImageOptio
     };
   }
 
-  const { data: row } = await db
-    .from("image_generations")
-    .insert({
-      id: generationId,
-      wallet_account_id: walletAccountId,
-      conversation_id: options.conversationId,
-      message_id: options.messageId,
-      user_prompt: scene,
-      aspect_ratio: aspectRatio,
-      image_path: uploaded.path,
-      provider: generated.image.provider,
-      model: generated.image.model,
-      status: "SUCCEEDED",
-    })
-    .select("id,created_at")
-    .maybeSingle();
+  // Transition the row that already exists rather than inserting a second one,
+  // so the generation the user watched is the generation they keep.
+  await markCompleted({
+    generationId,
+    imagePath: uploaded.path,
+    provider: generated.image.provider,
+    model: generated.image.model,
+  });
+  const row = { id: generationId, created_at: queuedAt };
 
   const url = await signedImageUrl(generationBucket, uploaded.path, Math.floor(imageGenerationTtlMs / 1_000));
   if (!url) {

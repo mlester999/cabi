@@ -1,5 +1,21 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+/**
+ * Walks a rendered React element tree looking for a value anywhere inside it.
+ *
+ * Depth-independent on purpose: the preview wrapper has gained and lost
+ * intermediate divs, and an index-based assertion silently turned into a
+ * failure about layout rather than about authorisation.
+ */
+function containsChild(node: unknown, value: string): boolean {
+  if (node === value) return true;
+  if (Array.isArray(node)) return node.some((entry) => containsChild(entry, value));
+  if (node && typeof node === "object" && "props" in node) {
+    const props = (node as { props?: { children?: unknown } }).props;
+    return containsChild(props?.children, value);
+  }
+  return false;
+}
 const mocks = vi.hoisted(() => ({
   mode: vi.fn(),
   owner: vi.fn(),
@@ -33,7 +49,12 @@ describe("private preview page boundary", () => {
   it("allows a verified owner preview and renders the real child tree", async () => {
     mocks.owner.mockResolvedValue({ walletAddress: "0x00000000000000000000000000000000000000A1" });
     const result = await PreviewApplication({ children: "private app" });
-    expect(result.props.children[1]).toBe("private app");
+    /*
+     * Searched for rather than indexed: the component wraps the children in
+     * frame/content divs and has changed depth before, so `children[1]` broke
+     * when a wrapper was added. What matters is that the real tree is rendered.
+     */
+    expect(containsChild(result, "private app")).toBe(true);
     expect(mocks.redirect).not.toHaveBeenCalled();
   });
 

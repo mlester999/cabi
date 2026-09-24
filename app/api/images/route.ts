@@ -144,7 +144,7 @@ export async function POST(request: Request) {
       image_path: uploaded.path,
       provider: generated.image.provider,
       model: generated.image.model,
-      status: "SUCCEEDED",
+      status: "COMPLETED",
     })
     .select("id,created_at")
     .maybeSingle();

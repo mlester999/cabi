@@ -136,7 +136,7 @@ export async function refreshAchievements(walletAccountId: string): Promise<Achi
   const [profileResult, messageCount, images, standing] = await Promise.all([
     db.from("profiles").select("lifetime_xp,best_leaderboard_position").eq("wallet_account_id", walletAccountId).maybeSingle(),
     countWalletMessages(walletAccountId, "user"),
-    db.from("image_generations").select("id", { count: "exact", head: true }).eq("wallet_account_id", walletAccountId).eq("status", "SUCCEEDED"),
+    db.from("image_generations").select("id", { count: "exact", head: true }).eq("wallet_account_id", walletAccountId).eq("status", "COMPLETED"),
     db.rpc("rank_user_standing", { p_type: "MONTHLY", p_wallet_account_id: walletAccountId }),
   ]);
 

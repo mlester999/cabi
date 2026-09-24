@@ -15,6 +15,24 @@ const mocks = {
   inserted: [] as Array<Record<string, unknown>>,
 };
 
+/*
+ * The lifecycle transitions write to the database. Mocked here so these tests
+ * exercise the decision path — what reaches the provider and what does not —
+ * without needing a database. The transition sequence itself is covered by
+ * tests/image-lifecycle.test.ts.
+ */
+vi.mock("@/lib/image-generation/lifecycle", () => ({
+  markGenerating: vi.fn(async () => undefined),
+  markCompleted: vi.fn(async () => undefined),
+  markFailed: vi.fn(async () => undefined),
+  linkGenerationToMessage: vi.fn(async () => undefined),
+  refreshCardUrl: vi.fn(async (card: unknown) => card),
+  refreshStoredCards: vi.fn(async (messages: unknown) => messages),
+  readQuota: vi.fn(async () => ({ used: 0, remaining: 5, allowed: true, dailyLimit: 5, failedToday: 0, inFlight: 0, resetsAt: null })),
+  readGeneration: vi.fn(async () => null),
+  deleteGeneration: vi.fn(async () => ({ ok: true })),
+  cardUrlTtlSeconds: 600,
+}));
 vi.mock("@/lib/image-generation/settings", () => ({
   readImageSettings: vi.fn(async () => ({
     enabled: mocks.enabled, provider: "together", baseUrl: "https://api.together.xyz/v1",

@@ -24,6 +24,30 @@ const mocks = {
   imageXpPerDay: 1,
 };
 
+/*
+ * The lifecycle transitions write to the database. Mocked here so these tests
+ * exercise the decision path — what reaches the provider and what does not —
+ * without needing a database. The transition sequence itself is covered by
+ * tests/image-lifecycle.test.ts.
+ *
+ * `vi.hoisted` is required: `vi.mock` is hoisted above every const in the file,
+ * so a plain object would still be uninitialised when the factory runs.
+ */
+const lifecycle = vi.hoisted(() => ({
+  markGenerating: vi.fn(async () => undefined),
+  markCompleted: vi.fn(async () => undefined),
+  markFailed: vi.fn(async () => undefined),
+}));
+vi.mock("@/lib/image-generation/lifecycle", () => ({
+  ...lifecycle,
+  linkGenerationToMessage: vi.fn(async () => undefined),
+  refreshCardUrl: vi.fn(async (card: unknown) => card),
+  refreshStoredCards: vi.fn(async (messages: unknown) => messages),
+  readQuota: vi.fn(async () => ({ used: 0, remaining: 5, allowed: true, dailyLimit: 5, failedToday: 0, inFlight: 0, resetsAt: null })),
+  readGeneration: vi.fn(async () => null),
+  deleteGeneration: vi.fn(async () => ({ ok: true })),
+  cardUrlTtlSeconds: 600,
+}));
 vi.mock("@/lib/image-generation/settings", () => ({
   readImageSettings: vi.fn(async () => ({
     enabled: mocks.enabled,
@@ -249,9 +273,11 @@ describe("provider failure", () => {
     expect(result.handled).toBe(true);
     if (!result.handled) return;
     expect(result.usedProvider).toBe(true);
-    const failures = mocks.inserted.filter((row) => row.status === "FAILED");
-    expect(failures).toHaveLength(1);
-    // A FAILED row is what keeps a provider outage from consuming the quota.
+    // Failure is a transition on the row that was already QUEUED, so the
+    // lifecycle has one row moving through states rather than two rows.
+    expect(lifecycle.markFailed).toHaveBeenCalledWith(expect.objectContaining({ code: "PROVIDER_ERROR" }));
+    const queued = mocks.inserted.filter((row) => row.status === "QUEUED");
+    expect(queued).toHaveLength(1);
     expect(mocks.inserted.every((row) => row.wallet_account_id === wallet.walletAccountId)).toBe(true);
   });
 });
@@ -272,10 +298,13 @@ describe("successful generation", () => {
 
   it("stores the sanitised user prompt, never the internal prompt", async () => {
     await generateChatImage("Generate a picture of you drinking coffee.", wallet);
-    const success = mocks.inserted.find((row) => row.status === "SUCCEEDED");
-    expect(success).toBeDefined();
-    expect(String(success?.user_prompt)).toContain("coffee");
-    expect(String(success?.user_prompt)).not.toContain("ash-gray");
+    // The prompt is stored when the row is QUEUED, and the same row is then
+    // completed, so the sanitised scene is what persists.
+    const queued = mocks.inserted.find((row) => row.status === "QUEUED");
+    expect(queued).toBeDefined();
+    expect(String(queued?.user_prompt)).toContain("coffee");
+    expect(String(queued?.user_prompt)).not.toContain("ash-gray");
+    expect(lifecycle.markCompleted).toHaveBeenCalledTimes(1);
   });
 
   it("offers the avatar option only because the profile is complete", async () => {

@@ -38,7 +38,7 @@ export function PreviewBanner({ mode, actor }: { mode: PreviewChromeMode; actor:
   };
 
   return (
-    <div className="sticky top-0 z-[80] border-b border-amber-300/15 bg-[#12100a]/92 backdrop-blur-xl">
+    <div className="sticky top-0 z-[80] shrink-0 border-b border-amber-300/15 bg-[#12100a]/92 backdrop-blur-xl">
       <div className="mx-auto flex min-h-12 w-full max-w-[1400px] flex-wrap items-center gap-x-4 gap-y-2 px-4 py-2 sm:px-6">
         <span className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[.16em] text-amber-200">
           <Eye size={14} aria-hidden="true" /> Preview mode

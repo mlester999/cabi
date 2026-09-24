@@ -10,6 +10,12 @@ export const chatRequestSchema = z.object({
   message: z.string().trim().min(1).max(12_000),
   clientRequestId: z.string().uuid().optional(),
   retryOfMessageId: z.string().uuid().optional(),
+  /**
+   * The generation this request regenerates, when the user pressed Regenerate.
+   * Used only to record lineage: a regenerate always creates a NEW generation
+   * and never overwrites the original image.
+   */
+  parentGenerationId: z.string().uuid().optional(),
   timezone: z.string().max(80).optional(),
   chainId: z.number().int().positive().max(2_147_483_647).nullable().optional(),
   onboardingName: z.boolean().optional(),

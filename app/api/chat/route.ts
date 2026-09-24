@@ -20,6 +20,7 @@ import { guardAppApi } from "@/lib/site/guard";
 import { recordChatTurnSocial } from "@/lib/chat/social";
 import { achievementCopy } from "@/lib/ranking/achievements";
 import { generateChatImage } from "@/lib/image-generation/chat";
+import { linkGenerationToMessage } from "@/lib/image-generation/lifecycle";
 
 export const dynamic = "force-dynamic";
 
@@ -145,6 +146,8 @@ export async function POST(request: Request) {
       // Sourced from the same value `localRecent` uses; that variable is declared
       // after this block, so it cannot be referenced here.
       conversationContext: (persistent ? context.recent : (parsed.data.guestHistory ?? [])).map((turn) => turn.content),
+      // Lineage only: a regenerate inserts a new row and keeps the original.
+      parentGenerationId: parsed.data.parentGenerationId ?? null,
     }).catch(() => ({ handled: false }) as const),
   ]);
   const mood: CabiMood = inferMood({
@@ -235,6 +238,15 @@ export async function POST(request: Request) {
             db.from("conversations").update({ updated_at: new Date().toISOString() }).eq("id", conversationId).eq("wallet_account_id", walletAccountId),
           ]);
           if (messageWrite.error || conversationWrite.error) throw new Error("PERSISTENCE_WRITE_FAILED");
+          /*
+           * Link the generation to the message that now displays it. This is the
+           * durable relationship between conversation, message, generation and
+           * stored object: without it a reopened conversation could only rely on
+           * the signed URL baked into metadata_json, which has expired.
+           */
+          if (card?.kind === "IMAGE") {
+            await linkGenerationToMessage(card.generationId, assistantMessageId).catch(() => undefined);
+          }
           // Usage logging is telemetry, not conversation durability. A logging
           // outage must not turn a correctly saved reply into a failed chat.
           await db.from("usage_logs").insert({ user_id: profileId, wallet_account_id: walletAccountId, conversation_id: conversationId, provider: deterministicReply ? "cabi-actions" : "deepseek", model: deterministicReply ? "deterministic" : activeConfig?.model ?? "auto", input_tokens: usage?.input ?? null, output_tokens: usage?.output ?? null, latency_ms: Date.now() - started, status: "success" });

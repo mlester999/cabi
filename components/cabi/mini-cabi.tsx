@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-export function MiniCabi({ className = "", decorative = false }: { className?: string; decorative?: boolean }) {
+export function MiniCabi({ className = "", decorative = false, priority = false }: { className?: string; decorative?: boolean; priority?: boolean }) {
   const [failed, setFailed] = useState(false);
   return (
     <span
@@ -12,20 +12,16 @@ export function MiniCabi({ className = "", decorative = false }: { className?: s
     >
       {/* The monogram stays underneath the official mark as a resilient fallback. */}
       <span aria-hidden="true" className="relative z-0 text-[12px] font-black tracking-[-0.08em] text-violet-200">CA</span>
-      {/*
-        The mascot render, not the full logo: this element is used at 26-40px in
-        every chat message, and the logo asset is a 2858 KB 1254x1254 file. The
-        mascot is the same character at 400x400 and 68 KB, so a conversation no
-        longer downloads megabytes of avatar it renders at thumbnail size.
-      */}
+      {/* The supplied official close-up mark is shared across chat, preview, and admin surfaces. */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
-        src="/assets/cabi-mascot.png"
+        src="/assets/cabi-logo.png"
         alt=""
         aria-hidden="true"
-        width={400}
-        height={400}
-        loading="lazy"
+        width={1254}
+        height={1254}
+        loading={priority ? "eager" : "lazy"}
+        fetchPriority={priority ? "high" : "auto"}
         decoding="async"
         draggable={false}
         className={`absolute inset-0 z-10 h-full w-full object-contain p-0.5 ${failed ? "hidden" : "block"}`}

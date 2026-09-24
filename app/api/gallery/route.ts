@@ -35,7 +35,7 @@ export async function GET() {
     .from("image_generations")
     .select("id,user_prompt,aspect_ratio,model,image_path,created_at")
     .eq("wallet_account_id", auth.identity.walletAccountId)
-    .eq("status", "SUCCEEDED")
+    .eq("status", "COMPLETED")
     .not("image_path", "is", null)
     .order("created_at", { ascending: false })
     .limit(60);

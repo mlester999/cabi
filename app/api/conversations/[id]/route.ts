@@ -1,6 +1,7 @@
 import { getServiceClient } from "@/lib/db/supabase";
 import { assertSameOrigin, jsonError } from "@/lib/security/request";
 import { parseActionCard } from "@/lib/actions/guards";
+import { refreshStoredCards } from "@/lib/image-generation/lifecycle";
 import { guardAppApi } from "@/lib/site/guard";
 import { conversationPatchSchema } from "@/lib/validation/api";
 import { walletAuthOrResponse } from "@/lib/wallet/session";
@@ -30,7 +31,15 @@ export async function GET(_request: Request, context: Context) {
     const safe = parseActionCard(actionCard);
     return { ...message, metadata_json: { ...rest, ...(safe ? { actionCard: safe } : {}) } };
   });
-  return Response.json({ conversation, messages: shaped }, { headers: { "Cache-Control": "private, no-store" } });
+  /*
+   * A stored image card carries an object path, not a usable URL: the signed URL
+   * it was shown with expired ten minutes after it was made. Re-sign here so an
+   * image generated yesterday still renders today, and so a generation that is
+   * still running or that failed is rendered as its state rather than as a
+   * broken image.
+   */
+  const refreshed = await refreshStoredCards(shaped).catch(() => shaped);
+  return Response.json({ conversation, messages: refreshed }, { headers: { "Cache-Control": "private, no-store" } });
 }
 
 export async function PATCH(request: Request, context: Context) {

@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("next/link", () => ({
@@ -80,6 +80,22 @@ describe("action card rendering", () => {
   it("renders no card when the message has none", () => {
     render(<ChatMessage message={{ id: "m2", role: "assistant", content: "Just talking.", status: "complete" }} />);
     expect(screen.queryByRole("region", { name: /card$/ })).toBeNull();
+  });
+
+  it("rotates cozy thinking copy while Cabi is streaming", () => {
+    vi.useFakeTimers();
+    try {
+      render(<ChatMessage message={{ id: "m3", role: "assistant", content: "", status: "streaming" }} />);
+      const thinking = screen.getByRole("status");
+      expect(thinking).toHaveTextContent("Cabi is fluffing her thoughts");
+
+      act(() => {
+        vi.advanceTimersByTime(1_900);
+      });
+      expect(thinking).toHaveTextContent("Cabi is chasing a clever idea");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 
