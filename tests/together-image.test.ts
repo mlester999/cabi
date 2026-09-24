@@ -164,6 +164,33 @@ describe("request construction", () => {
   });
 });
 
+describe("provider abstraction surface", () => {
+  it("sends a seed when the caller supplies one", async () => {
+    stubFetch(() => new Response(JSON.stringify({ data: [{ b64_json: pngB64 }] }), { status: 200 }));
+    await generateTogetherImage({ prompt: "Cabi waving", aspectRatio: "1:1", seed: 12345 });
+    expect(calls[0].body.seed).toBe(12345);
+  });
+
+  it("omits the seed entirely when none is supplied, rather than sending null", async () => {
+    stubFetch(() => new Response(JSON.stringify({ data: [{ b64_json: pngB64 }] }), { status: 200 }));
+    await generateTogetherImage({ prompt: "Cabi waving", aspectRatio: "1:1" });
+    expect(calls[0].body).not.toHaveProperty("seed");
+  });
+
+  it("accepts a referenceImages array without sending it to a text-to-image model", async () => {
+    stubFetch(() => new Response(JSON.stringify({ data: [{ b64_json: pngB64 }] }), { status: 200 }));
+    // The contract must accept the field even when the model ignores it, so a
+    // provider swap does not require changing every call site.
+    const result = await generateTogetherImage({
+      prompt: "Cabi waving",
+      aspectRatio: "1:1",
+      referenceImages: ["/assets/cabi-cpu-model.png"],
+    });
+    expect(result.ok).toBe(true);
+    expect(calls[0].body).not.toHaveProperty("image_url");
+  });
+});
+
 describe("response parsing", () => {
   it("reads a base64 image and sniffs its real type", async () => {
     stubFetch(() => new Response(JSON.stringify({ data: [{ b64_json: pngB64 }] }), { status: 200 }));
