@@ -11,6 +11,7 @@ import { resolveConfiguredCpu, resolveTokenMetadata } from "@/lib/tokens/metadat
 import { readWalletSnapshot } from "@/lib/wallet-data/client";
 import { shortAddress, type WalletSnapshot } from "@/lib/wallet-data/types";
 import { getPublicWalletConfig, type PublicWalletConfig } from "@/lib/wallet/config";
+import { defaultFeatureFlags, type FeatureFlags } from "@/lib/config/feature-flags";
 
 /**
  * The action runtime.
@@ -38,6 +39,8 @@ export type ActionRunContext = ActionContext & {
    */
   config?: PublicWalletConfig;
   snapshot?: WalletSnapshot | null;
+  /** Resolved on the server. Future wallet surfaces fail closed when omitted. */
+  featureFlags?: FeatureFlags;
 };
 
 export type ActionRunResult = ActionOutcome & {
@@ -80,6 +83,15 @@ function walletRequired(): ActionRunResult {
       links: [{ label: "Open settings", url: "/settings", kind: "INTERNAL" }],
     }),
     reply: "Connect your wallet first and I can check.",
+    skipModel: true,
+    contextNotes: [],
+  };
+}
+
+function lockedFeatureNotice(title: string, message: string): ActionRunResult {
+  return {
+    card: noticeCard({ title, message }),
+    reply: message,
     skipModel: true,
     contextNotes: [],
   };
@@ -190,6 +202,10 @@ async function runHolding(request: Extract<ActionRequest, { type: "HOLDING" }>, 
 }
 
 async function runTrade(intent: TradeIntent, context: ActionRunContext, config: PublicWalletConfig): Promise<ActionRunResult> {
+  const flags = context.featureFlags ?? defaultFeatureFlags;
+  if ((intent.action === "BUY" || intent.action === "SELL") && !flags.direct_trading_enabled) {
+    return lockedFeatureNotice("Automated trading is in the works", "Cabi cannot prepare trades yet. I can still help you inspect a verified token page.");
+  }
   const provider = providerFor(config);
   const enabledChains = config.chains.filter((chain) => chain.enabled);
   const chain = enabledChains.find((item) => item.id === (intent.chainId ?? context.chainId)) ?? enabledChains[0] ?? null;
@@ -345,7 +361,6 @@ async function runSlash(command: { id: string }, rest: string, context: ActionRu
   switch (command.id) {
     case "/cpu": return runTokenLookup({ type: "TOKEN_LOOKUP", symbol: config.cpu.ticker || "CPU" }, context, config);
     case "/wallet": return runWalletInfo(context, config);
-    case "/portfolio": return runPortfolio(context, config);
     case "/bond":
       return { card: null, reply: "Opening your bond with me.", skipModel: true, contextNotes: [] };
     case "/memory":
@@ -391,6 +406,10 @@ async function runWalletInfo(context: ActionRunContext, config: PublicWalletConf
 }
 
 async function runPortfolio(context: ActionRunContext, config: PublicWalletConfig): Promise<ActionRunResult> {
+  const flags = context.featureFlags ?? defaultFeatureFlags;
+  if (!flags.portfolio_enabled) {
+    return lockedFeatureNotice("Portfolio is in the works", "Cabi cannot show holdings yet. Nothing is being read or estimated while this feature is being built.");
+  }
   if (!context.walletAddress) return walletRequired();
   const { snapshot, error } = await loadSnapshot(context, config);
   if (error || !snapshot) {

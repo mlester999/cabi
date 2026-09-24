@@ -14,7 +14,7 @@ import { RankUpCelebration } from "@/components/ranking/rank-up-celebration";
 import { tierByNumber, type RankTier } from "@/lib/ranking/tiers";
 import { celebrationFor } from "@/lib/ranking/progression-frame";
 import { readEventStream } from "@/lib/client/sse";
-import { defaultFeatureFlags, type FeatureFlags } from "@/lib/config/feature-flags";
+import { defaultFeatureFlags, roadmapFeatureCount, type FeatureFlags } from "@/lib/config/feature-flags";
 import { shouldImportGuestChat } from "@/lib/wallet/persistence";
 import {
   ImagePlus,
@@ -23,6 +23,7 @@ import {
   ChevronLeft,
   Clock3,
   Download,
+  FlaskConical,
   Lock,
   Menu,
   MessageCircleMore,
@@ -157,7 +158,6 @@ export function CabiExperience({ flags = defaultFeatureFlags, viewport = "full",
   statusMessages?: CabiStatusOverrides | null;
 } = {}) {
   const wallet = useWallet();
-  void flags;
   void cpuGateBypassed;
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
@@ -178,7 +178,7 @@ export function CabiExperience({ flags = defaultFeatureFlags, viewport = "full",
   const [savePromptOpen, setSavePromptOpen] = useState(false);
   const [savingGuestChat, setSavingGuestChat] = useState(false);
   // Identity and rank for the header chip. Server-provided; never computed here.
-  const [rank, setRank] = useState<{ username: string | null; initials: string | null; tier: RankTier; profileComplete: boolean } | null>(null);
+  const [rank, setRank] = useState<{ username: string | null; initials: string | null; tier: RankTier | null; profileComplete: boolean } | null>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const controllerRef = useRef<AbortController | null>(null);
   // The server renames the streaming assistant entry to its own id when the
@@ -197,25 +197,30 @@ export function CabiExperience({ flags = defaultFeatureFlags, viewport = "full",
   // the mandatory profile setup modal should appear, so the gate cannot drift
   // from what the header displays.
   const refreshRank = useCallback(async () => {
-    if (!wallet.authenticated) { setRank(null); return; }
+    if (!wallet.authenticated || !flags.profile_enabled) { setRank(null); return; }
     try {
-      const response = await fetch("/api/rank", { cache: "no-store" });
+      const response = await fetch(flags.ranking_enabled ? "/api/rank" : "/api/profile", { cache: "no-store" });
       if (!response.ok) return;
       const payload = await response.json() as {
         profileComplete?: boolean;
         identity?: { username: string | null; initials: string | null };
         progress?: { current?: { tier?: number } };
+        profile?: { username?: string | null; initials?: string | null } | null;
+      };
+      const identity = payload.identity ?? {
+        username: payload.profile?.username ?? null,
+        initials: payload.profile?.initials ?? null,
       };
       setRank({
-        username: payload.identity?.username ?? null,
-        initials: payload.identity?.initials ?? null,
-        tier: tierByNumber(payload.progress?.current?.tier ?? 1),
+        username: identity.username ?? null,
+        initials: identity.initials ?? null,
+        tier: flags.ranking_enabled ? tierByNumber(payload.progress?.current?.tier ?? 1) : null,
         profileComplete: Boolean(payload.profileComplete),
       });
     } catch {
       // A rank read failing must never block chat.
     }
-  }, [wallet.authenticated]);
+  }, [flags.profile_enabled, flags.ranking_enabled, wallet.authenticated]);
   // Re-asks for an image with the same scene. This goes through the normal send
   // path, so it consumes the daily allowance exactly like any other request
   // rather than being a free extra provider call.
@@ -408,8 +413,10 @@ export function CabiExperience({ flags = defaultFeatureFlags, viewport = "full",
           // listed on the profile rather than interrupting the conversation -
           // and must not dismiss a celebration that is already showing, which is
           // what an earlier `else` branch here did.
-          const celebrationFromFrame = celebrationFor(data);
-          if (celebrationFromFrame) setCelebration(celebrationFromFrame);
+          if (flags.ranking_enabled) {
+            const celebrationFromFrame = celebrationFor(data);
+            if (celebrationFromFrame) setCelebration(celebrationFromFrame);
+          }
         }
         if (item.event === "error") throw new Error(data.message ?? "Looks like my brain needs a second.");
       }
@@ -520,6 +527,12 @@ export function CabiExperience({ flags = defaultFeatureFlags, viewport = "full",
               {conversations.length === 0 ? <div className="px-3 py-8 text-center"><MiniCabi className="mx-auto h-9 w-10 opacity-60" decorative /><p className="mt-3 text-xs leading-5 text-[var(--cabi-text-muted)]">{search ? "No chats match that search." : "No saved chats yet."}</p></div> : groupOrder.map((label) => grouped[label]?.length ? <div key={label} className="mb-5"><div className="mb-2 flex items-center justify-between px-2 text-[var(--cabi-text-caption)] font-semibold uppercase tracking-[.14em] text-[var(--cabi-text-faint)]"><span>{label}</span>{label === "Pinned" ? <Pin size={12} /> : <Clock3 size={13} />}</div><div className="space-y-1">{grouped[label].map((conversation) => <div key={conversation.id} className={`group flex items-center rounded-xl pr-1 ${conversation.id === conversationId ? "bg-[var(--cabi-surface-3)]" : "hover:bg-[var(--cabi-surface-2)]"}`}><button onClick={() => void openConversation(conversation.id)} className={`focus-ring flex min-w-0 flex-1 items-center gap-3 rounded-xl px-3 py-3 text-left ${conversation.id === conversationId ? "text-white" : "text-[var(--cabi-text-muted)] group-hover:text-white"}`}><MessageCircleMore size={16} className={conversation.id === conversationId ? "text-[var(--cabi-primary)]" : "text-[var(--cabi-text-faint)]"} /><span className="min-w-0 flex-1 truncate text-[var(--cabi-text-sm)]">{conversation.title}</span></button><div className="hidden shrink-0 items-center group-hover:flex group-focus-within:flex"><button onClick={() => void updateConversation(conversation, { pinned: !conversation.pinned })} className="focus-ring grid h-8 w-8 place-items-center rounded-lg text-[var(--cabi-text-muted)] hover:text-[var(--cabi-primary)]" aria-label={conversation.pinned ? "Unpin chat" : "Pin chat"}>{conversation.pinned ? <PinOff size={13} /> : <Pin size={13} />}</button><button onClick={() => void renameConversation(conversation)} className="focus-ring grid h-8 w-8 place-items-center rounded-lg text-[var(--cabi-text-muted)] hover:text-white" aria-label="Rename chat"><Pencil size={13} /></button><button onClick={() => void deleteConversation(conversation)} className="focus-ring grid h-8 w-8 place-items-center rounded-lg text-[var(--cabi-text-muted)] hover:text-rose-300" aria-label="Delete chat"><Trash2 size={13} /></button></div></div>)}</div></div> : null)}
             </div>
           </> : <div className="mt-5 flex min-h-0 flex-1 flex-col"><button onClick={wallet.openConnect} className="focus-ring flex flex-1 flex-col items-center justify-center rounded-2xl border border-dashed border-white/[0.08] bg-white/[0.015] p-5 text-center hover:border-violet-200/20 hover:bg-violet-300/[0.025]"><span className="grid h-11 w-11 place-items-center rounded-full bg-white/[0.04] text-[#777180]"><Lock size={18} /></span><span className="mt-4 text-[13px] font-semibold text-[#d5d0de]">Connect your wallet to save your chats.</span><span className="mt-2 text-[11px] leading-5 text-[#706a7d]">Recent chats, memory, and settings unlock after a free login signature.</span><span className="mt-5 rounded-xl border border-white/[0.1] bg-white/[0.04] px-4 py-2.5 text-xs font-semibold text-white">Connect Wallet</span></button></div>}
+
+          <Link href="/lab" className="focus-ring mt-3 flex min-h-11 items-center gap-3 rounded-xl border border-violet-200/[0.08] bg-violet-300/[0.035] px-3 text-left transition hover:border-violet-200/[0.18] hover:bg-violet-300/[0.06]">
+            <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-violet-300/[0.08] text-violet-200"><FlaskConical size={14} aria-hidden="true" /></span>
+            <span className="min-w-0 flex-1"><span className="block text-xs font-semibold text-[#d5d0de]">Cabi Lab</span><span className="mt-0.5 block text-[10px] text-[#777180]">{roadmapFeatureCount} things in the works</span></span>
+            <Lock size={13} className="shrink-0 text-[#777180]" aria-hidden="true" />
+          </Link>
 
           <div className="mt-2 flex items-center gap-2"><button onClick={wallet.authenticated ? undefined : wallet.openConnect} className="focus-ring flex h-11 min-w-0 flex-1 items-center gap-3 rounded-xl px-3 text-left hover:bg-white/[0.035]">{rank?.initials ? <InitialsAvatar initials={rank.initials} size={28} label="Your avatar" /> : <span className="grid h-7 w-7 place-items-center rounded-full bg-white/[0.06]"><UserRound size={14} /></span>}<span className="min-w-0 flex-1 truncate text-xs text-[#a8a3b3]">{rank?.username ?? (wallet.authenticated && wallet.address ? `${wallet.address.slice(0, 6)}…${wallet.address.slice(-4)}` : "Guest")}</span></button><Link href="/profile" className="focus-ring grid h-11 w-11 place-items-center rounded-xl text-[#706a7d] hover:bg-white/[0.035] hover:text-white" aria-label="Your profile"><UserRound size={17} /></Link><Link href="/settings" className="focus-ring grid h-11 w-11 place-items-center rounded-xl text-[#706a7d] hover:bg-white/[0.035] hover:text-white" aria-label="Settings"><Settings size={17} /></Link></div>
         </aside>

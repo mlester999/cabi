@@ -155,22 +155,21 @@ describe("slash command palette", () => {
     render(<SlashCommandPalette value="/" onRun={() => {}} onNavigate={() => {}} />);
     expect(screen.getByRole("listbox", { name: /Cabi commands/i })).toBeInTheDocument();
     expect(screen.getByRole("option", { name: /\/cpu/i })).toBeInTheDocument();
-    expect(screen.getByRole("option", { name: /\/portfolio/i })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: /\/portfolio/i })).not.toBeInTheDocument();
   });
 
   it("filters as the user types", () => {
     render(<SlashCommandPalette value="/po" onRun={() => {}} onNavigate={() => {}} />);
-    expect(screen.getAllByRole("option")).toHaveLength(1);
-    expect(screen.getByRole("option", { name: /\/portfolio/i })).toBeInTheDocument();
+    expect(screen.queryAllByRole("option")).toHaveLength(0);
   });
 
-  it("navigates for a route-backed command", () => {
+  it("does not offer locked portfolio navigation from chat", () => {
     const onNavigate = vi.fn();
     const onRun = vi.fn();
     render(<SlashCommandPalette value="/portfolio" onRun={onRun} onNavigate={onNavigate} />);
-    screen.getByRole("option", { name: /\/portfolio/i }).click();
-    expect(onNavigate).toHaveBeenCalledWith("/portfolio");
+    expect(screen.queryByRole("option", { name: /\/portfolio/i })).not.toBeInTheDocument();
     expect(onRun).not.toHaveBeenCalled();
+    expect(onNavigate).not.toHaveBeenCalled();
   });
 
   it("sends an answer-backed command to Cabi", () => {

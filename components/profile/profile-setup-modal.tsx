@@ -101,7 +101,7 @@ export function ProfileSetupModal({ open, suggestedName, onComplete }: {
             </label>
 
             <p id="profile-setup-hint" className="mt-2 text-[11px] leading-5 text-[#625d6d]">
-              3 to 20 characters. Letters, numbers, hyphens and underscores. This is the name shown on the leaderboard, so it needs to be yours.
+              3 to 20 characters. Letters, numbers, hyphens and underscores. This is the name Cabi will use for your profile and future community features.
             </p>
 
             {error ? (

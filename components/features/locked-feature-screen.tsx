@@ -2,7 +2,7 @@ import Link from "next/link";
 import { ArrowLeft, Lock } from "lucide-react";
 
 import { MiniCabi } from "@/components/cabi/mini-cabi";
-import { lockedFeatureCopy, type FeatureFlags } from "@/lib/config/feature-flags";
+import { cabiFeatureForFlag, lockedFeatureCopy, type FeatureFlags } from "@/lib/config/feature-flags";
 
 /**
  * The polished locked screen for a route that is not shipping yet.
@@ -12,7 +12,8 @@ import { lockedFeatureCopy, type FeatureFlags } from "@/lib/config/feature-flags
  * leaderboard, no zeroed portfolio, no placeholder ranks.
  */
 export function LockedFeatureScreen({ flagKey }: { flagKey: keyof FeatureFlags }) {
-  const copy = lockedFeatureCopy[flagKey];
+  const definition = cabiFeatureForFlag(flagKey);
+  const copy = lockedFeatureCopy[flagKey] ?? (definition ? { title: definition.label, description: definition.description } : undefined);
 
   return (
     <main className="cabi-noise grid min-h-[100dvh] place-items-center bg-transparent px-4 text-white">

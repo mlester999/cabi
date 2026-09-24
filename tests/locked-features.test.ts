@@ -3,6 +3,8 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import {
+  CABI_FEATURES,
+  cabiRoadmapFeatures,
   defaultFeatureFlags,
   featureFlagKeys,
   lockedFeatureCopy,
@@ -22,7 +24,7 @@ const read = (path: string) => readFileSync(join(root, path), "utf8");
  */
 
 const coreFlags = ["chat_enabled", "image_generation_enabled", "wallet_auth_enabled", "memory_enabled", "profile_enabled"] as const;
-const lockedFlags = ["ranking_enabled", "leaderboard_enabled", "portfolio_enabled", "direct_trading_enabled", "rewards_enabled", "gallery_enabled"] as const;
+const lockedFlags = ["ranking_enabled", "leaderboard_enabled", "portfolio_enabled", "direct_trading_enabled", "rewards_enabled", "achievements_enabled", "gallery_enabled"] as const;
 
 describe("default flags match what this phase ships", () => {
   it("enables exactly the five core surfaces", () => {
@@ -220,8 +222,21 @@ describe("the app passes resolved flags to the chat shell", () => {
     expect(shell).not.toContain("lockedFeatureOrder");
     expect(shell).not.toContain("LockedFeatures");
     const lab = read("app/lab/page.tsx");
-    expect(lab).toContain("lockedFeatureOrder");
+    expect(lab).toContain("cabiRoadmapFeatures");
     expect(lab).toContain("In the works");
+  });
+
+  it("keeps the six roadmap cards in one canonical registry", () => {
+    expect(cabiRoadmapFeatures).toHaveLength(6);
+    expect(cabiRoadmapFeatures.map((feature) => feature.label)).toEqual([
+      "Leaderboard",
+      "Ranks",
+      "Portfolio",
+      "Automated Trading",
+      "Rewards",
+      "Achievements",
+    ]);
+    expect(CABI_FEATURES.filter((feature) => feature.surface === "roadmap")).toEqual(cabiRoadmapFeatures);
   });
 
   it("keeps the primary navigation minimal", () => {

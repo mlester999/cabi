@@ -61,7 +61,8 @@ describe("slash commands", () => {
 
   it("only offers the palette while the command itself is being typed", () => {
     expect(matchingSlashCommands("/").length).toBe(slashCommands.length);
-    expect(matchingSlashCommands("/po").map((c) => c.id)).toEqual(["/portfolio"]);
+    // Portfolio is a roadmap feature, not a chat command while it is locked.
+    expect(matchingSlashCommands("/po")).toEqual([]);
     // Once arguments start, the palette steps out of the way.
     expect(matchingSlashCommands("/wallet now")).toEqual([]);
     expect(matchingSlashCommands("hello")).toEqual([]);
@@ -76,9 +77,9 @@ describe("slash commands", () => {
 });
 
 describe("message interpretation", () => {
-  it("routes slash commands without touching the model path", () => {
+  it("keeps a locked portfolio request out of the slash command palette", () => {
     const result = interpretMessage("/portfolio");
-    expect(result.type).toBe("SLASH");
+    expect(result.type).toBe("PORTFOLIO");
   });
 
   it("extracts buy and sell requests", () => {

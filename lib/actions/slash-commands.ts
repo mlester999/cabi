@@ -8,7 +8,6 @@
 
 export type SlashCommandId =
   | "/cpu"
-  | "/portfolio"
   | "/wallet"
   | "/memory"
   | "/bond"
@@ -29,7 +28,6 @@ export type SlashCommand = {
 
 export const slashCommands: readonly SlashCommand[] = [
   { id: "/cpu", title: "$CPU", description: "Show the Cat Partner Unit token, contract and links." },
-  { id: "/portfolio", title: "Portfolio", description: "See what your connected wallet holds.", href: "/portfolio" },
   { id: "/wallet", title: "Wallet", description: "Check the connected wallet, network and balance." },
   { id: "/memory", title: "Memory", description: "See and manage what Cabi remembers about you.", href: "/settings/memory" },
   { id: "/bond", title: "Bond", description: "Open your relationship with Cabi.", href: "/cabi" },

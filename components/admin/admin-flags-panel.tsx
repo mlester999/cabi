@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 
-import { defaultFeatureFlags, featureFlagKeys, type FeatureFlags } from "@/lib/config/feature-flags";
+import { cabiFeatureForFlag, defaultFeatureFlags, featureFlagKeys, type FeatureFlags } from "@/lib/config/feature-flags";
 
 /**
  * Admin feature-flag panel.
@@ -66,10 +66,14 @@ export function AdminFlagsPanel() {
           entry points; the code and schema stay in place for later.
         </p>
         <ul className="mt-4 divide-y divide-white/[0.05]">
-          {featureFlagKeys.map((key) => (
+          {featureFlagKeys.map((key) => {
+            const feature = cabiFeatureForFlag(key);
+            return (
             <li key={key} className="flex items-center justify-between gap-4 py-3">
               <span className="min-w-0">
-                <span className="block font-mono text-[12px] text-white">{key}</span>
+                <span className="block text-[13px] font-semibold text-white">{feature?.label ?? key}</span>
+                <span className="mt-0.5 block font-mono text-[10px] text-[#625d6d]">{key}</span>
+                {feature?.description ? <span className="mt-1 block text-[11px] leading-5 text-[#8e889b]">{feature.description}</span> : null}
                 {flags[key] !== defaults[key] ? (
                   <span className="mt-0.5 block text-[10px] uppercase tracking-[.12em] text-amber-100">
                     changed from default ({String(defaults[key])})
@@ -89,7 +93,8 @@ export function AdminFlagsPanel() {
                 </span>
               </label>
             </li>
-          ))}
+            );
+          })}
         </ul>
         <button
           type="button"

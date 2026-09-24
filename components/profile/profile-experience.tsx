@@ -2,11 +2,13 @@
 
 import Link from "@/components/prelaunch/preview-link";
 import { useCallback, useEffect, useState } from "react";
-import { Award, Calendar, Flame, Images, Sparkles, Trophy } from "lucide-react";
+import { Award, Calendar, Flame, Images, Lock, Sparkles, Trophy } from "lucide-react";
 
 import { InitialsAvatar, RankBadge, RankProgressBar } from "@/components/ranking/rank-badge";
+import { LockedFeatureCard } from "@/components/features/locked-feature";
 import { MyCabiImages } from "@/components/profile/my-cabi-images";
 import { ShareRankCard } from "@/components/ranking/share-rank-card";
+import { cabiRoadmapFeatures } from "@/lib/config/feature-flags";
 import type { RankTier } from "@/lib/ranking/tiers";
 
 type Progress = { current: RankTier; next: RankTier | null; xp: number; toNext: number; percent: number };
@@ -23,6 +25,16 @@ type Payload = {
   progress: Progress;
 };
 
+type ProfileOnlyPayload = {
+  profileComplete?: boolean;
+  profile?: {
+    username: string | null;
+    displayName: string | null;
+    initials: string | null;
+    avatarPath: string | null;
+  } | null;
+};
+
 /**
  * The signed-in user's progression.
  *
@@ -30,20 +42,32 @@ type Payload = {
  * or a placement - if this page were tampered with it could only mislead its own
  * viewer, never the leaderboard.
  */
-export function ProfileExperience() {
+export function ProfileExperience({ rankingEnabled = true, achievementsEnabled = true }: { rankingEnabled?: boolean; achievementsEnabled?: boolean }) {
   const [data, setData] = useState<Payload | null>(null);
+  const [profileOnly, setProfileOnly] = useState<ProfileOnlyPayload["profile"]>(null);
   const [phase, setPhase] = useState<"loading" | "ready" | "error">("loading");
+  const profileRoadmapPreviews = cabiRoadmapFeatures
+    .filter((feature) => (feature.id === "ranks" && !rankingEnabled) || (feature.id === "achievements" && !achievementsEnabled))
+    .map((feature) => feature.flag)
+    .filter((flag): flag is Exclude<typeof flag, null> => flag !== null);
 
   const load = useCallback(async () => {
     try {
-      const response = await fetch("/api/rank", { cache: "no-store" });
+      const response = await fetch(rankingEnabled ? "/api/rank" : "/api/profile", { cache: "no-store" });
       if (!response.ok) { setPhase("error"); return; }
-      setData(await response.json() as Payload);
+      if (rankingEnabled) {
+        setData(await response.json() as Payload);
+        setProfileOnly(null);
+      } else {
+        const payload = await response.json() as ProfileOnlyPayload;
+        setProfileOnly(payload.profile ?? null);
+        setData(null);
+      }
       setPhase("ready");
     } catch {
       setPhase("error");
     }
-  }, []);
+  }, [rankingEnabled]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => { void load(); }, 0);
@@ -52,6 +76,38 @@ export function ProfileExperience() {
 
   if (phase === "loading") return <p className="mt-10 text-center text-sm text-[#a8a3b3]" role="status">Loading your profile...</p>;
   if (phase === "error" || !data) {
+    if (phase === "ready" && !rankingEnabled) {
+      return (
+        <div className="mt-8 space-y-5">
+          <section className="glass rounded-[26px] p-5 sm:p-6">
+            <div className="flex flex-wrap items-center gap-4">
+              <InitialsAvatar initials={profileOnly?.initials ?? "?"} src={profileOnly?.avatarPath} size={64} label={`${profileOnly?.username ?? "You"} avatar`} />
+              <div className="min-w-0 flex-1">
+                <p className="text-[10px] font-semibold uppercase tracking-[.16em] text-violet-300">Your identity</p>
+                <h2 className="mt-1 truncate text-lg font-bold text-white">{profileOnly?.username ?? "Unnamed"}</h2>
+                <p className="mt-1.5 text-xs leading-5 text-[#a8a3b3]">Your name and optional photo are ready to travel with you.</p>
+              </div>
+              <Link href="/settings" className="focus-ring inline-flex h-10 items-center rounded-xl border border-white/[0.08] bg-white/[0.03] px-4 text-xs font-semibold text-[#d5d0de] hover:bg-white/[0.06]">Edit profile</Link>
+            </div>
+          </section>
+
+          <section className="glass rounded-[22px] p-5 sm:p-6">
+            <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[.16em] text-[#777180]"><Lock size={12} aria-hidden="true" /> Community progression</div>
+            <h2 className="mt-3 text-base font-semibold text-white">Ranks and achievements are still taking shape.</h2>
+            <p className="mt-2 text-sm leading-6 text-[#a8a3b3]">Nothing is faked here: there is no placeholder rank, score, or leaderboard row while those features are being built.</p>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              {profileRoadmapPreviews.map((flag) => <LockedFeatureCard key={flag} flagKey={flag} />)}
+            </div>
+            <Link href="/lab" className="focus-ring mt-4 inline-flex h-10 items-center rounded-xl border border-violet-200/[0.14] bg-violet-300/[0.05] px-4 text-xs font-semibold text-violet-100 hover:bg-violet-300/[0.09]">See everything in Cabi Lab</Link>
+          </section>
+
+          <section className="glass rounded-[22px] p-5">
+            <h3 className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[.16em] text-[#777180]"><Images size={12} aria-hidden="true" /> My Cabi images</h3>
+            <MyCabiImages />
+          </section>
+        </div>
+      );
+    }
     return (
       <div className="glass mt-10 rounded-[26px] p-8 text-center">
         <p className="text-sm text-[#d5d0de]">I could not load your profile just now.</p>
@@ -146,7 +202,7 @@ export function ProfileExperience() {
         <p className="mt-2 text-[11px] leading-5 text-[#625d6d]">Bond is separate from rank and never resets.</p>
       </section>
 
-      {achievements.length > 0 ? (
+      {achievementsEnabled && achievements.length > 0 ? (
         <section className="glass rounded-[22px] p-5">
           <h3 className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[.16em] text-[#777180]">
             <Award size={12} aria-hidden="true" /> Achievements

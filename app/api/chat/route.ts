@@ -6,6 +6,8 @@ import { runAction, type ActionRunResult } from "@/lib/actions/runtime";
 import { bondFromPoints, recordConversationBond } from "@/lib/bond";
 import { getServiceClient } from "@/lib/db/supabase";
 import { getCabiRuntimeConfig } from "@/lib/config/runtime";
+import { defaultFeatureFlags } from "@/lib/config/feature-flags";
+import { readFeatureFlags } from "@/lib/config/feature-flags.server";
 import { inferMood, moodPromptHint, type CabiMood } from "@/lib/cabi/mood";
 import { retrieveRagContext } from "@/lib/knowledge/rag";
 import { getConversationContext } from "@/lib/memory/context";
@@ -137,10 +139,11 @@ export async function POST(request: Request) {
   // Read the runtime config first so the action layer can reuse it instead of
   // loading it a second time. That matters for guests: the action layer must not
   // open a database client on a temporary chat.
-  const [context, rag, runtime] = await Promise.all([
+  const [context, rag, runtime, featureFlags] = await Promise.all([
     walletAccountId && profileId ? getConversationContext(walletAccountId, profileId, conversationId, parsed.data.message) : Promise.resolve(emptyContext),
     retrieveRagContext(parsed.data.message),
     getCabiRuntimeConfig(),
+    wallet?.walletAccountId ? readFeatureFlags() : Promise.resolve(defaultFeatureFlags),
   ]);
   // The action layer runs before the model. Slash commands, wallet reads, token
   // lookups, and trade requests are answered deterministically by trusted code,
@@ -153,6 +156,7 @@ export async function POST(request: Request) {
       memoryEnabled: persistent ? undefined : false,
       chainId: parsed.data.chainId ?? null,
       config: runtime.publicWallet,
+      featureFlags,
     }).catch((): ActionRunResult => ({ card: null, reply: null, skipModel: false, contextNotes: [] })),
     // An image request is answered by the image pipeline instead of the model.
     // It reuses the same scope guard, provider, storage and quota as the HTTP

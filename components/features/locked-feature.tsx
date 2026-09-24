@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { Lock } from "lucide-react";
 
-import { lockedFeatureCopy, type FeatureFlags } from "@/lib/config/feature-flags";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { cabiFeatureForFlag, lockedFeatureCopy, type FeatureFlags } from "@/lib/config/feature-flags";
 
 /**
  * A future feature, shown as intentionally unreleased.
@@ -18,34 +19,63 @@ import { lockedFeatureCopy, type FeatureFlags } from "@/lib/config/feature-flags
  * The treatment is a dark overlay, reduced opacity and a lock icon, so it reads
  * as deliberately closed rather than broken.
  */
-export function LockedFeatureCard({ flagKey, onNotice }: {
+export function LockedFeatureCard({ flagKey, icon, onNotice }: {
   flagKey: keyof FeatureFlags;
+  icon?: React.ReactNode;
   /** Reports the "in the works" message so the parent can surface it in one place. */
   onNotice?: (message: string) => void;
 }) {
-  const copy = lockedFeatureCopy[flagKey];
+  const definition = cabiFeatureForFlag(flagKey);
+  const copy = lockedFeatureCopy[flagKey] ?? (definition ? { title: definition.label, description: definition.description } : undefined);
+  const [open, setOpen] = useState(false);
   if (!copy) return null;
 
+  const handleClick = () => {
+    onNotice?.("Still in the works. Cabi is working on this one.");
+    setOpen(true);
+  };
+
   return (
-    <button
-      type="button"
-      onClick={() => onNotice?.("Still in the works. Cabi is working on this one.")}
-      aria-label={`${copy.title}. In the works.`}
-      className="cabi-locked focus-ring group relative w-full overflow-hidden p-3.5 text-left transition"
-    >
-      {/* Dark overlay plus a slight blur keeps it readable but clearly closed. */}
-      <span aria-hidden="true" className="pointer-events-none absolute inset-0 bg-[#07070d]/55 backdrop-blur-[1.5px]" />
-      <span className="relative flex items-start gap-3">
-        <span aria-hidden="true" className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-white/[0.08] bg-white/[0.03] text-[#8e889b]">
-          <Lock size={14} />
+    <>
+      <button
+        type="button"
+        onClick={handleClick}
+        aria-label={`${copy.title}. In the works.`}
+        className="cabi-locked focus-ring group relative w-full overflow-hidden p-5 text-left transition"
+      >
+        {/* The decoration is intentionally soft and desaturated: this is a
+            roadmap card, not a disabled-looking product preview. */}
+        <span aria-hidden="true" className="pointer-events-none absolute -right-10 -top-12 h-36 w-36 rounded-full bg-violet-300/[0.08] blur-3xl grayscale" />
+        <span aria-hidden="true" className="pointer-events-none absolute inset-0 bg-[#07070d]/45 backdrop-blur-[1.5px]" />
+        <span className="relative flex items-start gap-4">
+          <span aria-hidden="true" className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl border border-white/[0.09] bg-white/[0.035] text-[#a8a3b3] transition group-hover:border-violet-200/[0.22] group-hover:text-violet-200">
+            {icon ?? <Lock size={16} />}
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="flex items-start justify-between gap-3">
+              <span className="block truncate text-[15px] font-semibold text-[#d5d0de]">{copy.title}</span>
+              <Lock size={14} className="mt-0.5 shrink-0 text-[#777180]" aria-hidden="true" />
+            </span>
+            <span className="mt-1.5 block text-[12px] leading-5 text-[#8e889b]">{copy.description}</span>
+            <span className="mt-3 inline-flex items-center rounded-full border border-violet-200/[0.13] bg-violet-300/[0.06] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[.14em] text-violet-200/80">In the works</span>
+          </span>
         </span>
-        <span className="min-w-0 flex-1">
-          <span className="block truncate text-[13px] font-semibold text-[#c9c4d4]">{copy.title}</span>
-          <span className="mt-0.5 block truncate text-[11px] text-[#777180]">{copy.description}</span>
-          <span className="mt-1.5 inline-block text-[10px] font-semibold uppercase tracking-[.14em] text-violet-300/70">In the works</span>
-        </span>
-      </span>
-    </button>
+      </button>
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="cabi-modal border-violet-200/[0.14] bg-[#100d19] text-white sm:max-w-md">
+          <DialogHeader className="pr-7 text-left">
+            <DialogTitle className="flex items-center gap-2 text-white"><Lock size={16} className="text-violet-200" aria-hidden="true" /> {copy.title} is still in the works</DialogTitle>
+            <DialogDescription className="mt-1 leading-6 text-[#a8a3b3]">
+              {copy.description} Cabi is shaping this one now. There&apos;s no unfinished page to open yet.
+            </DialogDescription>
+          </DialogHeader>
+          <p className="rounded-2xl border border-white/[0.07] bg-white/[0.025] px-4 py-3 text-xs leading-5 text-[#777180]">
+            I&apos;ll keep the chat focused while this feature is being built.
+          </p>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 

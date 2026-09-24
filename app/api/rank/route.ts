@@ -7,6 +7,7 @@ import { countWalletMessages } from "@/lib/ranking/message-count";
 import { initialsFor } from "@/lib/profiles/username";
 import { guardAppApiCpu } from "@/lib/site/guard";
 import { walletAuthOrResponse } from "@/lib/wallet/session";
+import { featureGate } from "@/lib/config/feature-gate";
 
 export const dynamic = "force-dynamic";
 
@@ -19,6 +20,8 @@ export const dynamic = "force-dynamic";
  * badge. It is read-only; nothing a browser sends can change a score.
  */
 export async function GET() {
+  const locked = await featureGate("ranking_enabled");
+  if (locked) return locked;
   const blocked = await guardAppApiCpu();
   if (blocked) return blocked;
   const auth = await walletAuthOrResponse();
