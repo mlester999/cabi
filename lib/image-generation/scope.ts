@@ -15,15 +15,16 @@
 
 /** Words that mean "this request is about Cabi". */
 const cabiMarkers: readonly RegExp[] = [
+  // Every entry is word-bounded. An unanchored `cabi` matched the middle of
+  // "gaming", which made "put her in a gaming chair" look like an explicit Cabi
+  // request.
   /\bcabi\b/iu,
-  /\bc\.?p\.?u\.?\b/iu,
-  /\bcat ?girl\b/iu,
-  /\bcat ?partner\b/iu,
+  /\bcpu\b/iu,
+  /\bcat\s?girl\b/iu,
+  /\bcat\s?partner\b/iu,
   /\byourself\b/iu,
   /\byou\b/iu,
   /\byour\b/iu,
-  /\bher\b/iu,
-  /\bshe\b/iu,
   /\bselfie\b/iu,
 ];
 
@@ -60,7 +61,18 @@ export function extractScene(prompt: string): string {
     .trim()
     .replace(/^(?:please\s+)?(?:can you\s+)?(?:generate|make|create|draw|show me|give me|render|paint)\s+/iu, "")
     .replace(/^(?:an?|the)\s+(?:image|picture|photo|drawing|illustration|artwork)\s+(?:of\s+)?/iu, "")
+    // A bare article is left behind by the verb strip above ("make a picture of
+    // a Lamborghini" leaves "a Lamborghini"), and a leading article defeats the
+    // standalone-subject patterns, which anchor on the noun itself.
+    .replace(/^(?:an?|the)\s+/iu, "")
+    // A bare image noun left alone means no subject was given: "generate an
+    // image" reduces to "image", which is not a scene. Without this the request
+    // would be refused as unrelated instead of asking what to draw.
+    .replace(/^(?:image|images|picture|pictures|pic|photo|photos|drawing|illustration|artwork|render)\b\s*/iu, "")
     .replace(/\s+/gu, " ")
+    // Trailing punctuation would defeat the anchored subject patterns, so
+    // "Generate a Lamborghini." and "a Lamborghini" resolve the same way.
+    .replace(/[\s.,;:!?]+$/gu, "")
     .trim()
     .slice(0, 400);
 }
@@ -140,7 +152,10 @@ export function looksLikeImageRequest(message: string): boolean {
   // verb, which silently missed the most natural phrasings of all -
   // "Generate Cabi on top of a skyscraper", "Make Cabi in a cyberpunk city".
   const GENERATE = String.raw`\b(?:generate|make|create|show|give|send)\b`;
-  const IMAGE_NOUN = String.raw`\b(?:image|images|picture|pictures|pic|photo|photos|drawing|illustration|art|artwork|selfie|wallpaper|avatar|portrait|render)\b`;
+  // "logo", "poster", "banner" and similar are visual artefacts even though they
+  // are not photographs. "Create a Bitcoin logo" should reach the relevance
+  // classifier so Cabi can redirect it, rather than being answered as prose.
+  const IMAGE_NOUN = String.raw`\b(?:image|images|picture|pictures|pic|photo|photos|drawing|illustration|art|artwork|selfie|wallpaper|avatar|portrait|render|logo|poster|banner|icon|sticker|meme|wallpapers)\b`;
   const CABI = String.raw`\b(?:cabi|yourself|you|your|cat ?girl)\b`;
 
   // Text and code artefacts. "generate a summary" and "create a table" are
@@ -148,8 +163,43 @@ export function looksLikeImageRequest(message: string): boolean {
   // into the image pipeline.
   const NOT_VISUAL = String.raw`\b(?:summary|list|table|plan|code|function|component|schema|query|sql|sentence|paragraph|email|essay|poem|story|joke|reply|response|answer|explanation|translation|report|breakdown|outline|steps|example|test|regex|typescript|json|markdown)\b`;
 
+  /*
+   * A bare scene with no verb is still a request when it names a depicted
+   * subject. The brief's own examples include "Cabi playing on a gaming PC" and
+   * "Cabi wearing a purple CPU hoodie" — no "generate", no image noun — because
+   * that is how a person talks to a companion they are already in conversation
+   * with. Requirement: the message must name Cabi, so ordinary chat about her
+   * ("Cabi is helpful") does not become a drawing.
+   */
+  const DEPICTION = String.raw`\b(?:playing|wearing|holding|sitting|standing|sleeping|eating|drinking|reading|coding|working|celebrating|riding|hugging|painting|cooking|walking|smiling|waving|dancing|singing|in|on|at|as|beside|next to|with)\b`;
+  const CABI_NAME = String.raw`\b(?:cabi|cpu|cat ?girl|cat ?partner)\b`;
+  const bareDepiction = new RegExp(`${CABI_NAME}[^.!?]{0,60}${DEPICTION}`, "iu").test(text)
+    || new RegExp(`${DEPICTION}[^.!?]{0,40}${CABI_NAME}`, "iu").test(text);
+
+  /*
+   * A generation verb aimed at a scene-type noun. "Make a random landscape" and
+   * "create a cityscape" are picture requests with no Cabi in them, so they must
+   * reach the relevance classifier to be redirected rather than answered as
+   * ordinary conversation.
+   */
+  const SCENE_NOUN = String.raw`\b(?:landscape|scenery|scene|cityscape|skyline|portrait|sunset|sunrise|mountains?|forest|ocean|beach|street|room|background)\b`;
+  const sceneRequest = new RegExp(`${GENERATE}[^.!?]{0,40}${SCENE_NOUN}`, "iu").test(text);
+
+  /*
+   * A directorial verb aimed at a pronoun: "put her in a gaming chair", "make
+   * her a wallpaper". These are image requests even with no generation verb and
+   * no image noun, which is exactly the phrasing the brief calls out. Whether
+   * "her" means Cabi is decided later by the relevance classifier using
+   * conversation context, so an unresolved pronoun becomes an UNCERTAIN ask
+   * rather than a refusal.
+   */
+  const DIRECT = String.raw`\b(?:put|place|show|draw|render|make|create|give|paint)\b`;
+  const PRONOUN = String.raw`\b(?:her|she|herself|you|yourself)\b`;
+  const directorialRequest = new RegExp(`${DIRECT}[^.!?]{0,30}${PRONOUN}`, "iu").test(text)
+    || new RegExp(`${PRONOUN}[^.!?]{0,20}${DEPICTION}`, "iu").test(text);
+
   // A generation verb plus either an image noun or Cabi.
-  const candidate = drawingVerb
+  const candidate = drawingVerb || bareDepiction || sceneRequest || directorialRequest
     || new RegExp(`${GENERATE}[^.!?]{0,60}(?:${IMAGE_NOUN}|${CABI})`, "iu").test(text);
   if (!candidate) return false;
   // Never divert a plainly textual request ("generate a summary", "make a list").
@@ -179,13 +229,18 @@ const backReferences = /\b(?:her|she|hers|herself)\b/iu;
 /** Context-free pronouns: "you" always means Cabi in this product. */
 const directAddress = /\b(?:you|your|yours|yourself|u)\b/iu;
 
-/** Subjects that are plainly their own thing, not a Cabi scene. */
+/**
+ * Subjects that are plainly their own thing, not a Cabi scene.
+ *
+ * Matched against the extracted scene, which has already had the instruction
+ * verb and a leading article removed, so these anchor on the bare noun.
+ */
 const standaloneSubjects = [
   /\b(?:cristiano ronaldo|messi|elon musk|taylor swift|donald trump|beyonce)\b/iu,
-  /\b(?:a|an|the)?\s*(?:random\s+)?(?:landscape|scenery|sunset|mountains?|forest|beach)\s*$/iu,
+  /\b(?:random\s+)?(?:landscape|scenery|sunset|mountains?|forest)\b/iu,
   /\b(?:bitcoin|ethereum|solana|doge)\s+(?:logo|coin|chart)\b/iu,
-  /\b(?:a|an|the)\s+(?:dog|cat|puppy|kitten|horse|bird)\s*$/iu,
-  /\b(?:lamborghini|ferrari|porsche|tesla|bmw|sports car|supercar)\s*$/iu,
+  /\b(?:dog|cat|puppy|kitten|horse|bird)\b\s*$/iu,
+  /\b(?:lamborghini|ferrari|porsche|tesla|bmw|sports car|supercar)\b/iu,
   /\b(?:anime girlfriend|waifu)\b/iu,
 ];
 
@@ -198,13 +253,21 @@ const standaloneSubjects = [
  */
 export function classifyCabiRelevance(prompt: string, conversationContext: readonly string[] = []): RelevanceVerdict {
   const scene = extractScene(prompt);
-  if (!scene) return "UNCERTAIN";
 
-  // An explicit mention always settles it.
-  if (cabiMarkers.some((pattern) => pattern.test(scene))) return "CABI_RELATED";
+  // An explicit mention settles it, and must be checked BEFORE the length guard:
+  // a short scene such as "yourself gaming" or "Cabi waving" is unambiguous.
+  if (scene && cabiMarkers.some((pattern) => pattern.test(scene))) return "CABI_RELATED";
 
   // Direct address ("you in a hoodie") always means her.
-  if (directAddress.test(scene)) return "CABI_RELATED";
+  if (scene && directAddress.test(scene)) return "CABI_RELATED";
+
+  /*
+   * Nothing usable to draw. Only a genuinely empty scene is ambiguous; a single
+   * word is not. "Lamborghini" is a perfectly good standalone subject that must
+   * be refused as unrelated, so it must reach the subject check below rather than
+   * the ask-branch. Only "generate an image" with no subject lands here.
+   */
+  if (!scene) return "UNCERTAIN";
 
   const mentionsCabiRecently = conversationContext
     .slice(-6)

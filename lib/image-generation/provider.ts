@@ -38,16 +38,34 @@ function sizeFor(ratio: AspectRatio) {
   return aspectRatioSizes[ratio] ?? aspectRatioSizes["1:1"];
 }
 
+/**
+ * The request every provider receives.
+ *
+ * `seed` and `referenceImages` are part of the contract even though the current
+ * Together text-to-image path ignores them: a new provider must be addable
+ * without changing the call sites, and the reference workflow needs a defined
+ * place to arrive. A provider that cannot honour an option ignores it rather
+ * than inventing an API parameter it does not support.
+ */
+export type ImageGenerationRequest = {
+  scene: string;
+  aspectRatio: AspectRatio;
+  quality?: ImageQuality;
+  /** Reproducible results when the provider supports seeding. */
+  seed?: number;
+  /**
+   * Canonical reference images for character consistency. Server-controlled:
+   * never populated from client input.
+   */
+  referenceImages?: string[];
+  signal?: AbortSignal;
+};
+
 export interface ImageGenerationProvider {
   readonly id: ImageProviderConfig["provider"];
   readonly label: string;
   readonly supportsReferenceImage: boolean;
-  generateCabiImage(input: {
-    scene: string;
-    aspectRatio: AspectRatio;
-    quality: ImageQuality;
-    signal?: AbortSignal;
-  }): Promise<ImageGenerationResult>;
+  generateCabiImage(input: ImageGenerationRequest): Promise<ImageGenerationResult>;
   testConnection(): Promise<ImageConnectionTest>;
 }
 
@@ -208,9 +226,11 @@ function createTogetherProvider(config: ImageProviderConfig): ImageGenerationPro
     label: "Together AI",
     // Depends on the selected model, not the provider.
     supportsReferenceImage: false,
-    async generateCabiImage({ scene, aspectRatio }) {
+    async generateCabiImage({ scene, aspectRatio, seed, referenceImages }) {
+      // seed and referenceImages are forwarded, but the Together service only
+      // sends them when the selected model genuinely supports them.
       const result = await generateTogetherImage(
-        { prompt: scene, aspectRatio },
+        { prompt: scene, aspectRatio, seed, referenceImages },
         { apiKey: config.apiKey, model },
       );
       if (result.ok) return result;

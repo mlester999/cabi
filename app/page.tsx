@@ -1,9 +1,11 @@
 import { CabiExperience } from "@/components/cabi/cabi-experience";
 import { PrelaunchExperience } from "@/components/prelaunch/prelaunch-experience";
+import { OwnerPreviewEntry } from "@/components/prelaunch/owner-preview-entry";
 import { readFeatureFlags } from "@/lib/config/feature-flags.server";
 import { getAppAccess } from "@/lib/site/guard";
 import { getSiteMode } from "@/lib/site/mode";
 import { getPrelaunchSettings } from "@/lib/site/prelaunch";
+import { readOwnerPreviewAuth } from "@/lib/site/owner-preview";
 import { getPublicWalletConfig } from "@/lib/wallet/config";
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
@@ -36,7 +38,8 @@ export default async function Home() {
   // Maintenance is a distinct internal state with its own short notice; the
   // application itself is still reachable by an admin through /preview.
   if (mode === "MAINTENANCE") redirect("/maintenance");
-  return <PrelaunchExperience settings={settings} wallet={wallet} />;
+  const ownerPreview = access.previewing ? await readOwnerPreviewAuth() : null;
+  return <PrelaunchExperience settings={settings} wallet={wallet} preview={ownerPreview ? <OwnerPreviewEntry /> : undefined} />;
 }
 
 export async function generateMetadata(): Promise<Metadata> {

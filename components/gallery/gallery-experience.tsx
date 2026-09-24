@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { Download, RefreshCw, Trash2, UserRound } from "lucide-react";
 
@@ -19,6 +19,7 @@ export function GalleryExperience() {
   const [busy, setBusy] = useState<string | null>(null);
   const [avatarNotice, setAvatarNotice] = useState<string | null>(null);
   const router = useRouter();
+  const pathname = usePathname();
 
   const load = useCallback(async () => {
     try {
@@ -123,7 +124,7 @@ export function GalleryExperience() {
                   is subject to the same daily allowance as any other request. */}
               <button
                 type="button"
-                onClick={() => router.push(`/?regenerate=${encodeURIComponent(image.prompt)}`)}
+                onClick={() => router.push(`${pathname.startsWith("/preview") ? "/preview" : "/"}?regenerate=${encodeURIComponent(image.prompt)}`)}
                 className="focus-ring inline-flex h-9 items-center gap-1.5 rounded-xl border border-white/[0.08] bg-white/[0.03] px-3 text-[11px] font-semibold text-[#d5d0de] hover:bg-white/[0.06]"
               >
                 <RefreshCw size={12} aria-hidden="true" /> Regenerate

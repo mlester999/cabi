@@ -35,13 +35,37 @@ export const imageSettingsSchema = z.object({
 
 export type ImageSettingsInput = z.infer<typeof imageSettingsSchema>;
 
+/**
+ * The provider named by `IMAGE_PROVIDER`, when it is one we support.
+ *
+ * Environment outranks the compiled default but not a saved admin value, so a
+ * deployment can pin its provider without a code change while the owner can
+ * still change it in the console.
+ */
+export function providerFromEnvironment(): ImageProviderId | null {
+  const value = process.env.IMAGE_PROVIDER?.trim().toLowerCase();
+  if (!value) return null;
+  return imageSettingsSchema.shape.provider.safeParse(value).success ? (value as ImageProviderId) : null;
+}
+
+/** The image model named by `TOGETHER_IMAGE_MODEL`, when set. */
+export function modelFromEnvironment(): string | null {
+  const value = process.env.TOGETHER_IMAGE_MODEL?.trim();
+  return value && value.length > 0 ? value : null;
+}
+
 export function parseImageSettings(value: unknown): ImageSettingsInput {
   const parsed = imageSettingsSchema.partial().safeParse(value ?? {});
   return {
     enabled: parsed.success && parsed.data.enabled !== undefined ? parsed.data.enabled : defaultImageSettings.enabled,
-    provider: (parsed.success && parsed.data.provider ? parsed.data.provider : defaultImageSettings.provider) as ImageProviderId,
+    provider: (parsed.success && parsed.data.provider
+      ? parsed.data.provider
+      : providerFromEnvironment() ?? defaultImageSettings.provider) as ImageProviderId,
     baseUrl: parsed.success && parsed.data.baseUrl !== undefined ? parsed.data.baseUrl : defaultImageSettings.baseUrl,
-    model: parsed.success && parsed.data.model !== undefined ? parsed.data.model : defaultImageSettings.model,
+    // A saved value wins; otherwise the environment, then the compiled default.
+    model: parsed.success && parsed.data.model !== undefined && parsed.data.model !== ""
+      ? parsed.data.model
+      : modelFromEnvironment() ?? defaultImageSettings.model,
     defaultAspectRatio: (parsed.success && parsed.data.defaultAspectRatio ? parsed.data.defaultAspectRatio : defaultImageSettings.defaultAspectRatio) as AspectRatio,
     defaultQuality: (parsed.success && parsed.data.defaultQuality ? parsed.data.defaultQuality : defaultImageSettings.defaultQuality) as ImageQuality,
     dailyLimit: parsed.success && parsed.data.dailyLimit !== undefined ? parsed.data.dailyLimit : defaultImageSettings.dailyLimit,

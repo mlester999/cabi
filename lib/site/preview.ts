@@ -65,3 +65,7 @@ export const previewCookieOptions = {
   sameSite: "lax" as const,
   path: "/",
 };
+
+export function clearPreviewCookie() {
+  return `${previewCookieName}=; Path=/; HttpOnly; SameSite=Lax${isProduction() ? "; Secure" : ""}; Max-Age=0`;
+}

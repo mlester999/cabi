@@ -1,7 +1,7 @@
 "use client";
 
 import { ArrowLeft, Heart, MessageCircleMore, RefreshCw, Sparkles } from "lucide-react";
-import Link from "next/link";
+import Link from "@/components/prelaunch/preview-link";
 import { useCallback, useEffect, useState } from "react";
 
 import { MiniCabi } from "@/components/cabi/mini-cabi";

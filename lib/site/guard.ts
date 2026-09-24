@@ -3,6 +3,7 @@ import "server-only";
 import { jsonError } from "@/lib/security/request";
 import { readAdminSession } from "@/lib/security/session";
 import { getSiteMode, siteModeAllowsApp } from "@/lib/site/mode";
+import { readOwnerPreviewAuth } from "@/lib/site/owner-preview";
 import { isPreviewActive } from "@/lib/site/preview";
 
 export {
@@ -32,8 +33,8 @@ export type AppAccess = {
  * Single source of truth for "may this request reach the Cabi application?".
  *
  * - LIVE: everyone.
- * - PRELAUNCH / MAINTENANCE: only an admin session that explicitly enabled
- *   preview at `/preview`. Holding an admin cookie alone is not enough.
+ * - PRELAUNCH / MAINTENANCE: an active admin preview or a verified wallet
+ *   preview whose wallet remains on the server-side allowlist.
  *
  * This runs on the server for pages, layouts, and route handlers. It is the
  * enforcement point; the UI only ever reflects it.
@@ -46,10 +47,13 @@ export async function getAppAccess(): Promise<AppAccess> {
   // Preview is only meaningful outside LIVE, so these reads are skipped entirely
   // on the public happy path.
   const session = await readAdminSession().catch(() => null);
-  if (!session) return { allowed: false, viewer: "visitor", live: false, previewing: false };
-  const preview = await isPreviewActive().catch(() => false);
-  if (!preview) return { allowed: false, viewer: "admin", live: false, previewing: false };
-  return { allowed: true, viewer: "preview", live: false, previewing: true };
+  if (session && await isPreviewActive().catch(() => false)) {
+    return { allowed: true, viewer: "preview", live: false, previewing: true };
+  }
+  if (mode === "PRELAUNCH" && await readOwnerPreviewAuth()) {
+    return { allowed: true, viewer: "preview", live: false, previewing: true };
+  }
+  return { allowed: false, viewer: session ? "admin" : "visitor", live: false, previewing: false };
 }
 
 /**

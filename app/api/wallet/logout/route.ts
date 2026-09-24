@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 
 import { assertSameOrigin, jsonError } from "@/lib/security/request";
+import { clearOwnerPreviewCookie } from "@/lib/site/owner-preview";
 import { createWalletAuthRuntime, revokeWalletCookie, walletSessionCookieName } from "@/lib/wallet/auth";
 import { clearWalletSessionCookie } from "@/lib/wallet/session";
 
@@ -29,5 +30,6 @@ export async function POST(request: Request) {
   }
   const response = Response.json({ ok: true }, { headers: { "Cache-Control": "private, no-store" } });
   response.headers.append("Set-Cookie", clearWalletSessionCookie());
+  response.headers.append("Set-Cookie", clearOwnerPreviewCookie());
   return response;
 }

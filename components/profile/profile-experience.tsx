@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import Link from "@/components/prelaunch/preview-link";
 import { useCallback, useEffect, useState } from "react";
 import { Award, Calendar, Flame, Images, Sparkles, Trophy } from "lucide-react";
 

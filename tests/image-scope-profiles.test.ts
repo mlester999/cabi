@@ -127,7 +127,13 @@ describe("cabi character consistency", () => {
 
   it("caps scene length so a prompt cannot be flooded", () => {
     const prompt = buildCabiImagePrompt("x".repeat(2_000));
-    expect(prompt.length).toBeLessThan(cabiCharacterBible.canonical.length + 500);
+    // The prompt is the canonical identity plus the (capped) scene plus the
+    // composition block, so bound it against those three parts rather than
+    // against a hardcoded length.
+    const budget = cabiCharacterBible.canonical.length + cabiCharacterBible.composition.length + 600;
+    expect(prompt.length).toBeLessThan(budget);
+    // The scene itself is capped at 400 characters.
+    expect(prompt).not.toContain("x".repeat(500));
   });
 
   it("keeps a reference asset path and prohibited-substitution list", () => {

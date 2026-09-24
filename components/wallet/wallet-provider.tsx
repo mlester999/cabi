@@ -16,10 +16,11 @@ import {
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { WalletLogo } from "@/components/wallet/wallet-logo";
 import { Check, ChevronRight, LoaderCircle, ShieldCheck, WalletCards } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 
 type WalletIdentity = { address: string; walletAccountId: string; profileId: string };
-type WalletSession = { authenticated: true; wallet: WalletIdentity; expiresAt: string };
+type WalletSession = { authenticated: true; wallet: WalletIdentity; expiresAt: string; previewAuthorized?: boolean };
 type WalletPhase = "idle" | "connecting" | "signing" | "verifying";
 
 type WalletContextValue = {
@@ -54,6 +55,8 @@ async function readResponseError(response: Response, fallback: string) {
 }
 
 export function WalletProvider({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  const router = useRouter();
   const [config, setConfig] = useState<PublicWalletConfig>(emptyPublicWalletConfig);
   const [configLoaded, setConfigLoaded] = useState(false);
   const [session, setSession] = useState<WalletSession | null>(null);
@@ -66,6 +69,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const [error, setError] = useState<string | null>(null);
   const [connectOpen, setConnectOpen] = useState(false);
   const [authenticatedAt, setAuthenticatedAt] = useState<number | null>(null);
+  const [openingPreview, setOpeningPreview] = useState(false);
   const sessionRef = useRef<WalletSession | null>(null);
   const disconnectingRef = useRef(false);
 
@@ -153,12 +157,13 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       clearLocalSession();
       setConnectOpen(false);
       setError(null);
+      if (pathname.startsWith("/preview")) { router.replace("/"); router.refresh(); }
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Cabi couldn't complete wallet sign-out. Please try again.");
     } finally {
       disconnectingRef.current = false;
     }
-  }, [activeWallet, clearLocalSession, provider]);
+  }, [activeWallet, clearLocalSession, pathname, provider, router]);
 
   useEffect(() => {
     if (!provider) return;
@@ -223,6 +228,10 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       setAuthenticatedAt(Date.now());
       setPhase("idle");
       setConnectOpen(false);
+      if (nextSession.previewAuthorized && pathname === "/") {
+        setOpeningPreview(true);
+        window.setTimeout(() => { router.replace("/preview"); router.refresh(); setOpeningPreview(false); }, 700);
+      }
     } catch (cause) {
       const message = cause instanceof Error && cause.message && !/reject|denied/iu.test(cause.message)
         ? cause.message
@@ -231,7 +240,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setPhase("idle");
     }
-  }, []);
+  }, [pathname, router]);
 
   const switchNetwork = useCallback(async (targetChainId?: number | null) => {
     if (!provider) { setError("Reconnect your wallet before switching networks."); setConnectOpen(true); return; }
@@ -286,6 +295,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   return (
     <WalletContext.Provider value={value}>
       {children}
+      {openingPreview && <div role="status" className="fixed inset-0 z-[100] grid place-items-center bg-[#07070d]/95 text-center text-white"><div><p className="text-lg font-semibold text-violet-100">Welcome back.</p><p className="mt-2 text-sm text-[#a8a3b3]">Opening Cabi...</p></div></div>}
       <Dialog open={connectOpen} onOpenChange={(open) => { if (!open && phase === "idle") setConnectOpen(false); }}>
         <DialogContent className="glass gap-0 rounded-[28px] border-violet-200/[0.12] bg-[#0b0912] p-0 text-white sm:max-w-[430px]" showCloseButton={phase === "idle"}>
           <div className="p-6 sm:p-7">

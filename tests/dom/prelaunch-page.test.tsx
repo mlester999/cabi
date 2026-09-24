@@ -6,6 +6,17 @@ vi.mock("next/link", () => ({
     <a href={typeof href === "string" ? href : "#"} {...rest}>{children}</a>,
 }));
 
+/*
+ * The prelaunch tree includes a preview banner and the public nav, both of which
+ * use app-router hooks. This suite renders them outside a Next router, so the
+ * hooks are stubbed rather than the components being changed.
+ */
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn(), back: vi.fn(), forward: vi.fn(), prefetch: vi.fn() }),
+  usePathname: () => "/",
+  useSearchParams: () => new URLSearchParams(),
+}));
+
 import { PrelaunchExperience } from "@/components/prelaunch/prelaunch-experience";
 import { WalletProvider } from "@/components/wallet/wallet-provider";
 import { defaultPrelaunchSettings } from "@/lib/site/prelaunch-shared";

@@ -6,7 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { WalletButton } from "@/components/wallet/wallet-button";
 import { useWallet } from "@/components/wallet/wallet-provider";
 import { ArrowLeft, Download, Moon, Sparkles, Trash2, Volume2, Brain, Database, Info, Lock } from "lucide-react";
-import Link from "next/link";
+import Link from "@/components/prelaunch/preview-link";
 import { useCallback, useEffect, useState } from "react";
 
 type Settings = { memory_enabled: boolean; sound_enabled: boolean; animation_mode: "full" | "reduced"; appearance: "dark" | "oled" };

@@ -1,6 +1,11 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+vi.mock("next/navigation", () => ({
+  usePathname: () => "/",
+  useRouter: () => ({ replace: vi.fn(), refresh: vi.fn() }),
+}));
+
 import { WalletProvider, useWallet } from "@/components/wallet/wallet-provider";
 import { emptyPublicWalletConfig } from "@/lib/wallet/client";
 

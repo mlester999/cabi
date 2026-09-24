@@ -7,6 +7,9 @@ const mocks = vi.hoisted(() => {
     siteMode: vi.fn(async () => mode("PRELAUNCH")),
     adminSession: vi.fn(async (): Promise<{ email: string } | null> => null),
     previewActive: vi.fn(async () => false),
+    // Annotated as unknown: individual tests resolve this to an object, and an
+    // inferred `Promise<null>` would reject those assignments.
+    ownerPreview: vi.fn(async (): Promise<unknown> => null),
     mode,
   };
 });
@@ -17,6 +20,7 @@ vi.mock("@/lib/site/mode", () => ({
 }));
 vi.mock("@/lib/security/session", () => ({ readAdminSession: mocks.adminSession }));
 vi.mock("@/lib/site/preview", () => ({ isPreviewActive: mocks.previewActive }));
+vi.mock("@/lib/site/owner-preview", () => ({ readOwnerPreviewAuth: mocks.ownerPreview }));
 
 import { getAppAccess, guardAppApi } from "@/lib/site/guard";
 
@@ -29,9 +33,11 @@ describe("server-side app access", () => {
     mocks.siteMode.mockReset();
     mocks.adminSession.mockReset();
     mocks.previewActive.mockReset();
+    mocks.ownerPreview.mockReset();
     mocks.siteMode.mockResolvedValue(mocks.mode("PRELAUNCH"));
     mocks.adminSession.mockResolvedValue(null);
     mocks.previewActive.mockResolvedValue(false);
+    mocks.ownerPreview.mockResolvedValue(null);
   });
 
   it("lets everyone in while the site is LIVE", async () => {
@@ -42,6 +48,7 @@ describe("server-side app access", () => {
     // The public path must not touch admin cookies at all.
     expect(mocks.adminSession).not.toHaveBeenCalled();
     expect(mocks.previewActive).not.toHaveBeenCalled();
+    expect(mocks.ownerPreview).not.toHaveBeenCalled();
   });
 
   it("blocks an anonymous visitor during PRELAUNCH", async () => {
@@ -66,10 +73,33 @@ describe("server-side app access", () => {
     expect(await guardAppApi()).toBeNull();
   });
 
+  it("allows a verified, authorized owner wallet during PRELAUNCH without changing the site mode", async () => {
+    mocks.ownerPreview.mockResolvedValue({ walletAccountId: "owner-wallet" });
+    expect(await getAppAccess()).toEqual({ allowed: true, viewer: "preview", live: false, previewing: true });
+    expect(await guardAppApi()).toBeNull();
+    expect(mocks.siteMode).toHaveBeenCalled();
+  });
+
+  it("ignores forged client state and query parameters", async () => {
+    vi.stubGlobal("localStorage", { getItem: () => "true" });
+    vi.stubGlobal("location", { search: "?preview=true&isAdmin=true" });
+    const response = await guardAppApi();
+    expect(response?.status).toBe(404);
+    expect(mocks.ownerPreview).toHaveBeenCalled();
+    vi.unstubAllGlobals();
+  });
+
   it("still blocks during MAINTENANCE without a preview", async () => {
     mocks.siteMode.mockResolvedValue(mocks.mode("MAINTENANCE"));
     mocks.adminSession.mockResolvedValue({ email: "owner@cabi.test" });
     expect((await getAppAccess()).allowed).toBe(false);
+  });
+
+  it("does not turn the prelaunch wallet exception into a maintenance bypass", async () => {
+    mocks.siteMode.mockResolvedValue(mocks.mode("MAINTENANCE"));
+    mocks.ownerPreview.mockResolvedValue({ walletAccountId: "owner-wallet" });
+    expect((await getAppAccess()).allowed).toBe(false);
+    expect(mocks.ownerPreview).not.toHaveBeenCalled();
   });
 
   it("returns a 404 that does not reveal the endpoint exists", async () => {

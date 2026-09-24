@@ -1,6 +1,7 @@
 import { ConfigPanel } from "@/components/admin/config-panel";
 import { PrelaunchSettingsPanel } from "@/components/admin/prelaunch-settings-panel";
 import { SiteModePanel } from "@/components/admin/site-mode-panel";
+import { OwnerWalletsPanel } from "@/components/admin/owner-wallets-panel";
 
 /**
  * `/admin/settings` is launch control first, then server-side product behaviour.
@@ -12,6 +13,7 @@ export default function AdminSettingsPage() {
   return (
     <div>
       <SiteModePanel />
+      <OwnerWalletsPanel />
       <PrelaunchSettingsPanel />
       <div className="mt-12 border-t border-white/[0.07] pt-10">
         <ConfigPanel

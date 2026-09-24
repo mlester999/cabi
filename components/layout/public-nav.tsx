@@ -2,7 +2,7 @@
 
 import { MiniCabi } from "@/components/cabi/mini-cabi";
 import { WalletButton } from "@/components/wallet/wallet-button";
-import Link from "next/link";
+import Link from "@/components/prelaunch/preview-link";
 import { usePathname } from "next/navigation";
 
 export function PublicRouteLinks({ compact = false }: { compact?: boolean }) {

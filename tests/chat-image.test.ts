@@ -156,7 +156,7 @@ describe("scenario 6: an unrelated subject is redirected, not drawn", () => {
     if (!result.handled) return;
     expect(result.usedProvider).toBe(false);
     expect(mocks.generated).toHaveLength(0);
-    expect(result.reply).toMatch(/only make Cabi-related/i);
+    // One of several natural variants; all decline and offer the Cabi version.\n    expect(result.reply.length).toBeGreaterThan(20);\n    expect(result.reply).toMatch(/cabi/i);
     expect(JSON.stringify(result.card)).toContain("Cabi");
     expect(JSON.stringify(result.card)).toMatch(/skyscraper/i);
   });
@@ -211,7 +211,7 @@ describe("access control", () => {
     const result = await generateChatImage("Generate a Lamborghini.", wallet);
     expect(result.handled).toBe(true);
     if (!result.handled) return;
-    expect(result.reply).toMatch(/only make Cabi-related/i);
+    // One of several natural variants; all decline and offer the Cabi version.\n    expect(result.reply.length).toBeGreaterThan(20);\n    expect(result.reply).toMatch(/cabi/i);
     expect(JSON.stringify(result.card).toLowerCase()).toContain("lamborghini");
   });
 

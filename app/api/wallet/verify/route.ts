@@ -1,5 +1,7 @@
 import { clientAddress, assertSameOrigin, jsonError } from "@/lib/security/request";
 import { checkRateLimit } from "@/lib/security/rate-limit";
+import { createOwnerPreviewToken, clearOwnerPreviewCookie, serializeOwnerPreviewCookie } from "@/lib/site/owner-preview";
+import { isAuthorizedOwnerWallet, markOwnerWalletUsed } from "@/lib/site/owner-wallets";
 import { createWalletAuthRuntime, verifyWalletChallenge, WalletAuthError } from "@/lib/wallet/auth";
 import { serializeWalletSessionCookie } from "@/lib/wallet/session";
 
@@ -24,8 +26,17 @@ export async function POST(request: Request) {
       { message: body.message, signature: body.signature },
       createWalletAuthRuntime(),
     );
+    // Authorization is evaluated only after the nonce and signature were
+    // verified. A database failure simply leaves this as an ordinary wallet.
+    const approved = await isAuthorizedOwnerWallet(identity.walletAddress).catch(() => false);
+    let ownerPreviewToken: string | null = null;
+    if (approved) {
+      ownerPreviewToken = await createOwnerPreviewToken(identity).catch(() => null);
+      if (ownerPreviewToken) await markOwnerWalletUsed(identity.walletAddress);
+    }
     const response = Response.json({
       authenticated: true,
+      previewAuthorized: Boolean(ownerPreviewToken),
       wallet: {
         address: identity.walletAddress,
         walletAccountId: identity.walletAccountId,
@@ -34,10 +45,10 @@ export async function POST(request: Request) {
       expiresAt: identity.expiresAt,
     }, { headers: { "Cache-Control": "private, no-store" } });
     response.headers.append("Set-Cookie", serializeWalletSessionCookie(cookieValue));
+    response.headers.append("Set-Cookie", ownerPreviewToken ? serializeOwnerPreviewCookie(ownerPreviewToken) : clearOwnerPreviewCookie());
     return response;
   } catch (error) {
     if (error instanceof WalletAuthError) return jsonError(error.message, error.status, error.code);
     return jsonError("Wallet sign-in is temporarily unavailable.", 503, "WALLET_AUTH_UNAVAILABLE");
   }
 }
-

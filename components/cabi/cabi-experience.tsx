@@ -17,6 +17,7 @@ import { readEventStream } from "@/lib/client/sse";
 import { defaultFeatureFlags, lockedFeatureOrder, type FeatureFlags } from "@/lib/config/feature-flags";
 import { shouldImportGuestChat } from "@/lib/wallet/persistence";
 import {
+  ImagePlus,
   ArrowUp,
   Check,
   ChevronLeft,
@@ -40,7 +41,7 @@ import {
   X,
 } from "lucide-react";
 import { motion } from "motion/react";
-import Link from "next/link";
+import Link from "@/components/prelaunch/preview-link";
 import { FormEvent, KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 type ConversationGroup = "Today" | "Yesterday" | "Previous 7 Days" | "Older";
@@ -536,7 +537,16 @@ export function CabiExperience({ flags = defaultFeatureFlags }: {
               <div ref={endRef} />
             </div>
           </div>
-          <div className="shrink-0 bg-gradient-to-t from-[#08070d] via-[#08070d] to-transparent px-5 cabi-safe-bottom pt-3 max-sm:px-3"><div className="mx-auto max-w-[760px]"><SlashCommandPalette value={composer} onRun={(command) => void send(command.id)} /></div><form className="mx-auto max-w-[760px]" onSubmit={submit}><div className="rounded-[24px] border border-violet-200/[0.14] bg-[#11101a] p-2 shadow-[0_18px_60px_rgba(0,0,0,.35)] focus-within:border-violet-300/30 focus-within:shadow-[0_18px_60px_rgba(0,0,0,.35),0_0_0_3px_rgba(139,92,246,.06)]"><textarea ref={composerRef} value={composer} onChange={(event) => setComposer(event.target.value)} onKeyDown={onKeyDown} rows={2} className="scrollbar-cabi max-h-40 min-h-[50px] w-full resize-none bg-transparent px-3 pt-2.5 text-[15px] leading-6 text-white outline-none placeholder:text-[#625d6d]" placeholder="What's on your mind?" aria-label="Message Cabi" disabled={sending} /><div className="flex items-center justify-between px-1 pb-1"><p className="hidden pl-2 text-[10px] text-[#5d5868] sm:block">Enter to send · Shift + Enter for a new line</p><span className="sm:hidden" />{sending ? <button type="button" onClick={() => controllerRef.current?.abort()} className="focus-ring grid h-10 w-10 place-items-center rounded-[14px] bg-white text-[#160f27]" aria-label="Stop generating"><Square size={15} fill="currentColor" /></button> : <button type="submit" disabled={!composer.trim()} className="focus-ring grid h-10 w-10 place-items-center rounded-[14px] bg-gradient-to-br from-violet-200 to-violet-400 text-[#160f27] shadow-[0_8px_24px_rgba(139,92,246,.28)] hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-35" aria-label="Send message"><ArrowUp size={18} strokeWidth={2.4} /></button>}</div></div><p className="mt-2 text-center text-[10px] text-[#504b59]">{wallet.authenticated && !temporaryChat ? "Saved to your wallet profile · Cabi can make mistakes." : "Temporary in this tab · Cabi can make mistakes."}</p></form></div>
+          <div className="shrink-0 bg-gradient-to-t from-[#08070d] via-[#08070d] to-transparent px-5 cabi-safe-bottom pt-3 max-sm:px-3"><div className="mx-auto max-w-[760px]"><SlashCommandPalette value={composer} onRun={(command) => void send(command.id)} /></div><form className="mx-auto max-w-[760px]" onSubmit={submit}><div className="rounded-[24px] border border-violet-200/[0.14] bg-[#11101a] p-2 shadow-[0_18px_60px_rgba(0,0,0,.35)] focus-within:border-violet-300/30 focus-within:shadow-[0_18px_60px_rgba(0,0,0,.35),0_0_0_3px_rgba(139,92,246,.06)]"><textarea ref={composerRef} value={composer} onChange={(event) => setComposer(event.target.value)} onKeyDown={onKeyDown} rows={2} className="scrollbar-cabi max-h-40 min-h-[50px] w-full resize-none bg-transparent px-3 pt-2.5 text-[15px] leading-6 text-white outline-none placeholder:text-[#625d6d]" placeholder="What's on your mind?" aria-label="Message Cabi" disabled={sending} /><div className="flex items-center justify-between px-1 pb-1"><p className="hidden pl-2 text-[10px] text-[#5d5868] sm:block">Enter to send · Shift + Enter for a new line</p><span className="sm:hidden" /><div className="flex items-center gap-1.5">{/* A shortcut, not a separate workflow: it prefills the composer, so the request still goes through chat. */}
+                    <button
+                      type="button"
+                      onClick={() => { setComposer("Generate an image of Cabi "); composerRef.current?.focus(); }}
+                      disabled={sending}
+                      className="focus-ring mr-1 inline-flex h-10 items-center gap-1.5 rounded-[14px] border border-white/[0.08] bg-white/[0.03] px-3 text-[11px] font-semibold text-[#d5d0de] hover:bg-white/[0.06] disabled:opacity-40"
+                      aria-label="Start a Cabi image request"
+                    >
+                      <ImagePlus size={13} aria-hidden="true" /> Image
+                    </button>{sending ? <button type="button" onClick={() => controllerRef.current?.abort()} className="focus-ring grid h-10 w-10 place-items-center rounded-[14px] bg-white text-[#160f27]" aria-label="Stop generating"><Square size={15} fill="currentColor" /></button> : <button type="submit" disabled={!composer.trim()} className="focus-ring grid h-10 w-10 place-items-center rounded-[14px] bg-gradient-to-br from-violet-200 to-violet-400 text-[#160f27] shadow-[0_8px_24px_rgba(139,92,246,.28)] hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-35" aria-label="Send message"><ArrowUp size={18} strokeWidth={2.4} /></button>}</div></div></div><p className="mt-2 text-center text-[10px] text-[#504b59]">{wallet.authenticated && !temporaryChat ? "Saved to your wallet profile · Cabi can make mistakes." : "Temporary in this tab · Cabi can make mistakes."}</p></form></div>
         </section>
 
         <aside className="scrollbar-cabi flex min-h-0 flex-col gap-3 overflow-y-auto border-l border-white/[0.065] p-3 max-lg:hidden" aria-label="Cabi presence"><PresenceArt mood="cozy" speaking={sending} authenticated={wallet.authenticated} bond={bond} /><CpuTokenCard compact />{/* Future features, presented as intentionally unreleased. */}<LockedFeatures flags={flags} keys={lockedFeatureOrder} onNotice={lockedNotice.show} /></aside>

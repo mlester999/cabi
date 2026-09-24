@@ -77,6 +77,26 @@ describe("wallet persistence authorization", () => {
     expect(eqCalls).toEqual(expect.arrayContaining([["id", "chat-b"], ["wallet_account_id", "wallet-a"]]));
   });
 
+  it("lists the owner preview's saved chats under the same wallet account used after launch", async () => {
+    authenticatedAsWalletA();
+    const predicates: Array<[string, unknown]> = [];
+    const chain: Record<string, ReturnType<typeof vi.fn>> = {};
+    chain.select = vi.fn(() => chain);
+    chain.eq = vi.fn((field: string, value: unknown) => { predicates.push([field, value]); return chain; });
+    chain.order = vi.fn(() => chain);
+    chain.limit = vi.fn(async () => ({
+      data: [{ id: "owner-chat", title: "Saved preview chat", pinned: false, created_at: "2026-09-24T00:00:00.000Z", updated_at: "2026-09-24T00:00:00.000Z" }],
+      error: null,
+    }));
+    mocks.database.mockReturnValue({ from: vi.fn(() => chain) });
+
+    const response = await listConversations(new Request("http://localhost:5173/api/conversations"));
+    expect(response.status).toBe(200);
+    const payload = await response.json() as { conversations: Array<{ id: string; title: string }> };
+    expect(payload.conversations[0]).toMatchObject({ id: "owner-chat", title: "Saved preview chat" });
+    expect(predicates).toContainEqual(["wallet_account_id", walletA.walletAccountId]);
+  });
+
   it("wallet A cannot delete wallet B's conversation", async () => {
     authenticatedAsWalletA();
     const { eqCalls } = notFoundDatabase();

@@ -5,7 +5,7 @@ import { PublicHeader } from "@/components/cabi/public-header";
 import { CpuTokenCard } from "@/components/cpu/cpu-token-card";
 import { useWallet } from "@/components/wallet/wallet-provider";
 import { Info, MessageCircleMore, Sparkles } from "lucide-react";
-import Link from "next/link";
+import Link from "@/components/prelaunch/preview-link";
 
 export function CpuExperience({ prelaunch = false }: { prelaunch?: boolean } = {}) {
   const wallet = useWallet();

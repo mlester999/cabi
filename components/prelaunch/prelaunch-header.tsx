@@ -80,7 +80,7 @@ export function PrelaunchHeader({
             Community <ArrowUpRight size={13} />
           </a>
         )}
-        <span className="hidden sm:block"><WalletButton compact /></span>
+        <WalletButton compact />
       </nav>
     </header>
   );

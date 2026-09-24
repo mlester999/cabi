@@ -258,28 +258,80 @@ and opens the next one.
 
 ## Image generation
 
-Cabi-only, and enforced before any provider call.
+Cabi-only, and enforced before any provider call. The active provider is **Together AI**
+(`POST https://api.together.xyz/v1/images/generations`), with **`Qwen/Qwen-Image`** as
+the default model.
 
-- `lib/image-generation/` holds the character specification, scope guard, provider
-  adapters (OpenAI-compatible, Stability, custom), and storage.
+- `lib/cabi/image-identity.ts` is the **single source of truth** for Cabi's appearance.
+  Every prompt is assembled as `[canonical identity] + [user scene] + [composition]`,
+  always in that order, so a scene that tries to describe a different character is
+  competing with the canon rather than replacing it. No component restates her
+  appearance.
+- `lib/ai/image/together.ts` is the Together service. `lib/image-generation/provider.ts`
+  keeps the `ImageGenerationProvider` abstraction, so FLUX, GPT Image, Seedream or
+  Gemini can be added without touching the UI.
 - The provider is **independent of the DeepSeek chat provider**, so one can be down
   without breaking the other.
-- Every generation prompt is built from `CABI_CHARACTER_BIBLE`, which encodes the
-  official traits (ash-gray hair, cat ears, gray-lavender eyes, tail, lavender palette,
-  CPU branding). The bible is never returned to a client.
-- `"Generate a Lamborghini"` is refused and redirected to `"Cabi lamborghini"`;
-  `"Generate Cabi standing beside a Lamborghini"` is allowed.
+- Aspect ratios are a closed set — `1:1` (1024×1024), `16:9` (1344×768), `9:16`
+  (768×1344) — so a request cannot ask for an extreme resolution.
 - Generation requires an authenticated wallet, with a database-counted daily quota.
   A failed provider call is recorded as `FAILED`, which the quota does not count, so an
   outage does not burn the user's allowance.
 - Images live in the private `cabi-generations` bucket and are served through
   short-lived signed URLs. Avatars use a separate private `avatars` bucket.
+- Normal users never see "Together AI", "Qwen", a model name or a provider error. The
+  provider's own error text is logged server-side and replaced with a Cabi line.
+
+### Cabi-only relevance
+
+A literal search for "Cabi" is not enough, so `classifyCabiRelevance()` returns one of
+three verdicts **before any provider call**:
+
+| Verdict | Behaviour |
+| --- | --- |
+| `CABI_RELATED` | generate |
+| `NOT_CABI_RELATED` | refuse, and offer the Cabi version of the same idea |
+| `UNCERTAIN` | ask what they want involving her, then generate |
+
+It uses conversation context, so `"put her in a gaming chair"` resolves to Cabi after a
+turn about her — but context can never make an unrelated subject relevant. Refusals use
+several natural variants, picked deterministically per prompt so behaviour is stable
+while different requests vary. A refused request **never contacts the provider**, so no
+credit is spent.
+
+### Cost control
+
+One image per request (`n: 1`), a server-side rate limit, a database-counted daily
+allowance, an idempotency key so a double-submit reuses the first result instead of
+paying twice, a 120-second timeout, and a relevance check that runs before the provider.
+The UI disables Generate while a request is in flight.
 
 ### Image API key
 
-Write-only, encrypted at rest with `APP_ENCRYPTION_KEY` and a record-bound AAD in
-`secret_settings`. Reads expose only `hasApiKey` and the last four characters. The key
-is never returned to a browser and never logged.
+Two supported locations, in priority order:
+
+1. **`TOGETHER_API_KEY`** in the server environment (recommended).
+2. The admin panel at `/admin/images`, encrypted at rest with `APP_ENCRYPTION_KEY` and a
+   record-bound AAD in `secret_settings`.
+
+Either way the key is **server-only**: it is read in `lib/ai/image/together.ts` behind
+`import "server-only"`, so it cannot be pulled into a client bundle. It is never returned
+to a browser, never written to a log, and never prefixed with `NEXT_PUBLIC_`.
+
+### Together AI setup
+
+1. Create or sign in to an account at [together.ai](https://api.together.xyz).
+2. Add billing credits — image generation fails with a balance error without them.
+3. Generate an API key in the Together dashboard.
+4. Add it to `.env.local` (git-ignored) as `TOGETHER_API_KEY=...`.
+5. Add the same secret to your hosting provider's environment variables (Vercel →
+   Settings → Environment Variables). Never paste it into a source file.
+6. Restart locally, or redeploy.
+7. Open `/admin/images` and press **Test Connection** — it makes a real generation, so a
+   green result means the key, the balance and the model all work.
+
+Optional overrides: `IMAGE_PROVIDER=together` (default) and
+`TOGETHER_IMAGE_MODEL=Qwen/Qwen-Image` (default when unset).
 
 ## Cross-conversation memory
 
@@ -390,7 +442,11 @@ Mode precedence is:
 
 `SITE_MODE_OVERRIDE` is deliberately not a `NEXT_PUBLIC_` variable because it is an access-control input and must never be inlined into a client bundle.
 
-`/preview` lets an authenticated admin inspect the application while an explicit prelaunch or maintenance mode is active.
+`/preview` lets an authenticated admin inspect the application while an explicit prelaunch or maintenance mode is active. An explicitly authorized EVM owner wallet can also enter after completing the normal nonce/SIWE signature flow. This is a private exception: it does not change `site_mode`, and an ordinary signed-in wallet still sees prelaunch.
+
+Manage owner preview wallets in **/admin/settings → Owner Wallets**. Adding or removing a wallet requires the existing password-admin session, confirmation, and a valid viem address; changes are audited. The `admin_wallets` table is the primary allowlist. `ADMIN_PREVIEW_WALLETS` is an optional comma-separated, server-only bootstrap list; a database row (including a disabled row) takes precedence. Removing a wallet invalidates preview access on its next request, even if it is also in the environment list. No wallet is automatically promoted.
+
+The four-hour preview cookie is signed, HttpOnly and bound to the revocable wallet session. `/preview` and its feature subroutes reuse the real wallet account and application data, so saved chats, profile, and memories remain with that wallet after launch. Deploy the migrations before adding wallets; the private `cabi-generations` and `avatars` buckets are created by migration `0016`.
 
 ## Local setup
 

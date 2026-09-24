@@ -25,6 +25,17 @@ vi.mock("next/link", () => ({
     <a href={href} {...rest}>{children}</a>,
 }));
 
+/*
+ * The chat shell embeds navigation-aware chrome. This suite renders it outside a
+ * Next router, so the hooks are stubbed; an unmocked `usePathname` returns null
+ * and throws when the caller calls `startsWith` on it.
+ */
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn(), back: vi.fn(), forward: vi.fn(), prefetch: vi.fn() }),
+  usePathname: () => "/",
+  useSearchParams: () => new URLSearchParams(),
+}));
+
 vi.mock("@/components/wallet/wallet-provider", () => ({
   useWallet: () => state.wallet,
   WalletProvider: ({ children }: { children: React.ReactNode }) => children,
