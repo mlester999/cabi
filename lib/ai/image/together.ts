@@ -14,7 +14,9 @@ import {
   type ImageConnectionTest,
   type ImageGenerationError,
   type ImageGenerationResult,
+  type ImageProviderErrorCategory,
 } from "@/lib/image-generation/types";
+import type { ImagePipelineTrace } from "@/lib/image-generation/pipeline-trace";
 
 /**
  * Together AI image generation.
@@ -64,6 +66,8 @@ export type TogetherRequest = {
    * prompt by accident.
    */
   preparedPrompt?: string;
+  /** Internal safe trace for the real chat/admin pipeline. */
+  trace?: ImagePipelineTrace;
 };
 
 export type TogetherProviderConfig = {
@@ -88,7 +92,21 @@ function modelDefinitionFor(model: string): ImageModelDefinition {
 /** How many inference steps to request. Qwen-Image is a step-distilled model. */
 const defaultSteps = 28;
 
-export function classifyTogetherHttpError(status: number): { error: ImageGenerationError; message: string } {
+function providerErrorText(value: unknown): string {
+  if (typeof value === "string") return value.slice(0, 2_000).toLowerCase();
+  if (!value || typeof value !== "object") return "";
+  return Object.values(value as Record<string, unknown>).map(providerErrorText).join(" ").slice(0, 2_000);
+}
+
+function mentionsReferenceInput(value: unknown): boolean {
+  const text = providerErrorText(value);
+  return /(?:image_url|reference[_ ]?images?|reference image|input image|image format|unsupported image|invalid image)/iu.test(text);
+}
+
+export function classifyTogetherHttpError(status: number, input: { referenceAttached?: boolean; providerBody?: unknown } = {}): { error: ImageGenerationError; message: string; providerErrorCategory?: ImageProviderErrorCategory } {
+  if ((status === 400 || status === 403 || status === 422) && input.referenceAttached && mentionsReferenceInput(input.providerBody)) {
+    return { error: "PROVIDER_ERROR", message: "Reference image rejected", providerErrorCategory: "reference_input" };
+  }
   if (status === 401) return { error: "NOT_CONFIGURED", message: "Authentication failed" };
   if (status === 402) return { error: "PROVIDER_ERROR", message: "Insufficient credits or billing issue" };
   if (status === 403) return { error: "PROVIDER_ERROR", message: "Permission or account restriction" };
@@ -110,32 +128,57 @@ export function classifyTogetherHttpError(status: number): { error: ImageGenerat
  */
 type TogetherPayload = { data?: Array<{ url?: unknown; b64_json?: unknown }> };
 
-async function readImage(payload: TogetherPayload, signal: AbortSignal): Promise<Uint8Array | null> {
+async function readImage(payload: TogetherPayload, signal: AbortSignal, trace?: ImagePipelineTrace): Promise<Uint8Array | null> {
   const first = payload.data?.[0];
-  if (!first) return null;
+  if (!first) {
+    trace?.record("PROVIDER_IMAGE_FETCHED", { error: "EMPTY_PROVIDER_OUTPUT" });
+    return null;
+  }
 
   if (typeof first.url === "string" && first.url.startsWith("https://")) {
     // Together's generated URLs are CDN objects. Some of those edges reject a
     // request with an empty User-Agent even though the generation succeeded.
-    const response = await fetch(first.url, {
-      signal,
-      headers: { "User-Agent": "cabi-cat-partner-unit/1.0", Accept: "image/*" },
-    });
-    if (!response.ok) return null;
+    let response: Response;
+    try {
+      response = await fetch(first.url, {
+        signal,
+        headers: { "User-Agent": "cabi-cat-partner-unit/1.0", Accept: "image/*" },
+      });
+    } catch (error) {
+      trace?.record("PROVIDER_IMAGE_FETCHED", {
+        error: error instanceof Error && error.name === "AbortError" ? "TIMEOUT" : "IMAGE_DOWNLOAD_FAILED",
+      });
+      throw error;
+    }
+    if (!response.ok) {
+      trace?.record("PROVIDER_IMAGE_FETCHED", { httpStatus: response.status, error: "IMAGE_DOWNLOAD_FAILED" });
+      return null;
+    }
     const buffer = await response.arrayBuffer();
-    return buffer.byteLength > 128 ? new Uint8Array(buffer) : null;
+    const bytes = buffer.byteLength > 128 ? new Uint8Array(buffer) : null;
+    trace?.record("PROVIDER_IMAGE_FETCHED", {
+      httpStatus: response.status,
+      contentType: response.headers.get("content-type")?.split(";", 1)[0]?.trim() || null,
+      byteLength: buffer.byteLength,
+      error: bytes ? null : "IMAGE_DOWNLOAD_FAILED",
+    });
+    return bytes;
   }
 
   if (typeof first.b64_json === "string" && first.b64_json.length > 64) {
     try {
       const binary = atob(first.b64_json);
       const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
-      return bytes.byteLength > 128 ? bytes : null;
+      const image = bytes.byteLength > 128 ? bytes : null;
+      trace?.record("PROVIDER_IMAGE_FETCHED", { byteLength: bytes.byteLength, error: image ? null : "IMAGE_DOWNLOAD_FAILED" });
+      return image;
     } catch {
+      trace?.record("PROVIDER_IMAGE_FETCHED", { error: "IMAGE_DOWNLOAD_FAILED" });
       return null;
     }
   }
 
+  trace?.record("PROVIDER_IMAGE_FETCHED", { error: "INVALID_RESPONSE" });
   return null;
 }
 
@@ -246,10 +289,26 @@ export async function generateTogetherImage(
     : resolveTogetherModel();
   const selectedModel = modelDefinitionFor(model);
   const { body, width, height } = buildTogetherRequestBody(request, selectedModel.id);
+  request.trace?.update({
+    provider: "together",
+    model,
+    aspectRatio: request.aspectRatio,
+    width,
+    height,
+    referenceAttached: Boolean(request.referenceImages?.length),
+  });
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), config?.timeoutMs ?? 120_000);
 
   try {
+    request.trace?.record("TOGETHER_REQUEST_STARTED", {
+      provider: "together",
+      model,
+      aspectRatio: request.aspectRatio,
+      width,
+      height,
+      referenceAttached: Boolean(request.referenceImages?.length),
+    });
     const response = await fetch(config?.endpoint ?? togetherImageEndpoint, {
       method: "POST",
       headers: {
@@ -261,14 +320,23 @@ export async function generateTogetherImage(
     });
 
     if (!response.ok) {
-      const classified = classifyTogetherHttpError(response.status);
+      const providerBodyText = await response.text().catch(() => "");
+      let providerBody: unknown = providerBodyText;
+      try { providerBody = providerBodyText ? JSON.parse(providerBodyText) : null; } catch { /* plain text is still classified by its safe keywords */ }
+      const classified = classifyTogetherHttpError(response.status, {
+        referenceAttached: Boolean(request.referenceImages?.length),
+        providerBody,
+      });
+      request.trace?.record("TOGETHER_RESPONSE_RECEIVED", { httpStatus: response.status, error: classified.error });
       return { ok: false, ...classified, httpStatus: response.status };
     }
+
+    request.trace?.record("TOGETHER_RESPONSE_RECEIVED", { httpStatus: response.status });
 
     const payload = await response.json().catch(() => null) as TogetherPayload | null;
     if (!payload) return { ok: false, error: "INVALID_RESPONSE", message: "The image service sent back something I could not read." };
 
-    const bytes = await readImage(payload, controller.signal);
+    const bytes = await readImage(payload, controller.signal, request.trace);
     if (!bytes) return { ok: false, error: "INVALID_RESPONSE", message: "I could not read the image that came back." };
 
     return {
@@ -285,8 +353,10 @@ export async function generateTogetherImage(
     };
   } catch (error) {
     if (error instanceof Error && error.name === "AbortError") {
+      request.trace?.record("TOGETHER_RESPONSE_RECEIVED", { error: "TIMEOUT" });
       return { ok: false, error: "TIMEOUT", message: "That took too long. Try again?" };
     }
+    request.trace?.record("TOGETHER_RESPONSE_RECEIVED", { error: "PROVIDER_ERROR" });
     console.error(`[cabi:image] together request failed: ${error instanceof Error ? error.name : "unknown"}`);
     return { ok: false, error: "PROVIDER_ERROR", message: "I could not reach the image service." };
   } finally {

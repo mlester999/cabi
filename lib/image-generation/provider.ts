@@ -15,6 +15,7 @@ import {
   type ImageProviderConfig,
   type ImageQuality,
 } from "@/lib/image-generation/types";
+import type { ImagePipelineTrace } from "@/lib/image-generation/pipeline-trace";
 
 /**
  * Image generation providers.
@@ -68,6 +69,8 @@ export type ImageGenerationRequest = {
   referenceImages?: string[];
   /** A fully assembled Cabi prompt. Takes precedence over `scene`. */
   preparedPrompt?: string;
+  /** Internal safe trace; never serialized into the provider request body. */
+  trace?: ImagePipelineTrace;
   signal?: AbortSignal;
 };
 
@@ -275,11 +278,11 @@ function createTogetherProvider(config: ImageProviderConfig): ImageGenerationPro
     label: "Together AI",
     supportsReferenceImage: capabilities.supportsReferenceImages,
     capabilities,
-    async generateCabiImage({ scene, aspectRatio, seed, negativePrompt, referenceImages, preparedPrompt }) {
+    async generateCabiImage({ scene, aspectRatio, seed, negativePrompt, referenceImages, preparedPrompt, trace }) {
       // seed and referenceImages are forwarded, but the Together service only
       // sends them when the selected model genuinely supports them.
       const result = await generateTogetherImage(
-        { prompt: scene, aspectRatio, seed, negativePrompt, referenceImages, preparedPrompt },
+        { prompt: scene, aspectRatio, seed, negativePrompt, referenceImages, preparedPrompt, trace },
         { apiKey: config.apiKey, model, endpoint: config.baseUrl },
       );
       if (result.ok) return result;

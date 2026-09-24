@@ -5,6 +5,7 @@ import type {
   ImageGenerationError,
   ImageProviderErrorCategory,
 } from "@/lib/image-generation/types";
+import type { ImagePipelineDebugDetails, ImagePipelineTrace } from "@/lib/image-generation/pipeline-trace";
 
 export type ImageDiagnosticSource = "ADMIN_TEST" | "CHAT_GENERATION" | "HTTP_GENERATION";
 export type ImageReferenceInputType = "none" | "https-url" | "http-url" | "data-url" | "other";
@@ -50,7 +51,9 @@ export function imageDiagnosticErrorCategory(input: {
   httpStatus?: number | null;
   error?: ImageGenerationError;
   referenceAttached?: boolean;
+  providerErrorCategory?: ImageProviderErrorCategory;
 }): ImageProviderErrorCategory {
+  if (input.providerErrorCategory && input.providerErrorCategory !== "none") return input.providerErrorCategory;
   const status = input.httpStatus ?? null;
   if (status === 401 || input.error === "NOT_CONFIGURED") return "authentication";
   if (status === 402) return "billing";
@@ -73,4 +76,11 @@ export function imageDiagnosticErrorCategory(input: {
 export function logImageGenerationDiagnostic(diagnostic: ImageGenerationDiagnostic): void {
   if (!envBoolean("IMAGE_GENERATION_DIAGNOSTICS")) return;
   console.info("[cabi:image-diagnostic]", JSON.stringify(diagnostic));
+}
+
+/** Logs the complete safe trace without prompts, URLs, response bodies, or keys. */
+export function logImagePipelineTrace(trace: ImagePipelineTrace | ImagePipelineDebugDetails): void {
+  if (!envBoolean("IMAGE_GENERATION_DIAGNOSTICS")) return;
+  const snapshot = "snapshot" in trace ? trace.snapshot() : trace;
+  console.info("[cabi:image-pipeline]", JSON.stringify(snapshot));
 }

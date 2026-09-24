@@ -20,6 +20,8 @@ import {
   writeImageSettings,
 } from "@/lib/image-generation/settings";
 import { imageDiagnosticErrorCategory, logImageGenerationDiagnostic, safeImageKeySuffix } from "@/lib/image-generation/diagnostics";
+import { createImagePipelineTrace } from "@/lib/image-generation/pipeline-trace";
+import { runFullCabiImageTest } from "@/lib/image-generation/full-test";
 import type { ImageGenerationSettings } from "@/lib/image-generation/types";
 import { assertSameOrigin, jsonError } from "@/lib/security/request";
 
@@ -63,6 +65,10 @@ const imageAdminTestSchema = z.object({
   apiKey: z.string().trim().max(400).optional(),
 }).strict();
 
+const imageAdminFullTestSchema = z.object({
+  action: z.literal("test-full"),
+}).strict();
+
 function validateImageSelection(value: { provider: string; model: string; apiKey?: string }, context: z.RefinementCtx) {
   if (!isSupportedImageProvider(value.provider)) {
     context.addIssue({ code: z.ZodIssueCode.custom, path: ["provider"], message: "Choose a supported image provider." });
@@ -76,8 +82,10 @@ function validateImageSelection(value: { provider: string; model: string; apiKey
 }
 
 export const imageAdminSaveSchema = z
-  .discriminatedUnion("action", [imageAdminPersistSchema, imageAdminTestSchema])
-  .superRefine((value, context) => validateImageSelection(value, context));
+  .discriminatedUnion("action", [imageAdminPersistSchema, imageAdminTestSchema, imageAdminFullTestSchema])
+  .superRefine((value, context) => {
+    if (value.action !== "test-full") validateImageSelection(value, context);
+  });
 
 type AdminImageSettings = Omit<ImageGenerationSettings, "baseUrl">;
 
@@ -239,6 +247,29 @@ export async function POST(request: Request) {
         : safeResult,
       { status: safeResult.ok ? 200 : 400, headers: responseHeaders() },
     );
+  }
+
+  if (action === "test-full") {
+    const resolved = await resolveImageGenerationConfig();
+    const trace = createImagePipelineTrace({ source: "ADMIN_TEST", aspectRatio: resolved.aspectRatio });
+    trace.record("USER_AUTHORIZED");
+    trace.record("QUOTA_CHECK_PASSED");
+    const result = await runFullCabiImageTest({ config: resolved, trace });
+    await auditAdmin(request, admin.email, "image_settings.test_full", "image_settings", "singleton", result.ok ? "success" : "failure", {
+      provider: resolved.provider,
+      model: resolved.model,
+      referenceAttached: result.trace.snapshot().referenceAttached,
+      stage: result.trace.snapshot().stage,
+      error: result.trace.snapshot().error,
+    });
+    const snapshot = result.trace.snapshot();
+    return Response.json({
+      ok: result.ok,
+      message: result.message,
+      diagnostics: snapshot,
+      referenceConditioned: result.ok ? result.referenceConditioned : false,
+      referenceFallbackUsed: result.ok ? result.referenceFallbackUsed : false,
+    }, { status: result.ok ? 200 : 502, headers: responseHeaders() });
   }
 
   const { apiKey, clearApiKey, ...settings } = parsed.data;

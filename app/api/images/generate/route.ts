@@ -2,16 +2,17 @@ import { z } from "zod";
 
 import { getServiceClient } from "@/lib/db/supabase";
 import { aspectRatios } from "@/lib/image-generation/types";
-import { generationBucket, signedImageUrl, uploadGenerationImage } from "@/lib/image-generation/storage";
+import { deleteGenerationImage, generationBucket, signedImageUrl } from "@/lib/image-generation/storage";
 import { imageGenerationTtlMs } from "@/lib/image-generation/cache";
 import { offTopicReply, uncertainReply, classifyCabiRelevance, extractScene } from "@/lib/image-generation/scope";
 import { checkImageSafety, safetyCodeFor } from "@/lib/image-generation/safety";
-import { executeImageGeneration } from "@/lib/image-generation/execute";
 import { buildCabiGenerationPlan } from "@/lib/image-generation/plan.server";
 import { parseCabiSceneRequest } from "@/lib/image-generation/parse-scene";
 import { readLatestGenerationContext } from "@/lib/image-generation/lifecycle";
 import { resolveImageGenerationConfig } from "@/lib/image-generation/settings";
-import { createImageProvider } from "@/lib/image-generation/provider";
+import { createImagePipelineTrace } from "@/lib/image-generation/pipeline-trace";
+import { logImagePipelineTrace } from "@/lib/image-generation/diagnostics";
+import { recordCabiPlanStages, runCabiImagePipeline } from "@/lib/image-generation/pipeline";
 import { assertSameOrigin, clientAddress, jsonError } from "@/lib/security/request";
 import { checkRateLimit } from "@/lib/security/rate-limit";
 import { guardAppApiCpu } from "@/lib/site/guard";
@@ -84,6 +85,14 @@ export async function POST(request: Request) {
 
   const { prompt, conversationId, idempotencyKey } = parsed.data;
   const aspectRatio = parsed.data.aspectRatio as "1:1" | "16:9" | "9:16";
+  const trace = createImagePipelineTrace({
+    source: "HTTP_GENERATION",
+    walletAccountId: wallet.walletAccountId,
+    conversationId,
+    aspectRatio,
+  });
+  trace.record("IMAGE_INTENT_DETECTED");
+  trace.record("USER_AUTHORIZED");
 
   const db = getServiceClient();
   if (!db) return jsonError("Image storage isn't configured.", 503, "DATABASE_NOT_CONFIGURED");
@@ -155,14 +164,22 @@ export async function POST(request: Request) {
   // never have touched it.
   const imageConfig = await resolveImageGenerationConfig();
   const apiKey = imageConfig.apiKey;
+  trace.record("IMAGE_CONFIG_RESOLVED", {
+    provider: imageConfig.provider,
+    model: imageConfig.model,
+    aspectRatio,
+  });
   if (!apiKey) {
+    trace.record("FINAL_RESPONSE_RETURNED", { error: "NOT_CONFIGURED" });
+    logImagePipelineTrace(trace);
     return jsonError("Cabi's image generation hasn't been configured yet.", 503, "IMAGES_NOT_CONFIGURED");
   }
 
-  const { data: quotaData } = await db.rpc("image_generation_quota", {
+  const { data: quotaData, error: quotaError } = await db.rpc("image_generation_quota", {
     p_wallet_account_id: wallet.walletAccountId,
     p_daily_limit: imageConfig.limits.daily,
   });
+  trace.record("QUOTA_CHECK_PASSED", { error: quotaError ? "QUOTA_CHECK_FAILED" : null });
   const quota = (Array.isArray(quotaData) ? quotaData[0] : quotaData) as { allowed?: boolean } | undefined;
   if (quota && quota.allowed === false) {
     return Response.json(
@@ -202,31 +219,16 @@ export async function POST(request: Request) {
     );
   }
   const plan = planned.plan;
+  recordCabiPlanStages(trace, imageConfig, plan);
 
   const generationId = crypto.randomUUID();
-  const provider = createImageProvider({
-    provider: imageConfig.provider,
-    apiKey,
-    baseUrl: imageConfig.endpoint,
-    model: imageConfig.model,
-    supportsReferenceImage: capabilities.supportsReferenceImages,
-    capabilities,
-  });
-
-  const generated = await executeImageGeneration({
+  const pipeline = await runCabiImagePipeline({
     source: "HTTP_GENERATION",
     config: imageConfig,
-    provider,
-    referenceVersion: plan.reference.version,
-    request: {
-      scene: plan.scene,
-      aspectRatio,
-      quality: imageConfig.quality,
-      seed: plan.seed ?? undefined,
-      negativePrompt: plan.negative,
-      referenceImages: plan.referenceImages,
-      preparedPrompt: plan.prompt,
-    },
+    plan,
+    trace,
+    walletAccountId: wallet.walletAccountId,
+    generationId,
   });
 
   // Metadata recorded on every row: which reference produced it, what varied, and
@@ -237,13 +239,15 @@ export async function POST(request: Request) {
     outfit: plan.outfit,
     reference_version: plan.reference.version,
     seed: plan.seed,
-    reference_conditioned: generated.referenceConditioned,
+    reference_conditioned: pipeline.ok
+      ? pipeline.generated.referenceConditioned
+      : pipeline.generated?.referenceConditioned ?? plan.capabilities.referenceConditioning,
   };
 
-  if (!generated.ok) {
+  if (!pipeline.ok) {
     // Recorded FAILED, which the allowance function does not count, so a
     // provider outage never consumes a user's daily images.
-    await db.from("image_generations").insert({
+    const failedInsert = await db.from("image_generations").insert({
       id: generationId,
       wallet_account_id: wallet.walletAccountId,
       conversation_id: conversationId ?? null,
@@ -252,30 +256,27 @@ export async function POST(request: Request) {
       provider: imageConfig.provider,
       model: imageConfig.model,
       status: "FAILED",
-      failure_code: generated.error,
+      failure_code: pipeline.error,
       idempotency_key: idempotencyKey ?? null,
       ...safeMetadata,
     });
-    const status = generated.error === "RATE_LIMITED" ? 429 : generated.error === "TIMEOUT" ? 504 : 502;
+    trace.record("GENERATION_ROW_CREATED", { error: failedInsert.error ? "DATABASE_INSERT_FAILED" : null });
+    if (pipeline.path) await deleteGenerationImage(pipeline.path).catch(() => false);
+    trace.record("FINAL_RESPONSE_RETURNED", { error: pipeline.error });
+    logImagePipelineTrace(trace);
+    const status = pipeline.error === "RATE_LIMITED" ? 429 : pipeline.error === "TIMEOUT" ? 504 : 502;
     // A rate limit is not a failure to report as one: it is Cabi asking for a
     // moment. Anything else leads with her own line and offers a retry; provider
     // details stay in the server-side generation row and diagnostics only.
-    const message = generated.error === "RATE_LIMITED" ? "I am still drawing that one. Try again in a moment." : imageFailureMessage;
+    const message = pipeline.error === "RATE_LIMITED" ? "I am still drawing that one. Try again in a moment." : imageFailureMessage;
     return Response.json(
       { type: "chat_response", message, retryable: true, retryLabel: "Try Again" },
       { status, headers: { "Cache-Control": "private, no-store" } },
     );
   }
 
-  const uploaded = await uploadGenerationImage({
-    walletAccountId: wallet.walletAccountId,
-    generationId,
-    bytes: generated.image.bytes,
-    contentType: generated.image.contentType,
-  });
-  if (!uploaded.ok) return jsonError("I drew it but could not save it. Try again?", 503, "STORAGE_FAILED");
-
-  const { data: row } = await db
+  const { generated, uploaded, url } = pipeline;
+  const { data: row, error: rowError } = await db
     .from("image_generations")
     .insert({
       id: generationId,
@@ -293,9 +294,15 @@ export async function POST(request: Request) {
     })
     .select("id,created_at")
     .maybeSingle();
-
-  const url = await signedImageUrl(generationBucket, uploaded.path, Math.floor(imageGenerationTtlMs / 1_000));
-  if (!url) return jsonError("I drew it but could not open it. Try again?", 503, "STORAGE_FAILED");
+  trace.record("GENERATION_ROW_CREATED", { error: rowError ? "DATABASE_INSERT_FAILED" : null });
+  if (rowError) {
+    await deleteGenerationImage(uploaded.path).catch(() => false);
+    trace.record("FINAL_RESPONSE_RETURNED", { error: "DATABASE_INSERT_FAILED" });
+    logImagePipelineTrace(trace);
+    return jsonError("I drew it but could not save it. Try again?", 503, "DATABASE_INSERT_FAILED");
+  }
+  trace.record("FINAL_RESPONSE_RETURNED");
+  logImagePipelineTrace(trace);
 
   // Only what the UI needs. No model name, no provider id, no reference path, and
   // no prompt layers — the scene is echoed because the user wrote it.

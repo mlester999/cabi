@@ -15,13 +15,16 @@ import { assertSameOrigin, clientAddress, jsonError } from "@/lib/security/reque
 import { checkRateLimit } from "@/lib/security/rate-limit";
 import { chatRequestSchema } from "@/lib/validation/api";
 import { readWalletAuth } from "@/lib/wallet/session";
+import { readAdminSession } from "@/lib/security/session";
+import { readOwnerPreviewAuth } from "@/lib/site/owner-preview";
 import { shouldPersistChat } from "@/lib/wallet/persistence";
 import { guardAppApiCpu } from "@/lib/site/guard";
 import { recordChatTurnSocial } from "@/lib/chat/social";
 import { achievementCopy } from "@/lib/ranking/achievements";
-import { generateChatImage } from "@/lib/image-generation/chat";
-import { noticeCard } from "@/lib/actions/cards";
+import { generateChatImage, isImageRequest } from "@/lib/image-generation/chat";
 import { linkGenerationToMessage, readLatestGenerationContext } from "@/lib/image-generation/lifecycle";
+import { createImagePipelineTrace } from "@/lib/image-generation/pipeline-trace";
+import { logImagePipelineTrace } from "@/lib/image-generation/diagnostics";
 
 export const dynamic = "force-dynamic";
 
@@ -58,6 +61,17 @@ export async function POST(request: Request) {
   if (!limited.allowed) return new Response(JSON.stringify({ error: "Slow down a tiny bit — I want to keep up.", code: "RATE_LIMITED" }), { status: 429, headers: { "Content-Type": "application/json", "Retry-After": String(limited.retryAfter), "Cache-Control": "private, no-store" } });
   const parsed = chatRequestSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return jsonError("That message doesn't look right.", 400, "INVALID_MESSAGE");
+  const imageRequested = isImageRequest(parsed.data.message);
+  const imageTrace = imageRequested
+    ? createImagePipelineTrace({ source: "CHAT_GENERATION", conversationId: parsed.data.conversationId ?? null })
+    : null;
+  imageTrace?.record("IMAGE_INTENT_DETECTED");
+  const debugAllowed = imageRequested
+    ? Boolean(
+      (await readAdminSession().catch(() => null))
+      ?? (await readOwnerPreviewAuth().catch(() => null)),
+    )
+    : false;
   // The provider config is resolved but NOT required yet. Some requests are
   // answered entirely by trusted application code (wallet reads, token lookups,
   // slash commands) and must keep working even when no AI key is configured -
@@ -110,11 +124,14 @@ export async function POST(request: Request) {
       return jsonError("Cabi couldn't reserve the reply in your saved chat.", 503, "MESSAGE_SAVE_FAILED");
     }
     assistantMessageId = insertedAssistant.id;
+    imageTrace?.update({ walletAccountId, conversationId });
+    imageTrace?.record("CHAT_MESSAGE_CREATED");
     if (parsed.data.onboardingName && parsed.data.message.length <= 80) {
       const preferredName = parsed.data.message.replace(/^(?:you can )?call me\s+/iu, "").replace(/^(?:my name is|i am|i'm)\s+/iu, "").replace(/[^\p{L}\p{N}\-_' ]/gu, "").trim().split(/\s+/u).slice(0, 3).join(" ");
       if (preferredName) await db.from("profiles").update({ preferred_name: preferredName }).eq("id", profileId);
     }
   }
+  if (imageTrace && !(db && walletAccountId && profileId)) imageTrace.record("CHAT_MESSAGE_CREATED");
 
   const emptyContext = { recent: [], summary: null, memories: [], nickname: null, memoryEnabled: false };
   // Read the runtime config first so the action layer can reuse it instead of
@@ -157,17 +174,9 @@ export async function POST(request: Request) {
       previousImageContext: walletAccountId
         ? await readLatestGenerationContext(walletAccountId, conversationId).catch(() => null)
         : null,
-    }).catch(() => ({
-      handled: true as const,
-      usedProvider: true,
-      reply: "",
-      card: noticeCard({
-        title: "Couldn't make that image",
-        message: "I couldn't make that image right now. You can try again when you're ready.",
-        tone: "error",
-        retry: { label: "Try Again", prompt: parsed.data.message },
-      }),
-    })),
+      trace: imageTrace ?? undefined,
+      debugAllowed,
+    }),
   ]);
   const mood: CabiMood = inferMood({
     phase: "thinking",
@@ -258,6 +267,7 @@ export async function POST(request: Request) {
             db.from("conversations").update({ updated_at: new Date().toISOString() }).eq("id", conversationId).eq("wallet_account_id", walletAccountId),
           ]);
           if (messageWrite.error || conversationWrite.error) throw new Error("PERSISTENCE_WRITE_FAILED");
+          imageTrace?.record("CHAT_MESSAGE_PERSISTED");
           /*
            * Link the generation to the message that now displays it. This is the
            * durable relationship between conversation, message, generation and
@@ -309,7 +319,12 @@ export async function POST(request: Request) {
             ? social.achievements.map((code) => achievementCopy[code]?.label ?? code)
             : undefined,
         })));
+        imageTrace?.record("FINAL_RESPONSE_RETURNED");
+        if (imageTrace) logImagePipelineTrace(imageTrace);
       } catch {
+        imageTrace?.record("CHAT_MESSAGE_PERSISTED", { error: "MESSAGE_PERSISTENCE_FAILED" });
+        imageTrace?.record("FINAL_RESPONSE_RETURNED", { error: "CHAT_RESPONSE_FAILED" });
+        if (imageTrace) logImagePipelineTrace(imageTrace);
         if (db && walletAccountId && profileId) {
           await db.from("messages").update({ content: text, status: cancelled ? "cancelled" : "failed", updated_at: new Date().toISOString() }).eq("id", assistantMessageId).eq("conversation_id", conversationId);
           await db.from("usage_logs").insert({ user_id: profileId, wallet_account_id: walletAccountId, conversation_id: conversationId, provider: isDeterministic ? "cabi-actions" : "deepseek", model: isDeterministic ? "deterministic" : activeConfig?.model ?? "auto", latency_ms: Date.now() - started, status: cancelled ? "cancelled" : "failed" });

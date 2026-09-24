@@ -2,20 +2,19 @@ import "server-only";
 
 import { getServiceClient } from "@/lib/db/supabase";
 import { classifyCabiRelevance, checkImageScope, extractScene, looksLikeImageRequest, offTopicReply, uncertainReply } from "@/lib/image-generation/scope";
-import { createImageProvider } from "@/lib/image-generation/provider";
-import { executeImageGeneration } from "@/lib/image-generation/execute";
 import { buildCabiGenerationPlan } from "@/lib/image-generation/plan.server";
 import { parseCabiSceneRequest } from "@/lib/image-generation/parse-scene";
 import { resolveImageGenerationConfig } from "@/lib/image-generation/settings";
-import { generationBucket, signedImageUrl, uploadGenerationImage } from "@/lib/image-generation/storage";
 import { awardImageXp, countImageXpToday } from "@/lib/ranking/service";
 import { readProfile } from "@/lib/profiles/service";
 import { initialsFor } from "@/lib/profiles/username";
-import { imageGenerationTtlMs } from "@/lib/image-generation/cache";
 import { markCompleted, markFailed, markGenerating } from "@/lib/image-generation/lifecycle";
 import { checkImageSafety } from "@/lib/image-generation/safety";
 import { noticeCard, imageCard } from "@/lib/actions/cards";
 import type { ActionCard } from "@/lib/actions/types";
+import { createImagePipelineTrace, type ImagePipelineTrace } from "@/lib/image-generation/pipeline-trace";
+import { logImagePipelineTrace } from "@/lib/image-generation/diagnostics";
+import { recordCabiPlanStages, runCabiImagePipeline } from "@/lib/image-generation/pipeline";
 
 /**
  * Chat-driven Cabi image generation.
@@ -49,11 +48,15 @@ export type ChatImageOptions = {
   walletAccountId: string | null;
   conversationId: string | null;
   messageId: string | null;
+  /** Shared with the chat route so message creation and image stages have one ID. */
+  trace?: ImagePipelineTrace;
+  /** Only a server-authenticated owner/admin preview may receive diagnostics. */
+  debugAllowed?: boolean;
 };
 
 export type ChatImageResult =
-  | { handled: false }
-  | { handled: true; card: ActionCard; reply: string; usedProvider: boolean };
+  | { handled: false; trace?: ImagePipelineTrace }
+  | { handled: true; card: ActionCard; reply: string; usedProvider: boolean; trace?: ImagePipelineTrace };
 
 /** True when this message is asking Cabi to draw something. */
 export function isImageRequest(message: string): boolean {
@@ -63,11 +66,54 @@ export function isImageRequest(message: string): boolean {
 export async function generateChatImage(message: string, options: ChatImageOptions): Promise<ChatImageResult> {
   if (!isImageRequest(message)) return { handled: false };
 
+  const trace = options.trace ?? createImagePipelineTrace({
+    source: "CHAT_GENERATION",
+    walletAccountId: options.walletAccountId,
+    conversationId: options.conversationId,
+  });
+  if (!options.trace) trace.record("IMAGE_INTENT_DETECTED");
+
+  try {
+    const result = await generateChatImageInternal(message, { ...options, trace });
+    trace.record("FINAL_RESPONSE_RETURNED");
+    logImagePipelineTrace(trace);
+    if (options.debugAllowed && result.handled && result.card.kind === "NOTICE") {
+      return { ...result, trace, card: { ...result.card, debugDetails: trace.snapshot() } };
+    }
+    return options.debugAllowed ? { ...result, trace } : result;
+  } catch {
+    trace.record("FINAL_RESPONSE_RETURNED", { error: "UNEXPECTED_PIPELINE_ERROR" });
+    logImagePipelineTrace(trace);
+    const debugDetails = options.debugAllowed ? trace.snapshot() : undefined;
+    return {
+      handled: true,
+      usedProvider: false,
+      reply: "",
+      ...(options.debugAllowed ? { trace } : {}),
+      card: noticeCard({
+        title: "Couldn't make that image",
+        message: "I couldn't make that image right now. You can try again when you're ready.",
+        tone: "error",
+        retry: { label: "Try Again", prompt: message },
+        debugDetails,
+      }),
+    };
+  }
+}
+
+async function generateChatImageInternal(message: string, options: ChatImageOptions & { trace: ImagePipelineTrace }): Promise<ChatImageResult> {
+  const trace = options.trace;
+
   // This is the same live resolver used by the admin test. It reads the saved
   // model, endpoint, key source, capabilities, quality and limits together, so
   // chat cannot silently use a different model or stale provider setting.
   const imageConfig = await resolveImageGenerationConfig();
   const settings = imageConfig.settings;
+  trace.record("IMAGE_CONFIG_RESOLVED", {
+    provider: imageConfig.provider,
+    model: imageConfig.model,
+    aspectRatio: imageConfig.aspectRatio,
+  });
 
   // Scope is decided FIRST, before the enabled check and before the wallet
   // check. Cabi-only enforcement is a product rule, not a feature flag: an
@@ -138,6 +184,7 @@ export async function generateChatImage(message: string, options: ChatImageOptio
 
   // Generation costs money per call, so it is tied to a wallet for quota.
   if (!options.walletAccountId && !settings.allowGuestGeneration) {
+    trace.record("USER_AUTHORIZED", { error: "WALLET_REQUIRED" });
     return {
       handled: true,
       usedProvider: false,
@@ -149,6 +196,8 @@ export async function generateChatImage(message: string, options: ChatImageOptio
       }),
     };
   }
+
+  trace.record("USER_AUTHORIZED", { walletAccountId: options.walletAccountId, conversationId: options.conversationId });
 
   const db = getServiceClient();
   if (!db) {
@@ -175,10 +224,11 @@ export async function generateChatImage(message: string, options: ChatImageOptio
   // Quota is counted in the database so two concurrent chats cannot both take
   // the final slot.
   if (options.walletAccountId) {
-    const { data: quotaData } = await db.rpc("image_generation_quota", {
+    const { data: quotaData, error: quotaError } = await db.rpc("image_generation_quota", {
       p_wallet_account_id: walletAccountId,
       p_daily_limit: settings.dailyLimit,
     });
+    trace.record("QUOTA_CHECK_PASSED", { error: quotaError ? "QUOTA_CHECK_FAILED" : null });
     const quota = (Array.isArray(quotaData) ? quotaData[0] : quotaData) as { allowed?: boolean } | undefined;
     if (quota && quota.allowed === false) {
       return {
@@ -188,6 +238,8 @@ export async function generateChatImage(message: string, options: ChatImageOptio
         card: noticeCard({ title: "Daily image limit reached", message: `You have used all ${settings.dailyLimit} of today's images. The allowance resets at midnight UTC.`, tone: "caution" }),
       };
     }
+  } else {
+    trace.record("QUOTA_CHECK_PASSED");
   }
 
   /*
@@ -214,6 +266,7 @@ export async function generateChatImage(message: string, options: ChatImageOptio
   });
   if (!planned.ok) {
     // No usable reference: fail clearly rather than draw an unrelated character.
+    trace.record("CABI_REFERENCE_RESOLVED", { error: "REFERENCE_UNAVAILABLE" });
     return {
       handled: true,
       usedProvider: false,
@@ -222,6 +275,7 @@ export async function generateChatImage(message: string, options: ChatImageOptio
     };
   }
   const plan = planned.plan;
+  recordCabiPlanStages(trace, imageConfig, plan);
 
   /*
    * The row is created as QUEUED before the provider is called, so an in-flight
@@ -238,7 +292,7 @@ export async function generateChatImage(message: string, options: ChatImageOptio
    * same reason.
    */
   try {
-    await db.from("image_generations").insert({
+    const insertResult = await db.from("image_generations").insert({
       id: generationId,
       wallet_account_id: walletAccountId,
       conversation_id: options.conversationId ?? null,
@@ -259,100 +313,65 @@ export async function generateChatImage(message: string, options: ChatImageOptio
       seed: plan.seed,
       reference_conditioned: plan.capabilities.referenceConditioning,
     });
+    trace.record("GENERATION_ROW_CREATED", { error: insertResult?.error ? "DATABASE_INSERT_FAILED" : null });
   } catch {
     // Generation continues; the row simply will not exist to transition.
+    trace.record("GENERATION_ROW_CREATED", { error: "DATABASE_INSERT_FAILED" });
   }
-
-
-  const provider = createImageProvider({
-    provider: imageConfig.provider,
-    apiKey,
-    baseUrl: imageConfig.endpoint,
-    model: imageConfig.model,
-    supportsReferenceImage: capabilities.supportsReferenceImages,
-    capabilities,
-  });
-
   // QUEUED -> GENERATING, recorded before the request leaves the process so a
   // refresh mid-flight recovers to "still working" rather than to a placeholder.
-  await markGenerating(generationId);
-  const generated = await executeImageGeneration({
+  const markedGenerating = await markGenerating(generationId);
+  trace.record("GENERATION_ROW_UPDATED", { error: markedGenerating === false ? "DATABASE_UPDATE_FAILED" : null });
+  const pipeline = await runCabiImagePipeline({
     source: "CHAT_GENERATION",
     config: imageConfig,
-    provider,
-    referenceVersion: plan.reference.version,
-    request: {
-      scene: plan.scene,
-      aspectRatio,
-      quality: imageConfig.quality,
-      seed: plan.seed ?? undefined,
-      negativePrompt: plan.negative,
-      referenceImages: plan.referenceImages,
-      preparedPrompt: plan.prompt,
-    },
+    plan,
+    trace,
+    walletAccountId,
+    generationId,
   });
 
   // If the reference-specific retry was used, the stored row must describe the
   // request that actually succeeded rather than the request that first failed.
-  if (generated.referenceConditioned !== plan.capabilities.referenceConditioning) {
+  if (pipeline.ok && pipeline.generated.referenceConditioned !== plan.capabilities.referenceConditioning) {
     try {
-      await db.from("image_generations").update({ reference_conditioned: generated.referenceConditioned }).eq("id", generationId);
+      await db.from("image_generations").update({ reference_conditioned: pipeline.generated.referenceConditioned }).eq("id", generationId);
     } catch {
       // The image itself remains valid; this is best-effort metadata repair.
     }
   }
 
-  if (!generated.ok) {
+  if (!pipeline.ok) {
     // FAILED does not consume the daily allowance, so a provider outage never
     // burns one of the user's images.
-    await markFailed({ generationId, code: generated.error, message: generated.message });
+    const markedFailed = await markFailed({ generationId, code: pipeline.error, message: pipeline.message });
+    trace.record("GENERATION_ROW_UPDATED", { error: markedFailed === false ? "DATABASE_UPDATE_FAILED" : null });
+    const storageFailure = pipeline.error === "STORAGE_FAILED" || pipeline.error === "SIGNED_URL_FAILED";
     return {
       handled: true,
       usedProvider: true,
-      reply: "",
+      reply: storageFailure ? "I drew it but could not save it." : "",
       card: noticeCard({
-        title: "Couldn't make that image",
-        message: "I couldn't make that image right now. You can try again when you're ready.",
-        tone: "error",
+        title: storageFailure ? "Could not save that image" : "Couldn't make that image",
+        message: storageFailure ? pipeline.message : "I couldn't make that image right now. You can try again when you're ready.",
+        tone: storageFailure ? "caution" : "error",
         retry: { label: "Try Again", prompt: message, parentGenerationId: generationId },
       }),
     };
   }
 
-  const uploaded = await uploadGenerationImage({
-    walletAccountId,
-    generationId,
-    bytes: generated.image.bytes,
-    contentType: generated.image.contentType,
-  });
-  if (!uploaded.ok) {
-    return {
-      handled: true,
-      usedProvider: true,
-      reply: "I drew it but could not save it.",
-      card: noticeCard({ title: "Could not save that image", message: uploaded.message, tone: "caution" }),
-    };
-  }
+  const { generated, uploaded, url } = pipeline;
 
   // Transition the row that already exists rather than inserting a second one,
   // so the generation the user watched is the generation they keep.
-  await markCompleted({
+  const markedCompleted = await markCompleted({
     generationId,
     imagePath: uploaded.path,
     provider: generated.image.provider,
     model: generated.image.model,
   });
+  trace.record("GENERATION_ROW_UPDATED", { error: markedCompleted === false ? "DATABASE_UPDATE_FAILED" : null });
   const row = { id: generationId, created_at: queuedAt };
-
-  const url = await signedImageUrl(generationBucket, uploaded.path, Math.floor(imageGenerationTtlMs / 1_000));
-  if (!url) {
-    return {
-      handled: true,
-      usedProvider: true,
-      reply: "I drew it but could not open it.",
-      card: noticeCard({ title: "Could not open that image", message: "The signed link failed.", tone: "caution" }),
-    };
-  }
 
   // First image of the day only, capped hard so paid API calls can never become
   // a route up the leaderboard.

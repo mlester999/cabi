@@ -17,6 +17,7 @@ vi.mock("@/lib/ai/deepseek", () => ({ DeepSeekProvider: class {
   async generate() { return { text: "summary", model: "test-model" }; }
 } }));
 vi.mock("@/lib/image-generation/chat", () => ({
+  isImageRequest: (message: string) => message.startsWith("Generate an image"),
   generateChatImage: vi.fn(async (message: string, options: unknown) => {
     if (!message.startsWith("Generate an image")) return { handled: false as const };
     mocks.imageCalls.push({ message, options });

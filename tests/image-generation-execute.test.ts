@@ -65,7 +65,7 @@ describe("image execution fallback", () => {
 
   it("retries text-only after a reference-bearing 403 and records the successful request as unconditioned", async () => {
     const client = provider([
-      { ok: false, error: "PROVIDER_ERROR", message: "Permission or account restriction", httpStatus: 403 },
+      { ok: false, error: "PROVIDER_ERROR", message: "Reference image rejected", httpStatus: 403, providerErrorCategory: "reference_input" },
       imageResult,
     ]);
 
@@ -112,6 +112,21 @@ describe("image execution fallback", () => {
       provider: client,
       request: { ...request, referenceImages: undefined },
       referenceVersion: 0,
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.referenceFallbackUsed).toBe(false);
+    expect(client.generateCabiImage).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not retry a generic 403 that is not proven to be reference-specific", async () => {
+    const client = provider([{ ok: false, error: "PROVIDER_ERROR", message: "provider detail", httpStatus: 403 }]);
+    const result = await executeImageGeneration({
+      source: "CHAT_GENERATION",
+      config,
+      provider: client,
+      request,
+      referenceVersion: 4,
     });
 
     expect(result.ok).toBe(false);

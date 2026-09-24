@@ -1,3 +1,5 @@
+import type { ImagePipelineDebugDetails } from "@/lib/image-generation/pipeline-trace";
+
 /**
  * The action layer's card model.
  *
@@ -44,6 +46,8 @@ export type BaseCard = {
     prompt: string;
     parentGenerationId?: string;
   };
+  /** Owner-preview-only diagnostics for a failed image pipeline. */
+  debugDetails?: ImagePipelineDebugDetails;
 };
 
 export type TradeCard = BaseCard & {

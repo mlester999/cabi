@@ -28,6 +28,7 @@ import {
   type ImageProviderOption,
 } from "@/lib/image-generation/registry";
 import type { ImageConnectionDiagnostics } from "@/lib/image-generation/types";
+import type { ImagePipelineDebugDetails } from "@/lib/image-generation/pipeline-trace";
 
 type Settings = {
   enabled: boolean;
@@ -54,6 +55,14 @@ type ConnectionResult = {
   model?: string;
   referenceConditioning?: boolean;
   diagnostics?: ImageConnectionDiagnostics;
+};
+
+type FullTestResult = {
+  ok: boolean;
+  message: string;
+  diagnostics?: ImagePipelineDebugDetails;
+  referenceConditioned?: boolean;
+  referenceFallbackUsed?: boolean;
 };
 
 const emptySettings: Settings = {
@@ -85,7 +94,8 @@ export function AdminImagesPanel() {
   const [phase, setPhase] = useState<"loading" | "ready">("loading");
   const [notice, setNotice] = useState<{ tone: "success" | "error" | "info"; message: string } | null>(null);
   const [connection, setConnection] = useState<ConnectionResult | null>(null);
-  const [busy, setBusy] = useState<"save" | "test" | null>(null);
+  const [fullTest, setFullTest] = useState<FullTestResult | null>(null);
+  const [busy, setBusy] = useState<"save" | "test" | "test-full" | null>(null);
 
   const applyCatalog = useCallback((payload: CatalogPayload) => {
     const nextProviders = payload.providers?.length ? payload.providers : [...IMAGE_PROVIDER_OPTIONS];
@@ -141,14 +151,17 @@ export function AdminImagesPanel() {
     setNotice(null);
   };
 
-  const submit = async (action: "save" | "test") => {
+  const submit = async (action: "save" | "test" | "test-full") => {
     setBusy(action);
     setNotice(null);
     if (action === "test") setConnection(null);
+    if (action === "test-full") setFullTest(null);
     const { hasApiKey: _hasApiKey, keyLastFour: _keyLastFour, ...editableSettings } = settings;
     void _hasApiKey;
     void _keyLastFour;
-    const body = action === "test"
+    const body = action === "test-full"
+      ? { action }
+      : action === "test"
       // Testing is a read-only operation: the server resolves the stored key
       // and validates exactly the current selection shown in these controls.
       ? { provider: settings.provider, model: settings.model, action }
@@ -164,9 +177,10 @@ export function AdminImagesPanel() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
-      const payload = await response.json() as CatalogPayload & ConnectionResult & { error?: string };
+      const payload = await response.json() as CatalogPayload & ConnectionResult & FullTestResult & { error?: string };
       if (!response.ok) {
         if (action === "test") setConnection({ ok: false, message: payload.message ?? payload.error ?? "Connection failed.", diagnostics: payload.diagnostics });
+        if (action === "test-full") setFullTest({ ok: false, message: payload.message ?? payload.error ?? "Full generation failed.", diagnostics: payload.diagnostics });
         setNotice({ tone: "error", message: payload.message ?? payload.error ?? "That did not work." });
         return;
       }
@@ -175,7 +189,7 @@ export function AdminImagesPanel() {
         setApiKey("");
         setClearApiKey(false);
         setNotice({ tone: "success", message: "Image settings saved." });
-      } else {
+      } else if (action === "test") {
         setConnection({
           ok: true,
           message: payload.message ?? "Connected.",
@@ -184,10 +198,20 @@ export function AdminImagesPanel() {
           diagnostics: payload.diagnostics,
         });
         setNotice({ tone: "success", message: "Together AI connection verified." });
+      } else {
+        setFullTest({
+          ok: payload.ok,
+          message: payload.message ?? "Full generation verified.",
+          diagnostics: payload.diagnostics,
+          referenceConditioned: payload.referenceConditioned,
+          referenceFallbackUsed: payload.referenceFallbackUsed,
+        });
+        setNotice({ tone: "success", message: "Full Cabi generation verified." });
       }
     } catch {
       const message = "That did not work. Check the connection and try again.";
       if (action === "test") setConnection({ ok: false, message });
+      if (action === "test-full") setFullTest({ ok: false, message });
       setNotice({ tone: "error", message });
     } finally {
       setBusy(null);
@@ -368,12 +392,46 @@ export function AdminImagesPanel() {
           </div>
         ) : null}
 
+        {fullTest ? (
+          <div className={`mt-5 rounded-xl border p-3 ${fullTest.ok ? "border-emerald-300/[0.18] bg-emerald-300/[0.06]" : "border-rose-300/[0.2] bg-rose-300/[0.06]"}`} role={fullTest.ok ? "status" : "alert"}>
+            <div className="flex items-start gap-2">
+              {fullTest.ok ? <CheckCircle2 size={15} className="mt-0.5 shrink-0 text-emerald-300" aria-hidden="true" /> : <XCircle size={15} className="mt-0.5 shrink-0 text-rose-300" aria-hidden="true" />}
+              <div className="min-w-0 flex-1">
+                <p className={`text-[12px] font-semibold ${fullTest.ok ? "text-emerald-100" : "text-rose-100"}`}>{fullTest.ok ? "Full generation verified" : "Full generation failed"}</p>
+                <p className={`mt-1 text-[11px] leading-5 ${fullTest.ok ? "text-emerald-100/75" : "text-rose-100/75"}`}>{fullTest.message}</p>
+                {fullTest.ok ? <p className="mt-2 text-[11px] text-emerald-100/80">Reference: {fullTest.referenceConditioned ? "conditioned" : "text only"}{fullTest.referenceFallbackUsed ? " · text-only fallback used" : ""}</p> : null}
+                {fullTest.diagnostics ? (
+                  <details className="mt-3">
+                    <summary className="cabi-focus cursor-pointer text-[11px] text-[var(--cabi-text-muted)] transition-colors hover:text-[var(--cabi-text-secondary)]">Debug details</summary>
+                    <dl className="mt-2 grid gap-x-4 gap-y-1 text-[10px] text-[var(--cabi-text-muted)] sm:grid-cols-2">
+                      <div><dt className="uppercase tracking-[.1em] text-white/35">Request</dt><dd className="break-all font-mono">{fullTest.diagnostics.requestId}</dd></div>
+                      <div><dt className="uppercase tracking-[.1em] text-white/35">Stage</dt><dd>{fullTest.diagnostics.stage ?? fullTest.diagnostics.lastStage ?? "—"}</dd></div>
+                      <div><dt className="uppercase tracking-[.1em] text-white/35">Error</dt><dd>{fullTest.diagnostics.error ?? "—"}</dd></div>
+                      <div><dt className="uppercase tracking-[.1em] text-white/35">HTTP</dt><dd>{fullTest.diagnostics.httpStatus ?? "—"}</dd></div>
+                      <div><dt className="uppercase tracking-[.1em] text-white/35">Model</dt><dd className="break-all">{fullTest.diagnostics.model ?? "—"}</dd></div>
+                      <div><dt className="uppercase tracking-[.1em] text-white/35">Reference</dt><dd>{fullTest.diagnostics.referenceAttached ? `v${fullTest.diagnostics.referenceVersion ?? "?"} attached` : "text only"}</dd></div>
+                      <div><dt className="uppercase tracking-[.1em] text-white/35">Size</dt><dd>{fullTest.diagnostics.width && fullTest.diagnostics.height ? `${fullTest.diagnostics.width}×${fullTest.diagnostics.height}` : "—"}</dd></div>
+                      <div><dt className="uppercase tracking-[.1em] text-white/35">Latency</dt><dd>{fullTest.diagnostics.latencyMs} ms</dd></div>
+                    </dl>
+                    <ol className="mt-2 space-y-0.5 border-t border-white/[0.06] pt-2 text-[10px] text-[var(--cabi-text-muted)]">
+                      {fullTest.diagnostics.events.map((event, index) => <li key={`${event.stage}-${index}`} className="flex items-center justify-between gap-2"><span className={event.error ? "text-rose-200" : ""}>{event.stage}{event.error ? ` · ${event.error}` : ""}</span><span className="shrink-0 tabular-nums text-white/35">{event.latencyMs} ms{event.httpStatus ? ` · ${event.httpStatus}` : ""}</span></li>)}
+                    </ol>
+                  </details>
+                ) : null}
+              </div>
+            </div>
+          </div>
+        ) : null}
+
         <div className="mt-5 flex flex-wrap gap-3">
           <button type="button" disabled={busy !== null} onClick={() => void submit("save")} className="focus-ring inline-flex h-11 items-center gap-2 rounded-xl bg-violet-300 px-5 text-sm font-bold text-[var(--cabi-on-primary)] disabled:opacity-40">
             <Save size={15} aria-hidden="true" /> {busy === "save" ? "Saving..." : "Save settings"}
           </button>
           <button type="button" disabled={busy !== null} onClick={() => void submit("test")} className="focus-ring inline-flex h-11 items-center gap-2 rounded-xl border border-[var(--cabi-border)] px-5 text-sm font-semibold text-[var(--cabi-text-secondary)] disabled:opacity-40">
             <PlugZap size={15} aria-hidden="true" /> {busy === "test" ? "Testing..." : `Test ${providerLabel}`}
+          </button>
+          <button type="button" disabled={busy !== null} onClick={() => void submit("test-full")} className="focus-ring inline-flex h-11 items-center gap-2 rounded-xl border border-violet-200/[0.22] bg-violet-300/[0.08] px-5 text-sm font-semibold text-violet-100 disabled:opacity-40">
+            <ShieldCheck size={15} aria-hidden="true" /> {busy === "test-full" ? "Running full test..." : "Test Full Cabi Generation"}
           </button>
         </div>
       </section>

@@ -6,6 +6,7 @@ import type {
 } from "@/lib/image-generation/types";
 import type { ImageGenerationProvider, ImageGenerationRequest } from "@/lib/image-generation/provider";
 import type { ResolvedImageGenerationConfig } from "@/lib/image-generation/settings";
+import type { ImagePipelineTrace } from "@/lib/image-generation/pipeline-trace";
 import {
   imageDiagnosticErrorCategory,
   imageReferenceInputType,
@@ -21,7 +22,7 @@ export type ImageGenerationExecutionResult = ImageGenerationResult & {
 };
 
 function diagnosticFor(input: {
-  source: "CHAT_GENERATION" | "HTTP_GENERATION";
+  source: "ADMIN_TEST" | "CHAT_GENERATION" | "HTTP_GENERATION";
   config: ResolvedImageGenerationConfig;
   request: ImageGenerationRequest;
   referenceVersion: number | null;
@@ -50,41 +51,45 @@ function diagnosticFor(input: {
           httpStatus: input.result.httpStatus,
           error: input.result.error,
           referenceAttached: Boolean(reference),
+          providerErrorCategory: input.result.providerErrorCategory,
         }),
   });
 }
 
 /**
  * Executes one generation and applies the only permitted fallback:
- * a reference-bearing Together request that receives HTTP 403 gets one
- * text-only retry. Auth, billing, rate-limit, timeout, and outage responses do
- * not enter this branch. A text-only success proves the reference input was the
- * rejected part; a second failure is returned unchanged.
+ * a reference-bearing Together request that is explicitly classified as a
+ * reference-input failure gets one text-only retry. Auth, billing, rate-limit,
+ * timeout, outage, and generic permission responses do not enter this branch. A
+ * text-only success proves the reference input was the rejected part; a second
+ * failure is returned unchanged.
  */
 export async function executeImageGeneration(input: {
-  source: "CHAT_GENERATION" | "HTTP_GENERATION";
+  source: "ADMIN_TEST" | "CHAT_GENERATION" | "HTTP_GENERATION";
   config: ResolvedImageGenerationConfig;
   provider: ImageGenerationProvider;
   request: ImageGenerationRequest;
   referenceVersion: number | null;
+  trace?: ImagePipelineTrace;
 }): Promise<ImageGenerationExecutionResult> {
-  const first = await input.provider.generateCabiImage(input.request);
-  diagnosticFor({ ...input, result: first });
+  const request = input.trace ? { ...input.request, trace: input.trace } : input.request;
+  const first = await input.provider.generateCabiImage(request);
+  diagnosticFor({ ...input, request, result: first });
   const firstWithMetadata = {
     ...first,
-    referenceConditioned: Boolean(input.request.referenceImages?.length),
+    referenceConditioned: Boolean(request.referenceImages?.length),
     referenceFallbackUsed: false,
   } as ImageGenerationExecutionResult;
 
   if (
     first.ok
-    || !input.request.referenceImages?.length
-    || first.httpStatus !== 403
+    || !request.referenceImages?.length
+    || first.providerErrorCategory !== "reference_input"
   ) {
     return firstWithMetadata;
   }
 
-  const fallbackRequest = { ...input.request, referenceImages: undefined };
+  const fallbackRequest = { ...request, referenceImages: undefined };
   const fallback = await input.provider.generateCabiImage(fallbackRequest);
   diagnosticFor({ ...input, request: fallbackRequest, result: fallback });
   return {

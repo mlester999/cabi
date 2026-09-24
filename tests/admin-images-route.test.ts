@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   create: vi.fn(),
   capabilities: vi.fn(),
   testConnection: vi.fn(),
+  fullTest: vi.fn(),
   configs: [] as Array<Record<string, unknown>>,
 }));
 
@@ -36,6 +37,7 @@ vi.mock("@/lib/image-generation/settings", () => ({
   removeImageApiKey: mocks.remove,
   writeImageSettings: mocks.write,
 }));
+vi.mock("@/lib/image-generation/full-test", () => ({ runFullCabiImageTest: mocks.fullTest }));
 
 import { POST } from "@/app/api/admin/images/route";
 
@@ -58,7 +60,7 @@ function request(body: Record<string, unknown>) {
 }
 
 beforeEach(() => {
-  for (const mock of [mocks.admin, mocks.audit, mocks.readSettings, mocks.readStored, mocks.readEnvironment, mocks.resolveConfig, mocks.write, mocks.remove, mocks.create, mocks.capabilities, mocks.testConnection]) mock.mockReset();
+  for (const mock of [mocks.admin, mocks.audit, mocks.readSettings, mocks.readStored, mocks.readEnvironment, mocks.resolveConfig, mocks.write, mocks.remove, mocks.create, mocks.capabilities, mocks.testConnection, mocks.fullTest]) mock.mockReset();
   mocks.configs.length = 0;
   mocks.admin.mockResolvedValue({ session: { email: "owner@example.test" }, response: null });
   mocks.audit.mockResolvedValue(undefined);
@@ -95,6 +97,13 @@ beforeEach(() => {
   mocks.create.mockImplementation((config: Record<string, unknown>) => {
     mocks.configs.push(config);
     return { testConnection: mocks.testConnection };
+  });
+  mocks.fullTest.mockResolvedValue({
+    ok: true,
+    message: "Full Cabi generation, image download, private upload, and signed URL verified.",
+    trace: { snapshot: () => ({ requestId: "trace-1", source: "ADMIN_TEST", wallet: null, conversation: null, provider: "together", model: settings.model, referenceVersion: 3, referenceAttached: true, aspectRatio: "1:1", width: 1024, height: 1024, stage: null, lastStage: "FINAL_RESPONSE_RETURNED", httpStatus: null, contentType: "image/png", byteLength: 256, error: null, latencyMs: 12, events: [] }) },
+    referenceConditioned: true,
+    referenceFallbackUsed: false,
   });
 });
 
@@ -150,5 +159,16 @@ describe("admin Together connection route", () => {
     expect(response.status).toBe(200);
     expect(mocks.configs[0]?.provider).toBe("together");
     expect(mocks.configs[0]?.baseUrl).toBe("https://api.together.xyz/v1/images/generations");
+  });
+
+  it("runs the full stored-config generation test without using browser selections", async () => {
+    const response = await POST(request({ action: "test-full" }));
+    expect(response.status).toBe(200);
+    expect(mocks.fullTest).toHaveBeenCalledWith(expect.objectContaining({
+      config: expect.objectContaining({ provider: "together", model: settings.model, apiKey: "stored-together-key" }),
+      trace: expect.anything(),
+    }));
+    expect(mocks.create).not.toHaveBeenCalled();
+    expect(await response.json()).toMatchObject({ ok: true, referenceConditioned: true, referenceFallbackUsed: false });
   });
 });

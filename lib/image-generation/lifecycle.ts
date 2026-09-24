@@ -110,14 +110,15 @@ export async function readGenerationsForMessages(messageIds: readonly string[]):
 }
 
 /** Marks a row as in progress. Called immediately before the provider request. */
-export async function markGenerating(generationId: string) {
+export async function markGenerating(generationId: string): Promise<boolean> {
   const db = getServiceClient();
-  if (!db) return;
-  await db
+  if (!db) return false;
+  const { error } = await db
     .from("image_generations")
     .update({ status: "GENERATING", started_at: new Date().toISOString() })
     .eq("id", generationId)
     .eq("status", "QUEUED");
+  return !error;
 }
 
 export async function markCompleted(input: {
@@ -126,10 +127,10 @@ export async function markCompleted(input: {
   provider: string;
   model: string;
   assistantMessageId?: string | null;
-}) {
+}): Promise<boolean> {
   const db = getServiceClient();
-  if (!db) return;
-  await db
+  if (!db) return false;
+  const { error } = await db
     .from("image_generations")
     .update({
       status: "COMPLETED",
@@ -142,6 +143,7 @@ export async function markCompleted(input: {
       failure_message: null,
     })
     .eq("id", input.generationId);
+  return !error;
 }
 
 export async function markFailed(input: {
@@ -149,10 +151,10 @@ export async function markFailed(input: {
   code: string;
   message: string;
   assistantMessageId?: string | null;
-}) {
+}): Promise<boolean> {
   const db = getServiceClient();
-  if (!db) return;
-  await db
+  if (!db) return false;
+  const { error } = await db
     .from("image_generations")
     .update({
       status: "FAILED",
@@ -162,6 +164,7 @@ export async function markFailed(input: {
       assistant_message_id: input.assistantMessageId ?? null,
     })
     .eq("id", input.generationId);
+  return !error;
 }
 
 /**
