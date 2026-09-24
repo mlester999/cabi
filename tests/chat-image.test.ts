@@ -51,9 +51,9 @@ vi.mock("@/lib/image-generation/lifecycle", () => ({
 vi.mock("@/lib/image-generation/settings", () => ({
   readImageSettings: vi.fn(async () => ({
     enabled: mocks.enabled,
-    provider: "openai",
-    baseUrl: "https://api.openai.com/v1",
-    model: "gpt-image-1",
+    provider: "together",
+    baseUrl: "https://api.together.xyz/v1/images/generations",
+    model: "Qwen/Qwen-Image-2.0",
     defaultAspectRatio: "1:1",
     defaultQuality: "standard",
     dailyLimit: mocks.dailyLimit,
@@ -64,8 +64,8 @@ vi.mock("@/lib/image-generation/settings", () => ({
   readImageProviderConfig: vi.fn(async () => (mocks.hasProvider
     ? {
       settings: {
-        enabled: mocks.enabled, provider: "openai", baseUrl: "https://api.openai.com/v1",
-        model: "gpt-image-1", defaultAspectRatio: "1:1", defaultQuality: "standard",
+        enabled: mocks.enabled, provider: "together", baseUrl: "https://api.together.xyz/v1/images/generations",
+        model: "Qwen/Qwen-Image-2.0", defaultAspectRatio: "1:1", defaultQuality: "standard",
         dailyLimit: mocks.dailyLimit, allowGuestGeneration: mocks.allowGuest,
       },
       apiKey: "sk-test-not-a-real-key",
@@ -76,21 +76,21 @@ vi.mock("@/lib/image-generation/settings", () => ({
 vi.mock("@/lib/image-generation/provider", () => ({
   // The capability record decides whether the official reference is attached, so
   // the mock reports it exactly as the real factory would.
-  imageCapabilitiesFor: () => ({ supportsReferenceImages: false, supportsImageToImage: false, supportsSeed: true }),
+  imageCapabilitiesFor: () => ({ supportsReferenceImages: true, supportsImageToImage: true, supportsSeed: true }),
   createImageProvider: () => ({
-    id: "openai",
-    label: "OpenAI-compatible",
-    supportsReferenceImage: false,
-    capabilities: { supportsReferenceImages: false, supportsImageToImage: false, supportsSeed: true },
+    id: "together",
+    label: "Together AI",
+    supportsReferenceImage: true,
+    capabilities: { supportsReferenceImages: true, supportsImageToImage: true, supportsSeed: true },
     generateCabiImage: async (input: Record<string, unknown>) => {
       mocks.generated.push(input);
       if (!mocks.providerOk) return { ok: false, error: "PROVIDER_ERROR", message: "I could not draw that one just now." };
       return {
         ok: true,
-        image: { bytes: new Uint8Array(256).fill(7), contentType: "image/png", provider: "openai", model: "gpt-image-1", width: 1024, height: 1024 },
+        image: { bytes: new Uint8Array(256).fill(7), contentType: "image/png", provider: "together", model: "Qwen/Qwen-Image-2.0", width: 1024, height: 1024 },
       };
     },
-    testConnection: async () => ({ ok: true, model: "gpt-image-1", message: "Connected." }),
+    testConnection: async () => ({ ok: true, model: "Qwen/Qwen-Image-2.0", message: "Connected." }),
   }),
 }));
 

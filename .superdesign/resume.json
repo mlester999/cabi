@@ -69,6 +69,62 @@
         }
       },
       "updatedAt": "2026-09-23T04:22:48.000Z"
+    },
+    "/admin/images": {
+      "targetKind": "existing-ui",
+      "projectId": "d6d59b64-a7b2-4efc-8735-0aa6c5eb16e2",
+      "baselineDraftId": "a1a42eec-2b2e-4173-80bc-dfa0fda9a754",
+      "activeDraftId": "a1a42eec-2b2e-4173-80bc-dfa0fda9a754",
+      "designSystemPath": ".superdesign/design-system.md",
+      "contextFiles": [
+        ".superdesign/design-system.md",
+        "app/admin/(console)/images/page.tsx",
+        "components/admin/admin-images-panel.tsx:96:223",
+        "components/admin/cabi-reference-panel.tsx:182:414",
+        "components/admin/admin-shell.tsx",
+        "components/cabi/mini-cabi.tsx",
+        "app/layout.tsx",
+        "app/globals.css:9:54",
+        "lib/utils.ts"
+      ],
+      "referenceIds": [
+        "public-assets-cabi-mascot.png",
+        "public-assets-cabi-cpu-model.png"
+      ],
+      "brandAssets": {
+        "logo": {
+          "assetKey": "public-assets-cabi-mascot.png",
+          "url": "https://vgbujcuwptvheqijyjbe.supabase.co/storage/v1/object/public/hmac-uploads/projects/d6d59b64-a7b2-4efc-8735-0aa6c5eb16e2/brand-assets/public-assets-cabi-mascot.png/cabi-mascot.png",
+          "sourcePath": "public/assets/cabi-mascot.png"
+        }
+      },
+      "fingerprints": {
+        ".superdesign/design-system.md": "61802782759ecae838d1beaecaa5a0ce5400dc3290071c3c93a32cb076fbdf86",
+        "app/admin/(console)/images/page.tsx": "2d7bd776b1915efe882d4a6be00fa51b70611566a77c6214f2e53d000740e0f3",
+        "components/admin/admin-images-panel.tsx": "adab9702e50a916f353a72315ab176bc02de4044f82ed5c860818141f7f357ca",
+        "components/admin/cabi-reference-panel.tsx": "70c86257b1cc6578c33b57a3db061d6a907ef3a3bdee8442cc86cdb5d34a39b4",
+        "components/admin/admin-shell.tsx": "2bf33612808fc30666e0f86c85c90cbbe88ccaf155048de238372762454e5d67",
+        "components/cabi/mini-cabi.tsx": "139d254d7c523d71e2b30f3f5d11a7ffb7bdcf56aa7d92db93f62b5aef51b95c",
+        "app/layout.tsx": "c9b1aff955abff3a4544f59ac68d8ccd5d0d03ad474316172756d4834b61b52f",
+        "app/globals.css": "37efd47dc7741d3b34859c154e3aa40291ed9f9830c1def1c0194b18de98710d",
+        "lib/utils.ts": "53f3d3d070f0a9082934da25b875f9499855c2b0693868dd28be8c23d8730f68"
+      },
+      "components": [
+        {
+          "name": "MiniCabi",
+          "id": "95ec705e-f9c1-4696-b29f-86b3d00ae71e",
+          "sourcePath": "components/cabi/mini-cabi.tsx",
+          "logoAssetKey": "public-assets-cabi-mascot.png"
+        }
+      ],
+      "drafts": {
+        "a1a42eec-2b2e-4173-80bc-dfa0fda9a754": {
+          "title": "Cabi Image Generation Admin",
+          "visualDirection": "Together AI-first owner control panel with connected Cabi reference conditioning",
+          "currentVersion": 2
+        }
+      },
+      "updatedAt": "2026-09-24T03:00:00.000Z"
     }
   }
 }

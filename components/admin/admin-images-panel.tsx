@@ -1,14 +1,32 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { CheckCircle2, ImagePlus, XCircle } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  CheckCircle2,
+  ChevronDown,
+  ImagePlus,
+  Info,
+  LockKeyhole,
+  PlugZap,
+  Save,
+  ShieldCheck,
+  Trash2,
+  XCircle,
+} from "lucide-react";
 
 import { CabiReferencePanel } from "@/components/admin/cabi-reference-panel";
+import {
+  IMAGE_PROVIDER_OPTIONS,
+  imageModelFor,
+  imageModelsForProvider,
+  recommendedImageModel,
+  type ImageModelDefinition,
+  type ImageProviderOption,
+} from "@/lib/image-generation/registry";
 
 type Settings = {
   enabled: boolean;
-  provider: "together" | "openai" | "stability" | "replicate" | "custom";
-  baseUrl: string;
+  provider: string;
   model: string;
   defaultAspectRatio: string;
   defaultQuality: string;
@@ -18,13 +36,23 @@ type Settings = {
   keyLastFour: string | null;
 };
 
+type CatalogPayload = {
+  settings?: Settings;
+  providers?: ImageProviderOption[];
+  models?: ImageModelDefinition[];
+};
+
+type ConnectionResult = {
+  ok: boolean;
+  message: string;
+  model?: string;
+  referenceConditioning?: boolean;
+};
+
 const emptySettings: Settings = {
   enabled: false,
-  // Together AI is the shipped provider, so an empty form does not silently
-  // propose a different one.
   provider: "together",
-  baseUrl: "https://api.openai.com/v1",
-  model: "Qwen/Qwen-Image",
+  model: "Qwen/Qwen-Image-2.0",
   defaultAspectRatio: "1:1",
   defaultQuality: "standard",
   dailyLimit: 5,
@@ -34,59 +62,119 @@ const emptySettings: Settings = {
 };
 
 /**
- * Admin image-generation settings.
+ * Owner-only image-generation settings.
  *
- * The API key is write-only. It is sent once, encrypted server-side with
- * APP_ENCRYPTION_KEY, and never read back: this form only ever shows whether a
- * key exists and its last four characters.
+ * The provider/model catalog comes from the server, while the API key is
+ * write-only: it is encrypted server-side and only its last four characters
+ * are ever returned to this component.
  */
 export function AdminImagesPanel() {
   const [settings, setSettings] = useState<Settings>(emptySettings);
+  const [providers, setProviders] = useState<ImageProviderOption[]>([...IMAGE_PROVIDER_OPTIONS]);
+  const [models, setModels] = useState<ImageModelDefinition[]>(imageModelsForProvider("together"));
   const [apiKey, setApiKey] = useState("");
   const [clearApiKey, setClearApiKey] = useState(false);
   const [phase, setPhase] = useState<"loading" | "ready">("loading");
-  const [notice, setNotice] = useState("");
+  const [notice, setNotice] = useState<{ tone: "success" | "error" | "info"; message: string } | null>(null);
+  const [connection, setConnection] = useState<ConnectionResult | null>(null);
   const [busy, setBusy] = useState<"save" | "test" | null>(null);
+
+  const applyCatalog = useCallback((payload: CatalogPayload) => {
+    const nextProviders = payload.providers?.length ? payload.providers : [...IMAGE_PROVIDER_OPTIONS];
+    const nextModels = payload.models?.length ? payload.models : imageModelsForProvider("together");
+    const nextSettings = payload.settings ?? emptySettings;
+    const provider = nextProviders.some((entry) => entry.id === nextSettings.provider)
+      ? nextSettings.provider
+      : nextProviders[0]?.id ?? "together";
+    const providerModels = nextModels.filter((entry) => entry.provider === provider);
+    const model = providerModels.some((entry) => entry.id === nextSettings.model)
+      ? nextSettings.model
+      : (providerModels.find((entry) => entry.recommended) ?? providerModels[0] ?? recommendedImageModel(provider)).id;
+
+    setProviders(nextProviders);
+    setModels(nextModels);
+    setSettings({ ...nextSettings, provider, model });
+  }, []);
 
   const load = useCallback(async () => {
     try {
       const response = await fetch("/api/admin/images", { cache: "no-store" });
-      if (response.ok) {
-        const payload = await response.json() as { settings?: Settings };
-        if (payload.settings) setSettings(payload.settings);
-      }
+      if (response.ok) applyCatalog(await response.json() as CatalogPayload);
+      else setNotice({ tone: "error", message: "Image settings could not be loaded." });
+    } catch {
+      setNotice({ tone: "error", message: "Image settings could not be loaded." });
     } finally {
       setPhase("ready");
     }
-  }, []);
+  }, [applyCatalog]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => { void load(); }, 0);
     return () => window.clearTimeout(timer);
   }, [load]);
 
+  const selectedModel = useMemo(
+    () => models.find((entry) => entry.id === settings.model && entry.provider === settings.provider)
+      ?? imageModelFor(settings.provider, settings.model),
+    [models, settings.model, settings.provider],
+  );
+
+  const changeProvider = (provider: string) => {
+    const nextModels = models.filter((entry) => entry.provider === provider);
+    const nextModel = nextModels.find((entry) => entry.recommended) ?? nextModels[0] ?? recommendedImageModel(provider);
+    setSettings((current) => ({ ...current, provider, model: nextModel.id }));
+    setConnection(null);
+    setNotice(null);
+  };
+
+  const changeModel = (model: string) => {
+    setSettings((current) => ({ ...current, model }));
+    setConnection(null);
+    setNotice(null);
+  };
+
   const submit = async (action: "save" | "test") => {
     setBusy(action);
-    setNotice("");
+    setNotice(null);
+    if (action === "test") setConnection(null);
+    const { hasApiKey: _hasApiKey, keyLastFour: _keyLastFour, ...editableSettings } = settings;
+    void _hasApiKey;
+    void _keyLastFour;
     try {
       const response = await fetch("/api/admin/images", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          ...settings,
+          ...editableSettings,
           action,
-          // Only sent when the operator typed one. The stored key is never echoed.
           ...(apiKey ? { apiKey } : {}),
           ...(clearApiKey ? { clearApiKey: true } : {}),
         }),
       });
-      const payload = await response.json() as { error?: string; message?: string; settings?: Settings; ok?: boolean };
-      if (!response.ok) { setNotice(payload.message ?? payload.error ?? "That did not work."); return; }
-      if (payload.settings) setSettings(payload.settings);
-      if (action === "save") { setApiKey(""); setClearApiKey(false); setNotice("Saved."); }
-      else setNotice(payload.message ?? "Connection OK.");
+      const payload = await response.json() as CatalogPayload & ConnectionResult & { error?: string };
+      if (!response.ok) {
+        if (action === "test") setConnection({ ok: false, message: payload.message ?? payload.error ?? "Connection failed." });
+        setNotice({ tone: "error", message: payload.message ?? payload.error ?? "That did not work." });
+        return;
+      }
+      if (payload.settings) applyCatalog(payload);
+      if (action === "save") {
+        setApiKey("");
+        setClearApiKey(false);
+        setNotice({ tone: "success", message: "Image settings saved." });
+      } else {
+        setConnection({
+          ok: true,
+          message: payload.message ?? "Connected.",
+          model: payload.model,
+          referenceConditioning: payload.referenceConditioning,
+        });
+        setNotice({ tone: "success", message: "Together AI connection verified." });
+      }
     } catch {
-      setNotice("That did not work.");
+      const message = "That did not work. Check the connection and try again.";
+      if (action === "test") setConnection({ ok: false, message });
+      setNotice({ tone: "error", message });
     } finally {
       setBusy(null);
     }
@@ -96,52 +184,84 @@ export function AdminImagesPanel() {
 
   const field = "focus-ring h-11 w-full rounded-xl border border-white/[0.09] bg-white/[0.03] px-3 text-sm text-white";
   const label = "block text-[10px] font-semibold uppercase tracking-[.14em] text-[#777180]";
+  const providerLabel = providers.find((entry) => entry.id === settings.provider)?.label ?? "Together AI";
 
   return (
     <div className="space-y-5">
-      {notice ? <p role="status" className="rounded-xl border border-violet-200/[0.16] bg-violet-300/[0.06] px-3 py-2 text-xs text-violet-100">{notice}</p> : null}
-
-      {/* CABI REFERENCE and CABI IDENTITY live above the provider settings: the
-          reference is what keeps Cabi recognizable, and its capability status
-          depends on the model configured below it. */}
-      <CabiReferencePanel />
-
-      <section className="rounded-[22px] border border-white/[0.07] bg-white/[0.02] p-5">
-        <h2 className="flex items-center gap-2 text-sm font-bold text-white"><ImagePlus size={15} className="text-violet-300" aria-hidden="true" /> Cabi image generation</h2>
-        <p className="mt-1.5 text-[11px] leading-5 text-[#777180]">
-          Cabi-only image generation. The provider is independent of the chat model, so one can be down without breaking the other.
+      {notice ? (
+        <p
+          role={notice.tone === "error" ? "alert" : "status"}
+          className={`rounded-xl border px-3 py-2 text-xs ${notice.tone === "success" ? "border-emerald-300/[0.18] bg-emerald-300/[0.06] text-emerald-100" : notice.tone === "error" ? "border-rose-300/[0.2] bg-rose-300/[0.06] text-rose-100" : "border-violet-200/[0.16] bg-violet-300/[0.06] text-violet-100"}`}
+        >
+          {notice.message}
         </p>
+      ) : null}
 
-        <label className="mt-5 flex items-center gap-3">
-          <input type="checkbox" checked={settings.enabled} onChange={(event) => setSettings({ ...settings, enabled: event.target.checked })} className="focus-ring h-4 w-4 accent-violet-400" />
-          <span className="text-[13px] font-medium text-white">Enable image generation</span>
-        </label>
-        <label className="mt-3 flex items-center gap-3">
-          <input type="checkbox" checked={settings.allowGuestGeneration} onChange={(event) => setSettings({ ...settings, allowGuestGeneration: event.target.checked })} className="focus-ring h-4 w-4 accent-violet-400" />
-          <span className="text-[13px] font-medium text-white">Allow guests to generate</span>
-        </label>
-        <p className="ml-7 mt-1 text-[11px] text-[#625d6d]">Off by default. Generation costs money per call, so it is tied to a wallet for quota and abuse control.</p>
+      <section className="rounded-[22px] border border-violet-200/[0.12] bg-white/[0.02] p-5">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h2 className="flex items-center gap-2 text-sm font-bold text-white"><ImagePlus size={15} className="text-violet-300" aria-hidden="true" /> CABI IMAGE GENERATION</h2>
+            <p className="mt-1.5 max-w-2xl text-[11px] leading-5 text-[#777180]">
+              Configure Cabi&apos;s dedicated image studio. The selected model, official reference, and generation limits are applied server-side for every image.
+            </p>
+          </div>
+          <span className="rounded-full border border-violet-200/[0.14] bg-violet-300/[0.08] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[.12em] text-violet-200">Owner controls</span>
+        </div>
+
+        <div className="mt-5 grid gap-2 sm:grid-cols-2">
+          <label className="flex items-center gap-3 rounded-xl border border-white/[0.07] bg-white/[0.02] px-3 py-3">
+            <input type="checkbox" checked={settings.enabled} onChange={(event) => setSettings({ ...settings, enabled: event.target.checked })} className="focus-ring h-4 w-4 accent-violet-400" />
+            <span><span className="block text-[13px] font-medium text-white">Enable image generation</span><span className="mt-0.5 block text-[11px] text-[#777180]">Turn the Cabi image studio on for the app.</span></span>
+          </label>
+          <label className="flex items-center gap-3 rounded-xl border border-white/[0.07] bg-white/[0.02] px-3 py-3">
+            <input type="checkbox" checked={settings.allowGuestGeneration} onChange={(event) => setSettings({ ...settings, allowGuestGeneration: event.target.checked })} className="focus-ring h-4 w-4 accent-violet-400" />
+            <span><span className="block text-[13px] font-medium text-white">Allow guests to generate</span><span className="mt-0.5 block text-[11px] text-[#777180]">Off by default; generation costs are quota-controlled.</span></span>
+          </label>
+        </div>
 
         <div className="mt-5 grid gap-4 sm:grid-cols-2">
           <label className="block">
             <span className={label}>Provider</span>
-            <select value={settings.provider} onChange={(event) => setSettings({ ...settings, provider: event.target.value as Settings["provider"] })} className={`mt-2 ${field}`}>
-              <option value="together">Together AI</option>
-              <option value="openai">OpenAI-compatible</option>
-              <option value="stability">Stability AI</option>
-              <option value="replicate">Replicate</option>
-              <option value="custom">Custom endpoint</option>
-            </select>
+            <span className="relative mt-2 block">
+              <select aria-label="Provider" value={settings.provider} onChange={(event) => changeProvider(event.target.value)} className={`${field} appearance-none pr-10`}>
+                {providers.map((provider) => <option key={provider.id} value={provider.id}>{provider.label}</option>)}
+              </select>
+              <ChevronDown size={15} className="pointer-events-none absolute right-3 top-3.5 text-[#777180]" aria-hidden="true" />
+            </span>
+            <span className="mt-1.5 block text-[11px] text-[#625d6d]">{providers.find((entry) => entry.id === settings.provider)?.description ?? "Verified provider catalog."}</span>
           </label>
           <label className="block">
             <span className={label}>Model</span>
-            <input value={settings.model} onChange={(event) => setSettings({ ...settings, model: event.target.value })} className={`mt-2 ${field}`} />
+            <span className="relative mt-2 block">
+              <select aria-label="Model" value={settings.model} onChange={(event) => changeModel(event.target.value)} className={`${field} appearance-none pr-10`}>
+                {models.filter((entry) => entry.provider === settings.provider).map((model) => <option key={model.id} value={model.id}>{model.label}{model.recommended ? " · Recommended" : model.premium ? " · Premium" : ""}</option>)}
+              </select>
+              <ChevronDown size={15} className="pointer-events-none absolute right-3 top-3.5 text-[#777180]" aria-hidden="true" />
+            </span>
+            {selectedModel ? (
+              <span className="mt-2 block rounded-xl border border-white/[0.07] bg-white/[0.02] px-3 py-2.5">
+                <span className="block text-[12px] font-semibold text-white">{selectedModel.label}</span>
+                <span className="mt-0.5 block text-[11px] leading-5 text-[#8e889b]">{selectedModel.description}</span>
+                <span className="mt-2 flex flex-wrap gap-1.5">
+                  <Badge tone={selectedModel.supportsReferenceImages ? "green" : "muted"}>{selectedModel.supportsReferenceImages ? "Reference ready" : "Text only"}</Badge>
+                  {selectedModel.supportsImageEditing ? <Badge tone="violet">Image editing</Badge> : null}
+                  {selectedModel.premium ? <Badge tone="amber">Higher cost</Badge> : null}
+                </span>
+                <span className="mt-2 block font-mono text-[10px] text-[#625d6d]">{selectedModel.id}</span>
+              </span>
+            ) : null}
           </label>
-          <label className="block sm:col-span-2">
-            <span className={label}>Base URL</span>
-            <input value={settings.baseUrl} onChange={(event) => setSettings({ ...settings, baseUrl: event.target.value })} placeholder="https://api.openai.com/v1" className={`mt-2 ${field}`} />
-            <span className="mt-1.5 block text-[11px] text-[#625d6d]">HTTPS only.</span>
-          </label>
+
+          <div className="rounded-xl border border-emerald-300/[0.14] bg-emerald-300/[0.04] p-3 sm:col-span-2">
+            <div className="flex items-start gap-2">
+              <ShieldCheck size={15} className="mt-0.5 shrink-0 text-emerald-300" aria-hidden="true" />
+              <div>
+                <p className="text-[12px] font-semibold text-emerald-100">Official endpoint and reference are managed automatically</p>
+                <p className="mt-1 text-[11px] leading-5 text-[#8eaa9b]">Together AI uses its verified image endpoint. Cabi&apos;s active reference is attached automatically whenever the selected model supports reference conditioning.</p>
+              </div>
+            </div>
+          </div>
+
           <label className="block">
             <span className={label}>Default aspect ratio</span>
             <select value={settings.defaultAspectRatio} onChange={(event) => setSettings({ ...settings, defaultAspectRatio: event.target.value })} className={`mt-2 ${field}`}>
@@ -155,69 +275,80 @@ export function AdminImagesPanel() {
               <option value="high">High</option>
             </select>
           </label>
-          <label className="block">
+          <label className="block sm:col-span-2">
             <span className={label}>Max generations per user / day</span>
-            <input type="number" min={1} max={100} value={settings.dailyLimit} onChange={(event) => setSettings({ ...settings, dailyLimit: Number(event.target.value) })} className={`mt-2 ${field}`} />
+            <input type="number" min={1} max={100} value={settings.dailyLimit} onChange={(event) => setSettings({ ...settings, dailyLimit: Number(event.target.value) })} className={`mt-2 max-w-sm ${field}`} />
           </label>
         </div>
 
         <div className="mt-5 border-t border-white/[0.06] pt-5">
-          <span className={label}>API key</span>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className={label}>{providerLabel} API Key</span>
+            <span className="inline-flex items-center gap-1.5 text-[10px] text-[#777180]"><LockKeyhole size={12} aria-hidden="true" /> Encrypted at rest</span>
+          </div>
           {settings.hasApiKey && !clearApiKey ? (
-            <p className="mt-2 flex items-center gap-2 text-[12px] text-emerald-200">
-              <CheckCircle2 size={13} aria-hidden="true" /> A key is stored, ending {settings.keyLastFour ?? "----"}
-            </p>
+            <p className="mt-2 flex items-center gap-2 text-[12px] text-emerald-200"><CheckCircle2 size={13} aria-hidden="true" /> A key is stored, ending {settings.keyLastFour ?? "----"}</p>
           ) : (
-            <p className="mt-2 flex items-center gap-2 text-[12px] text-[#8e889b]">
-              <XCircle size={13} aria-hidden="true" /> No key stored
-            </p>
+            <p className="mt-2 flex items-center gap-2 text-[12px] text-[#8e889b]"><XCircle size={13} aria-hidden="true" /> No key stored</p>
           )}
           <input
             type="password"
             value={apiKey}
             onChange={(event) => { setApiKey(event.target.value); setClearApiKey(false); }}
-            placeholder="Paste a new key to replace it"
+            placeholder={`Paste ${providerLabel} API key`}
             autoComplete="off"
-            aria-label="API key"
+            aria-label={`${providerLabel} API Key`}
             className={`mt-3 ${field}`}
           />
-          <p className="mt-1.5 text-[11px] leading-5 text-[#625d6d]">
-            Encrypted at rest with APP_ENCRYPTION_KEY. The key is never returned to a browser, never logged, and never stored in client state.
-          </p>
+          <p className="mt-1.5 flex items-start gap-1.5 text-[11px] leading-5 text-[#625d6d]"><Info size={13} className="mt-0.5 shrink-0" aria-hidden="true" /> Only the last four characters are shown after saving. The key is never returned to the browser or logged.</p>
           {settings.hasApiKey ? (
-            <label className="mt-2 flex items-center gap-2">
-              <input type="checkbox" checked={clearApiKey} onChange={(event) => setClearApiKey(event.target.checked)} className="focus-ring h-3.5 w-3.5 accent-rose-400" />
-              <span className="text-[11px] text-rose-200">Remove the stored key</span>
-            </label>
+            <button type="button" onClick={() => setClearApiKey((current) => !current)} className={`focus-ring mt-2 inline-flex items-center gap-1.5 text-[11px] ${clearApiKey ? "text-emerald-200" : "text-rose-200"}`}>
+              <Trash2 size={12} aria-hidden="true" /> {clearApiKey ? "Keep stored key" : "Remove stored key"}
+            </button>
           ) : null}
         </div>
 
+        {connection ? (
+          <div className={`mt-5 rounded-xl border p-3 ${connection.ok ? "border-emerald-300/[0.18] bg-emerald-300/[0.06]" : "border-rose-300/[0.2] bg-rose-300/[0.06]"}`} role={connection.ok ? "status" : "alert"}>
+            <div className="flex items-start gap-2">
+              {connection.ok ? <CheckCircle2 size={15} className="mt-0.5 shrink-0 text-emerald-300" aria-hidden="true" /> : <XCircle size={15} className="mt-0.5 shrink-0 text-rose-300" aria-hidden="true" />}
+              <div>
+                <p className={`text-[12px] font-semibold ${connection.ok ? "text-emerald-100" : "text-rose-100"}`}>{connection.ok ? "Connected" : "Connection failed"}</p>
+                <p className={`mt-1 text-[11px] leading-5 ${connection.ok ? "text-emerald-100/75" : "text-rose-100/75"}`}>{connection.message}</p>
+                {connection.ok ? <p className="mt-2 text-[11px] text-emerald-100/80">Model: {imageModelFor(settings.provider, connection.model ?? settings.model)?.label ?? selectedModel?.label ?? settings.model} · Reference conditioning: {connection.referenceConditioning ? "supported" : "not supported"}</p> : null}
+              </div>
+            </div>
+          </div>
+        ) : null}
+
         <div className="mt-5 flex flex-wrap gap-3">
-          <button type="button" disabled={busy !== null} onClick={() => void submit("save")} className="focus-ring h-11 rounded-xl bg-violet-300 px-5 text-sm font-bold text-[#160f22] disabled:opacity-40">
-            {busy === "save" ? "Saving..." : "Save"}
+          <button type="button" disabled={busy !== null} onClick={() => void submit("save")} className="focus-ring inline-flex h-11 items-center gap-2 rounded-xl bg-violet-300 px-5 text-sm font-bold text-[#160f22] disabled:opacity-40">
+            <Save size={15} aria-hidden="true" /> {busy === "save" ? "Saving..." : "Save settings"}
           </button>
-          <button type="button" disabled={busy !== null} onClick={() => void submit("test")} className="focus-ring h-11 rounded-xl border border-white/[0.1] px-5 text-sm font-semibold text-[#d5d0de] disabled:opacity-40">
-            {busy === "test" ? "Testing..." : "Test connection"}
+          <button type="button" disabled={busy !== null} onClick={() => void submit("test")} className="focus-ring inline-flex h-11 items-center gap-2 rounded-xl border border-white/[0.1] px-5 text-sm font-semibold text-[#d5d0de] disabled:opacity-40">
+            <PlugZap size={15} aria-hidden="true" /> {busy === "test" ? "Testing..." : `Test ${providerLabel}`}
           </button>
         </div>
       </section>
 
+      <CabiReferencePanel selectedProvider={settings.provider} selectedModel={settings.model} selectedModelDefinition={selectedModel} />
+
       <section className="rounded-[22px] border border-white/[0.07] bg-white/[0.02] p-5">
         <h2 className="text-sm font-bold text-white">Required storage buckets</h2>
-        <p className="mt-1.5 text-[11px] leading-5 text-[#777180]">
-          Create two private buckets in Supabase Storage. Objects are served through short-lived signed URLs, so neither needs to be public.
-        </p>
-        <ul className="mt-3 space-y-1.5 font-mono text-[12px] text-violet-200">
-          <li>cabi-generations</li>
-          <li>avatars</li>
-          <li>cabi-system-assets</li>
-        </ul>
-        <p className="mt-3 text-[11px] leading-5 text-[#625d6d]">
-          <span className="font-mono text-violet-200">cabi-system-assets</span> holds product-owned artwork. Cabi&apos;s
-          official reference lives there at <span className="font-mono">official/cabi-reference.png</span> — never inside
-          a user&apos;s generation folder.
-        </p>
+        <p className="mt-1.5 text-[11px] leading-5 text-[#777180]">Create these private Supabase Storage buckets. Objects are served through short-lived signed URLs.</p>
+        <ul className="mt-3 space-y-1.5 font-mono text-[12px] text-violet-200"><li>cabi-generations</li><li>avatars</li><li>cabi-system-assets</li></ul>
+        <p className="mt-3 text-[11px] leading-5 text-[#625d6d]"><span className="font-mono text-violet-200">cabi-system-assets</span> holds product-owned artwork. The official reference lives at <span className="font-mono">official/cabi-reference.png</span>.</p>
       </section>
     </div>
   );
+}
+
+function Badge({ children, tone }: { children: React.ReactNode; tone: "green" | "violet" | "amber" | "muted" }) {
+  const styles = {
+    green: "border-emerald-300/[0.18] bg-emerald-300/[0.08] text-emerald-200",
+    violet: "border-violet-200/[0.16] bg-violet-300/[0.08] text-violet-200",
+    amber: "border-amber-300/[0.18] bg-amber-300/[0.08] text-amber-200",
+    muted: "border-white/[0.1] bg-white/[0.04] text-[#8e889b]",
+  }[tone];
+  return <span className={`rounded-full border px-2 py-0.5 text-[10px] ${styles}`}>{children}</span>;
 }

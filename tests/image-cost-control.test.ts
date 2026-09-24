@@ -35,14 +35,14 @@ vi.mock("@/lib/image-generation/lifecycle", () => ({
 }));
 vi.mock("@/lib/image-generation/settings", () => ({
   readImageSettings: vi.fn(async () => ({
-    enabled: mocks.enabled, provider: "together", baseUrl: "https://api.together.xyz/v1",
-    model: "Qwen/Qwen-Image", defaultAspectRatio: "1:1", defaultQuality: "standard",
+    enabled: mocks.enabled, provider: "together", baseUrl: "https://api.together.xyz/v1/images/generations",
+    model: "Qwen/Qwen-Image-2.0", defaultAspectRatio: "1:1", defaultQuality: "standard",
     dailyLimit: 5, allowGuestGeneration: false, hasApiKey: true, keyLastFour: "abcd",
   })),
   readImageProviderConfig: vi.fn(async () => ({
     settings: {
-      enabled: mocks.enabled, provider: "together", baseUrl: "https://api.together.xyz/v1",
-      model: "Qwen/Qwen-Image", defaultAspectRatio: "1:1", defaultQuality: "standard",
+      enabled: mocks.enabled, provider: "together", baseUrl: "https://api.together.xyz/v1/images/generations",
+      model: "Qwen/Qwen-Image-2.0", defaultAspectRatio: "1:1", defaultQuality: "standard",
       dailyLimit: 5, allowGuestGeneration: false,
     },
     apiKey: "fake-key-for-tests-only",
@@ -50,15 +50,15 @@ vi.mock("@/lib/image-generation/settings", () => ({
 }));
 
 vi.mock("@/lib/image-generation/provider", () => ({
-  imageCapabilitiesFor: () => ({ supportsReferenceImages: false, supportsImageToImage: false, supportsSeed: true }),
+  imageCapabilitiesFor: () => ({ supportsReferenceImages: true, supportsImageToImage: true, supportsSeed: true }),
   createImageProvider: () => ({
-    id: "together", label: "Together AI", supportsReferenceImage: false,
-    capabilities: { supportsReferenceImages: false, supportsImageToImage: false, supportsSeed: true },
+    id: "together", label: "Together AI", supportsReferenceImage: true,
+    capabilities: { supportsReferenceImages: true, supportsImageToImage: true, supportsSeed: true },
     generateCabiImage: async () => {
       providerCalls += 1;
-      return { ok: true, image: { bytes: new Uint8Array(256).fill(7), contentType: "image/png", provider: "together", model: "Qwen/Qwen-Image", width: 1024, height: 1024 } };
+      return { ok: true, image: { bytes: new Uint8Array(256).fill(7), contentType: "image/png", provider: "together", model: "Qwen/Qwen-Image-2.0", width: 1024, height: 1024 } };
     },
-    testConnection: async () => ({ ok: true, model: "Qwen/Qwen-Image", message: "Connected." }),
+    testConnection: async () => ({ ok: true, model: "Qwen/Qwen-Image-2.0", message: "Connected." }),
   }),
 }));
 

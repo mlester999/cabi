@@ -37,23 +37,24 @@ beforeEach(() => {
 });
 
 describe("capability is derived from the model, not the provider", () => {
-  it("reports the shipped text-to-image model as unable to condition on a reference", () => {
+  it("reports the recommended Qwen Image 2.0 model as reference-capable", () => {
     const capabilities = imageCapabilitiesFor({ provider: "together", model: defaultTogetherImageModel });
-    expect(defaultTogetherImageModel).toBe("Qwen/Qwen-Image");
-    expect(capabilities.supportsReferenceImages).toBe(false);
-    expect(capabilities.supportsImageToImage).toBe(false);
+    expect(defaultTogetherImageModel).toBe("Qwen/Qwen-Image-2.0");
+    expect(capabilities.supportsReferenceImages).toBe(true);
+    expect(capabilities.supportsImageToImage).toBe(true);
   });
 
-  it("reports a known image-editing model as reference-capable", () => {
-    const capabilities = imageCapabilitiesFor({ provider: "together", model: "Qwen/Qwen-Image-Edit" });
+  it("reports the premium Qwen Image 2.0 Pro model as reference-capable", () => {
+    const capabilities = imageCapabilitiesFor({ provider: "together", model: "Qwen/Qwen-Image-2.0-Pro" });
     expect(capabilities.supportsReferenceImages).toBe(true);
     expect(capabilities.supportsImageToImage).toBe(true);
     expect(capabilities.supportsSeed).toBe(true);
   });
 
-  it("matches the model allowlist case-insensitively", () => {
-    expect(supportsReferenceImages("qwen/qwen-image-edit")).toBe(true);
-    expect(supportsReferenceImages("black-forest-labs/FLUX.1-Kontext-pro")).toBe(true);
+  it("matches only exact curated catalog entries", () => {
+    expect(supportsReferenceImages("qwen/qwen-image-2.0")).toBe(false);
+    expect(supportsReferenceImages("black-forest-labs/FLUX.1-Kontext-pro")).toBe(false);
+    expect(supportsReferenceImages("Qwen/Qwen-Image-2.0")).toBe(true);
     expect(supportsReferenceImages("Qwen/Qwen-Image")).toBe(false);
     expect(supportsReferenceImages("")).toBe(false);
   });
@@ -67,7 +68,7 @@ describe("capability is derived from the model, not the provider", () => {
   });
 
   it("claims nothing for an unconfigured provider", () => {
-    const provider = createImageProvider({ provider: "together", apiKey: "", model: "Qwen/Qwen-Image-Edit", supportsReferenceImage: false });
+    const provider = createImageProvider({ provider: "together", apiKey: "", model: "Qwen/Qwen-Image-2.0", supportsReferenceImage: false });
     expect(provider.capabilities).toEqual(noImageCapabilities);
     expect(provider.label).toBe("Not configured");
   });
@@ -75,7 +76,7 @@ describe("capability is derived from the model, not the provider", () => {
 
 describe("the reference reaches the provider only when it is supported", () => {
   it("forwards the assembled prompt to a text-to-image model", async () => {
-    const provider = createImageProvider({ provider: "together", apiKey, model: defaultTogetherImageModel, supportsReferenceImage: false });
+    const provider = createImageProvider({ provider: "together", apiKey, model: "Qwen/Qwen-Image", supportsReferenceImage: false });
     await provider.generateCabiImage({ scene: "at the beach", aspectRatio: "1:1", preparedPrompt: "IDENTITY LAYERS Scene: at the beach." });
     expect(mocks.generate).toHaveBeenCalledTimes(1);
     const [request] = mocks.generate.mock.calls[0] as [Record<string, unknown>];
@@ -85,14 +86,14 @@ describe("the reference reaches the provider only when it is supported", () => {
   });
 
   it("leaves reference images undefined for a model without conditioning", async () => {
-    const provider = createImageProvider({ provider: "together", apiKey, model: defaultTogetherImageModel, supportsReferenceImage: false });
+    const provider = createImageProvider({ provider: "together", apiKey, model: "Qwen/Qwen-Image", supportsReferenceImage: false });
     await provider.generateCabiImage({ scene: "in a hoodie", aspectRatio: "1:1", referenceImages: undefined });
     const [request] = mocks.generate.mock.calls[0] as [Record<string, unknown>];
     expect(request.referenceImages).toBeUndefined();
   });
 
   it("passes the reference through automatically for a capable model", async () => {
-    const provider = createImageProvider({ provider: "together", apiKey, model: "Qwen/Qwen-Image-Edit", supportsReferenceImage: true });
+    const provider = createImageProvider({ provider: "together", apiKey, model: "Qwen/Qwen-Image-2.0", supportsReferenceImage: true });
     const reference = ["https://example.test/official/cabi-reference.png"];
     await provider.generateCabiImage({ scene: "in a hoodie", aspectRatio: "1:1", referenceImages: reference });
     const [request] = mocks.generate.mock.calls[0] as [Record<string, unknown>];

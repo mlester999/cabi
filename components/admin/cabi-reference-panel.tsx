@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AlertTriangle, CheckCircle2, History, RotateCcw, ShieldCheck, Upload, X } from "lucide-react";
 
+import type { ImageModelDefinition } from "@/lib/image-generation/registry";
+
 /**
  * The official Cabi reference, and the character bible around it.
  *
@@ -44,7 +46,7 @@ type Capability = {
   provider: string;
   model: string;
   referenceConfigured: boolean;
-  capabilities: { supportsReferenceImages: boolean; supportsImageToImage: boolean; supportsSeed: boolean };
+  capabilities: { supportsReferenceImages: boolean; supportsImageToImage: boolean; supportsImageEditing?: boolean; supportsSeed: boolean };
   message: string;
 };
 
@@ -58,6 +60,15 @@ type Bible = {
 
 type Payload = { reference: ReferenceInfo; history: HistoryEntry[]; provider: Capability; bible: Bible };
 
+type CabiReferencePanelProps = {
+  /** Internal provider id selected in the owner settings form. */
+  selectedProvider?: string;
+  /** Internal model id selected in the owner settings form. */
+  selectedModel?: string;
+  /** The catalog entry makes capability updates immediate, before a save. */
+  selectedModelDefinition?: ImageModelDefinition | null;
+};
+
 function formatDate(value: string | null) {
   if (!value) return "—";
   const date = new Date(value);
@@ -65,7 +76,7 @@ function formatDate(value: string | null) {
   return date.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
 }
 
-export function CabiReferencePanel() {
+export function CabiReferencePanel({ selectedProvider, selectedModel, selectedModelDefinition }: CabiReferencePanelProps = {}) {
   const [payload, setPayload] = useState<Payload | null>(null);
   const [busy, setBusy] = useState<"upload" | "restore" | "bible" | "reset" | null>(null);
   const [notice, setNotice] = useState("");
@@ -183,6 +194,23 @@ export function CabiReferencePanel() {
   const label = "block text-[10px] font-semibold uppercase tracking-[.14em] text-[#777180]";
   const reference = payload?.reference;
   const preview = reference?.previewUrl ?? reference?.fallbackPath ?? "/assets/cabi-cpu-model.png";
+  const effectiveProvider = selectedProvider === "together" ? "Together AI" : (selectedProvider ?? payload?.provider.provider ?? "—");
+  const effectiveModel = selectedModel ?? payload?.provider.model ?? "—";
+  const capability = selectedModelDefinition
+    ? {
+        supportsReferenceImages: selectedModelDefinition.supportsReferenceImages,
+        supportsImageToImage: selectedModelDefinition.supportsImageEditing,
+        supportsImageEditing: selectedModelDefinition.supportsImageEditing,
+        supportsSeed: selectedModelDefinition.supportsSeed,
+      }
+    : payload?.provider.capabilities;
+  const capabilityKnown = Boolean(selectedModelDefinition || payload?.provider);
+  const supportsReference = capability?.supportsReferenceImages === true;
+  const capabilityMessage = selectedModelDefinition
+    ? (selectedModelDefinition.supportsReferenceImages
+        ? "Cabi's official reference will be used automatically with every generation."
+        : "This model cannot use Cabi's official reference image directly. Character consistency may be lower.")
+    : payload?.provider.message ?? "Capability is resolved from the configured model.";
 
   return (
     <div className="space-y-5">
@@ -292,23 +320,24 @@ export function CabiReferencePanel() {
       <section className="rounded-[22px] border border-white/[0.07] bg-white/[0.02] p-5">
         <h2 className="text-sm font-bold text-white">Provider capability</h2>
         <dl className="mt-3 space-y-2 text-[12px]">
-          <Row label="Provider" value={payload?.provider.provider ?? "—"} />
-          <Row label="Model" value={payload?.provider.model ?? "—"} />
+          <Row label="Provider" value={effectiveProvider} />
+          <Row label="Model" value={selectedModelDefinition?.label ?? effectiveModel} />
           <Row label="Reference Image" value={payload?.provider.referenceConfigured ? "Configured" : "Not configured"} />
           <Row
             label="Reference Conditioning"
-            value={payload?.provider.capabilities.supportsReferenceImages ? "SUPPORTED" : "NOT SUPPORTED BY CURRENT MODEL"}
+            value={!capabilityKnown ? "CHECKING…" : supportsReference ? "SUPPORTED" : "NOT SUPPORTED BY CURRENT MODEL"}
           />
         </dl>
         <p className="mt-3 flex items-start gap-2 rounded-xl border border-white/[0.06] bg-white/[0.02] p-3 text-[11px] leading-5 text-[#8e889b]">
-          {payload?.provider.capabilities.supportsReferenceImages
+          {supportsReference
             ? <CheckCircle2 size={14} className="mt-0.5 shrink-0 text-emerald-300" aria-hidden="true" />
             : <AlertTriangle size={14} className="mt-0.5 shrink-0 text-amber-300" aria-hidden="true" />}
-          <span>{payload?.provider.message ?? "Capability is resolved from the configured model."}</span>
+          <span>{capabilityMessage}</span>
         </p>
         <p className="mt-2 text-[11px] leading-5 text-[#625d6d]">
-          Switching to a reference-capable model makes Cabi&apos;s active reference apply automatically — no other change
-          is needed.
+          {supportsReference
+            ? "No client upload or replacement is needed; the active official image is selected server-side."
+            : "Choose Qwen Image 2.0 or Qwen Image 2.0 Pro to condition directly on the official reference."}
         </p>
       </section>
 

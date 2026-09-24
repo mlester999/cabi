@@ -1,6 +1,7 @@
 import "server-only";
 
 import { buildCabiImagePrompt } from "@/lib/cabi/image-identity";
+import { imageModelFor, recommendedImageModel } from "@/lib/image-generation/registry";
 import { aspectRatioSizes, type AspectRatio, type ImageGenerationError, type ImageGenerationResult } from "@/lib/image-generation/types";
 
 /**
@@ -17,8 +18,8 @@ import { aspectRatioSizes, type AspectRatio, type ImageGenerationError, type Ima
 
 export const togetherImageEndpoint = "https://api.together.xyz/v1/images/generations";
 
-/** The default image model. Overridable with TOGETHER_IMAGE_MODEL. */
-export const defaultTogetherImageModel = "Qwen/Qwen-Image";
+/** The recommended Together model for Cabi's generation and reference workflow. */
+export const defaultTogetherImageModel = recommendedImageModel("together").id;
 
 /** Only these three ratios are offered, so a request cannot ask for an extreme size. */
 export const togetherAspectRatios: readonly AspectRatio[] = ["1:1", "16:9", "9:16"] as const;
@@ -37,11 +38,7 @@ export type TogetherRequest = {
   aspectRatio: AspectRatio;
   /** Seeds a reproducible result when supplied by the caller. */
   seed?: number;
-  /**
-   * Reference images for character consistency, when the selected model accepts
-   * them. Qwen/Qwen-Image is text-to-image today, so this is passed through only
-   * for models known to support it; see `supportsReferenceImages`.
-   */
+  /** Reference images for character consistency, when the selected model accepts them. */
   referenceImages?: string[];
   /**
    * A prompt that already contains the Cabi character layers.
@@ -60,23 +57,13 @@ export type TogetherProviderConfig = {
   /** Overridable for tests and for a Together-compatible proxy. */
   endpoint?: string;
   timeoutMs?: number;
+  /** Server-built test inputs; never accepted from a user generation request. */
+  referenceImages?: string[];
+  preparedPrompt?: string;
 };
 
-/**
- * Whether the configured model accepts image inputs.
- *
- * Deliberately a small allowlist rather than an optimistic `true`: sending an
- * unsupported parameter would be inventing API surface, and the request would
- * fail at the provider instead of degrading to text-to-image.
- */
-const referenceCapableModels: readonly string[] = [
-  "Qwen/Qwen-Image-Edit",
-  "black-forest-labs/FLUX.1-Kontext-pro",
-  "black-forest-labs/FLUX.1-Kontext-max",
-];
-
 export function supportsReferenceImages(model: string): boolean {
-  return referenceCapableModels.some((candidate) => candidate.toLowerCase() === model.toLowerCase());
+  return imageModelFor("together", model)?.supportsReferenceImages === true;
 }
 
 /** How many inference steps to request. Qwen-Image is a step-distilled model. */
@@ -84,25 +71,25 @@ const defaultSteps = 28;
 
 function classifyHttpError(status: number): { error: ImageGenerationError; message: string } {
   if (status === 401 || status === 403) {
-    return { error: "NOT_CONFIGURED", message: "My image connection is not set up right. Tell the owner for me?" };
+    return { error: "NOT_CONFIGURED", message: "Invalid API key" };
   }
   // 402 is Together's insufficient-balance response.
   if (status === 402) {
-    return { error: "PROVIDER_ERROR", message: "I am out of image credits right now. The owner needs to top up." };
+    return { error: "PROVIDER_ERROR", message: "Insufficient Together credits" };
   }
   if (status === 429) {
-    return { error: "RATE_LIMITED", message: "I am drawing a lot right now. Give me a moment and try again." };
+    return { error: "RATE_LIMITED", message: "Rate limited" };
   }
   if (status === 400 || status === 422) {
     return { error: "UNSAFE_PROMPT", message: "I could not draw that one. Try describing it differently?" };
   }
   if (status === 404) {
-    return { error: "PROVIDER_ERROR", message: "My image model is unavailable right now." };
+    return { error: "PROVIDER_ERROR", message: "Model unavailable" };
   }
   if (status >= 500) {
-    return { error: "PROVIDER_ERROR", message: "The image service is having a moment. Try again shortly?" };
+    return { error: "PROVIDER_ERROR", message: "Connection failed" };
   }
-  return { error: "PROVIDER_ERROR", message: "I could not draw that one just now." };
+  return { error: "PROVIDER_ERROR", message: "Connection failed" };
 }
 
 /**
@@ -153,7 +140,7 @@ export function resolveTogetherApiKey(): string | null {
 
 export function resolveTogetherModel(): string {
   const model = process.env.TOGETHER_IMAGE_MODEL?.trim();
-  return model && model.length > 0 ? model : defaultTogetherImageModel;
+  return model && imageModelFor("together", model)?.id ? model : recommendedImageModel("together").id;
 }
 
 /**
@@ -174,7 +161,9 @@ export async function generateTogetherImage(
     return { ok: false, error: "NOT_CONFIGURED", message: "Cabi's image generation has not been configured yet." };
   }
 
-  const model = config?.model ?? resolveTogetherModel();
+  const model = config?.model && imageModelFor("together", config.model)?.id
+    ? config.model
+    : resolveTogetherModel();
   const { width, height } = sizeForAspectRatio(request.aspectRatio);
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), config?.timeoutMs ?? 120_000);
@@ -255,9 +244,16 @@ export async function testTogetherConnection(config?: Partial<TogetherProviderCo
 > {
   const apiKey = config?.apiKey ?? resolveTogetherApiKey();
   if (!apiKey) return { ok: false, error: "NOT_CONFIGURED", message: "Add your Together AI API key first." };
-  const model = config?.model ?? resolveTogetherModel();
+  const model = config?.model && imageModelFor("together", config.model)?.id
+    ? config.model
+    : resolveTogetherModel();
 
-  const result = await generateTogetherImage({ prompt: "Cabi waving hello", aspectRatio: "1:1" }, { ...config, apiKey, model });
+  const result = await generateTogetherImage({
+    prompt: "Cabi smiling in a cozy room wearing her lavender CPU shirt.",
+    aspectRatio: "1:1",
+    referenceImages: config?.referenceImages,
+    preparedPrompt: config?.preparedPrompt,
+  }, { ...config, apiKey, model });
   if (!result.ok) return { ok: false, error: result.error, message: result.message };
   return { ok: true, model, message: `Connected. ${model} is responding.` };
 }

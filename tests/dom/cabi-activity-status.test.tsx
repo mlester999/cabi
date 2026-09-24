@@ -51,9 +51,9 @@ describe("activity status", () => {
   it("rotates the visible line over time", async () => {
     render(<CabiActivityStatus type="IMAGE_GENERATING" />);
     const first = document.querySelector("[data-cabi-status]")?.textContent ?? "";
-    // Advancing well past the slowest documented delay guarantees at least one
-    // rotation without asserting an exact cadence.
-    await act(async () => { await vi.advanceTimersByTimeAsync(12_000); });
+    // Advancing beyond the maximum first delay guarantees exactly one
+    // rotation without allowing a random sequence to wrap back to the first line.
+    await act(async () => { await vi.advanceTimersByTimeAsync(5_000); });
     const later = document.querySelector("[data-cabi-status]")?.textContent ?? "";
     expect(later).not.toBe(first);
   });
@@ -112,7 +112,7 @@ describe("activity status", () => {
     mockReducedMotion(true);
     render(<CabiActivityStatus type="CHAT_THINKING" />);
     const first = document.querySelector("[data-cabi-status]")?.textContent ?? "";
-    await act(async () => { await vi.advanceTimersByTimeAsync(12_000); });
+    await act(async () => { await vi.advanceTimersByTimeAsync(5_000); });
     const later = document.querySelector("[data-cabi-status]")?.textContent ?? "";
     expect(later).not.toBe(first);
   });

@@ -46,5 +46,6 @@ next-env.d.ts
 /.sites-runtime/
 /.agents/
 /.codex/
+/\.superdesign/tmp/
 /outputs/
 /work/

@@ -1,7 +1,8 @@
 import "server-only";
 
-import { generateTogetherImage, supportsReferenceImages } from "@/lib/ai/image/together";
+import { generateTogetherImage } from "@/lib/ai/image/together";
 import { buildCabiImagePrompt, cabiNegativePrompt, cabiReferenceAsset } from "@/lib/image-generation/cabi-character";
+import { imageModelFor, recommendedImageModel } from "@/lib/image-generation/registry";
 import {
   aspectRatioSizes,
   noImageCapabilities,
@@ -43,11 +44,11 @@ function sizeFor(ratio: AspectRatio) {
 /**
  * The request every provider receives.
  *
- * `seed` and `referenceImages` are part of the contract even though the current
- * Together text-to-image path ignores them: a new provider must be addable
- * without changing the call sites, and the reference workflow needs a defined
- * place to arrive. A provider that cannot honour an option ignores it rather
- * than inventing an API parameter it does not support.
+ * `seed` and `referenceImages` are part of the contract even though individual
+ * models may ignore them: a new provider must be addable without changing the
+ * call sites, and the reference workflow needs a defined place to arrive. A
+ * provider that cannot honour an option ignores it rather than inventing an API
+ * parameter it does not support.
  *
  * `preparedPrompt` carries a prompt that already contains the Cabi character
  * layers. It is server-assembled and never built from client input.
@@ -75,7 +76,7 @@ export interface ImageGenerationProvider {
   /** What this provider/model can actually do, for the admin console. */
   readonly capabilities: ImageProviderCapabilities;
   generateCabiImage(input: ImageGenerationRequest): Promise<ImageGenerationResult>;
-  testConnection(): Promise<ImageConnectionTest>;
+  testConnection(input?: Pick<ImageGenerationRequest, "referenceImages" | "preparedPrompt">): Promise<ImageConnectionTest>;
 }
 
 function fail(error: ImageGenerationError, message: string): ImageGenerationResult {
@@ -112,6 +113,7 @@ function createOpenAiCompatibleProvider(config: ImageProviderConfig): ImageGener
   const capabilities: ImageProviderCapabilities = {
     supportsReferenceImages: false,
     supportsImageToImage: false,
+    supportsImageEditing: false,
     supportsSeed: false,
   };
 
@@ -182,6 +184,7 @@ function createStabilityProvider(config: ImageProviderConfig): ImageGenerationPr
   const capabilities: ImageProviderCapabilities = {
     supportsReferenceImages: false,
     supportsImageToImage: false,
+    supportsImageEditing: false,
     supportsSeed: false,
   };
 
@@ -258,7 +261,7 @@ function createCustomProvider(config: ImageProviderConfig): ImageGenerationProvi
  * decides, so an unsupported parameter is never sent.
  */
 function createTogetherProvider(config: ImageProviderConfig): ImageGenerationProvider {
-  const model = config.model || undefined;
+  const model = imageModelFor("together", config.model ?? "")?.id ?? recommendedImageModel("together").id;
   const capabilities = imageCapabilitiesFor({ provider: "together", model });
   return {
     id: "together",
@@ -275,9 +278,14 @@ function createTogetherProvider(config: ImageProviderConfig): ImageGenerationPro
       if (result.ok) return result;
       return { ok: false, error: result.error, message: result.message };
     },
-    async testConnection() {
+    async testConnection(input) {
       const { testTogetherConnection } = await import("@/lib/ai/image/together");
-      return testTogetherConnection({ apiKey: config.apiKey, model });
+      return testTogetherConnection({
+        apiKey: config.apiKey,
+        model,
+        referenceImages: input?.referenceImages,
+        preparedPrompt: input?.preparedPrompt,
+      });
     },
   };
 }
@@ -314,11 +322,13 @@ export function createImageProvider(config: ImageProviderConfig): ImageGeneratio
  * may be attached at all.
  */
 export function imageCapabilitiesFor(config: { provider: ImageProviderConfig["provider"]; model?: string }): ImageProviderCapabilities {
-  if (config.provider === "together") {
-    const model = config.model ?? "";
-    const reference = model.length > 0 && supportsReferenceImages(model);
-    return { supportsReferenceImages: reference, supportsImageToImage: reference, supportsSeed: true };
-  }
-  return { ...noImageCapabilities };
+  const model = imageModelFor(config.provider, config.model ?? "");
+  if (!model) return { ...noImageCapabilities };
+  return {
+    supportsReferenceImages: model.supportsReferenceImages,
+    supportsImageToImage: model.supportsImageEditing,
+    supportsImageEditing: model.supportsImageEditing,
+    supportsSeed: model.supportsSeed,
+  };
 }
 export { cabiReferenceAsset };

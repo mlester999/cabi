@@ -17,7 +17,7 @@ const mocks = vi.hoisted(() => ({
   list: vi.fn(async () => [] as unknown[]),
   resolve: vi.fn(),
   previewUrl: vi.fn(async () => "https://storage.example/signed/reference.png"),
-  settings: vi.fn(async () => ({ provider: "together", model: "Qwen/Qwen-Image", hasApiKey: true, enabled: true })),
+  settings: vi.fn(async () => ({ provider: "together", model: "Qwen/Qwen-Image-2.0", hasApiKey: true, enabled: true })),
   bible: vi.fn(async () => ({ artDirection: "", negative: "", customized: false })),
   writeBible: vi.fn(),
   resetBible: vi.fn(async () => ({ artDirection: "", negative: "", customized: false })),
@@ -212,17 +212,17 @@ describe("character bible editing", () => {
 });
 
 describe("capability reporting", () => {
-  it("says NOT SUPPORTED for the shipped text-to-image model", async () => {
-    const payload = await (await GET()).json() as { provider: { capabilities: { supportsReferenceImages: boolean }; message: string } };
-    expect(payload.provider.capabilities.supportsReferenceImages).toBe(false);
-    expect(payload.provider.message).toContain("cannot directly condition");
-  });
-
-  it("says SUPPORTED for a reference-capable model", async () => {
-    mocks.settings.mockResolvedValue({ provider: "together", model: "Qwen/Qwen-Image-Edit", hasApiKey: true, enabled: true });
+  it("says SUPPORTED for the recommended reference-capable model", async () => {
     const payload = await (await GET()).json() as { provider: { capabilities: { supportsReferenceImages: boolean }; message: string } };
     expect(payload.provider.capabilities.supportsReferenceImages).toBe(true);
     expect(payload.provider.message).toContain("automatically");
+  });
+
+  it("says NOT SUPPORTED for the verified text-to-image-only model", async () => {
+    mocks.settings.mockResolvedValue({ provider: "together", model: "Qwen/Qwen-Image", hasApiKey: true, enabled: true });
+    const payload = await (await GET()).json() as { provider: { capabilities: { supportsReferenceImages: boolean }; message: string } };
+    expect(payload.provider.capabilities.supportsReferenceImages).toBe(false);
+    expect(payload.provider.message).toContain("cannot directly condition");
   });
 
   it("reports the bundled fallback when no admin reference is active", async () => {

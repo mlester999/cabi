@@ -2,7 +2,8 @@ import { z } from "zod";
 
 import { getServiceClient } from "@/lib/db/supabase";
 import { checkImageScope } from "@/lib/image-generation/scope";
-import { createImageProvider } from "@/lib/image-generation/provider";
+import { buildCabiGenerationPlan } from "@/lib/image-generation/plan.server";
+import { createImageProvider, imageCapabilitiesFor } from "@/lib/image-generation/provider";
 import { readImageProviderConfig, readImageSettings } from "@/lib/image-generation/settings";
 import { generationBucket, signedImageUrl, uploadGenerationImage } from "@/lib/image-generation/storage";
 import { aspectRatios } from "@/lib/image-generation/types";
@@ -99,27 +100,52 @@ export async function POST(request: Request) {
   const providerConfig = await readImageProviderConfig();
   if (!providerConfig) return jsonError("Cabi's image provider hasn't been configured yet.", 503, "IMAGES_NOT_CONFIGURED");
 
+  const capabilities = imageCapabilitiesFor({
+    provider: providerConfig.settings.provider,
+    model: providerConfig.settings.model,
+  });
+  const planned = await buildCabiGenerationPlan({
+    scene: scope.scene,
+    aspectRatio: aspectRatio as "1:1" | "16:9" | "9:16",
+    modelSupportsReferenceImages: capabilities.supportsReferenceImages,
+  });
+  if (!planned.ok) return jsonError(planned.message, 503, planned.reason);
+  const plan = planned.plan;
+
   const provider = createImageProvider({
     provider: providerConfig.settings.provider,
     apiKey: providerConfig.apiKey,
     baseUrl: providerConfig.settings.baseUrl,
     model: providerConfig.settings.model,
-    supportsReferenceImage: true,
+    supportsReferenceImage: capabilities.supportsReferenceImages,
+    capabilities,
   });
 
-  const generated = await provider.generateCabiImage({ scene: scope.scene, aspectRatio: aspectRatio as never, quality });
+  const generated = await provider.generateCabiImage({
+    scene: plan.scene,
+    aspectRatio: aspectRatio as "1:1" | "16:9" | "9:16",
+    quality,
+    seed: plan.seed ?? undefined,
+    referenceImages: plan.referenceImages,
+    preparedPrompt: plan.prompt,
+  });
+  const generationMetadata = {
+    reference_version: plan.reference.version,
+    reference_conditioned: plan.capabilities.referenceConditioning,
+  };
   if (!generated.ok) {
     // A failed call is recorded as FAILED, which the quota function does not
     // count, so a provider outage does not burn the user's allowance.
     await db.from("image_generations").insert({
       wallet_account_id: walletAccountId,
       conversation_id: parsed.data.conversationId ?? null,
-      user_prompt: scope.scene,
+      user_prompt: plan.scene,
       aspect_ratio: aspectRatio,
       provider: providerConfig.settings.provider,
       model: providerConfig.settings.model,
       status: "FAILED",
       failure_code: generated.error,
+      ...generationMetadata,
     });
     return jsonError(generated.message, generated.error === "RATE_LIMITED" ? 429 : 502, generated.error);
   }
@@ -139,12 +165,13 @@ export async function POST(request: Request) {
       id: generationId,
       wallet_account_id: walletAccountId,
       conversation_id: parsed.data.conversationId ?? null,
-      user_prompt: scope.scene,
+      user_prompt: plan.scene,
       aspect_ratio: aspectRatio,
       image_path: uploaded.path,
       provider: generated.image.provider,
       model: generated.image.model,
       status: "COMPLETED",
+      ...generationMetadata,
     })
     .select("id,created_at")
     .maybeSingle();
@@ -163,7 +190,7 @@ export async function POST(request: Request) {
   return Response.json(
     {
       ok: true,
-      image: { id: row?.id ?? generationId, url, prompt: scope.scene, aspectRatio, width: generated.image.width, height: generated.image.height, createdAt: row?.created_at ?? new Date().toISOString() },
+      image: { id: row?.id ?? generationId, url, prompt: plan.scene, aspectRatio, width: generated.image.width, height: generated.image.height, createdAt: row?.created_at ?? new Date().toISOString() },
       remaining: Math.max(0, (quota?.remaining ?? settings.dailyLimit) - 1),
       // Only surfaced when the award actually happened.
       xp: xp?.xpAwarded ? xp.xpAwarded : null,

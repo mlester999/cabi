@@ -278,7 +278,7 @@ and opens the next one.
 ## Image generation
 
 Cabi-only, and enforced before any provider call. The active provider is **Together AI**
-(`POST https://api.together.xyz/v1/images/generations`), with **`Qwen/Qwen-Image`** as
+(`POST https://api.together.xyz/v1/images/generations`), with **`Qwen/Qwen-Image-2.0`** as
 the default model.
 
 - `lib/cabi/image-identity.ts` is the **single source of truth** for Cabi's appearance.
@@ -341,17 +341,18 @@ magic bytes (PNG, JPEG, or WebP; 8 MB cap) and audited as `cabi.reference_upload
 
 **Reference conditioning depends on the model.** `imageCapabilitiesFor()` derives the
 capability from the selected *model*, and the reference is attached automatically whenever
-the model supports it — the user never uploads Cabi. The shipped `Qwen/Qwen-Image` is
-text-to-image, so:
+the model supports it — the user never uploads Cabi. The recommended
+`Qwen/Qwen-Image-2.0` and premium `Qwen/Qwen-Image-2.0-Pro` support direct reference
+conditioning. The optional verified `Qwen/Qwen-Image` is text-to-image, so:
 
 ```
 Reference Conditioning: NOT SUPPORTED BY CURRENT MODEL
 ```
 
 The admin console says exactly that, and no `image_url` parameter is ever sent to a model
-that cannot use it. Switching the model to a reference-capable one (for example
-`Qwen/Qwen-Image-Edit`) makes the active reference apply on the next generation with no
-other change.
+that cannot use it. Switching the model to a reference-capable one —
+`Qwen/Qwen-Image-2.0` or `Qwen/Qwen-Image-2.0-Pro` — makes the active reference apply on
+the next generation with no other change.
 
 Generation metadata recorded per row is safe by construction: `reference_version`,
 `expression`, `outfit`, `scene`, `seed`, `reference_conditioned`, provider, model, and
@@ -450,8 +451,9 @@ to a browser, never written to a log, and never prefixed with `NEXT_PUBLIC_`.
 7. Open `/admin/images` and press **Test Connection** — it makes a real generation, so a
    green result means the key, the balance and the model all work.
 
-Optional overrides: `IMAGE_PROVIDER=together` (default) and
-`TOGETHER_IMAGE_MODEL=Qwen/Qwen-Image` (default when unset).
+Optional server-side override: `TOGETHER_IMAGE_MODEL=Qwen/Qwen-Image-2.0-Pro` (the
+recommended `Qwen/Qwen-Image-2.0` is used when unset). The owner UI exposes Together AI
+only and keeps its official endpoint fixed.
 
 ## Cross-conversation memory
 

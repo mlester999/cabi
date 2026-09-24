@@ -18,7 +18,7 @@ const mocks = vi.hoisted(() => ({
   inserted: [] as Array<Record<string, unknown>>,
   reference: { source: "BUNDLED" as string, version: 0, path: "/assets/cabi-cpu-model.png", mimeType: "image/png", width: 500, height: 500, bytes: null as Uint8Array | null, signedUrl: null as string | null, conditionable: false },
   bible: { artDirection: "", negative: "", customized: false },
-  providerModel: "Qwen/Qwen-Image",
+  providerModel: "Qwen/Qwen-Image-2.0",
   providerId: "together",
 }));
 
@@ -125,7 +125,7 @@ function request(body: unknown) {
 beforeEach(() => {
   mocks.generated.length = 0;
   mocks.inserted.length = 0;
-  mocks.providerModel = "Qwen/Qwen-Image";
+  mocks.providerModel = "Qwen/Qwen-Image-2.0";
   mocks.providerId = "together";
   mocks.reference = { source: "BUNDLED", version: 0, path: "/assets/cabi-cpu-model.png", mimeType: "image/png", width: 500, height: 500, bytes: null, signedUrl: null, conditionable: false };
   mocks.bible = { artDirection: "", negative: "", customized: false };
@@ -159,7 +159,7 @@ describe("the prompt always carries the fixed identity", () => {
 
 describe("the official reference is used automatically", () => {
   it("attaches the active reference for a reference-capable model with no user action", async () => {
-    mocks.providerModel = "Qwen/Qwen-Image-Edit";
+    mocks.providerModel = "Qwen/Qwen-Image-2.0-Pro";
     mocks.reference = {
       source: "ADMIN_UPLOAD",
       version: 3,
@@ -205,17 +205,18 @@ describe("the official reference is used automatically", () => {
     expect(completed?.reference_conditioned).toBe(false);
   });
 
-  it("records the bundled fallback as version 0 and conditions on nothing", async () => {
+  it("records the bundled fallback as version 0 and attaches it for the default model", async () => {
     await POST(request({ prompt: "Cabi waving", aspectRatio: "1:1" }));
     const completed = mocks.inserted.find((row) => row.status === "COMPLETED");
     expect(completed?.reference_version).toBe(0);
-    expect(mocks.generated[0].referenceImages).toBeUndefined();
+    expect(String((mocks.generated[0].referenceImages as string[])[0])).toContain("cabi-cpu-model.png");
+    expect(completed?.reference_conditioned).toBe(true);
   });
 });
 
 describe("a client cannot supply or override the reference", () => {
   it("ignores reference fields in the request body", async () => {
-    mocks.providerModel = "Qwen/Qwen-Image-Edit";
+    mocks.providerModel = "Qwen/Qwen-Image-2.0-Pro";
     await POST(request({
       prompt: "Cabi in a hoodie",
       aspectRatio: "1:1",

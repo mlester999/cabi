@@ -41,6 +41,8 @@ export type ImageProviderCapabilities = {
   supportsReferenceImages: boolean;
   /** Accepts an input image to edit rather than only a text prompt. */
   supportsImageToImage: boolean;
+  /** Registry-facing name for image editing support. */
+  supportsImageEditing?: boolean;
   /** Accepts a seed for reproducible output. */
   supportsSeed: boolean;
 };
@@ -48,6 +50,7 @@ export type ImageProviderCapabilities = {
 export const noImageCapabilities: ImageProviderCapabilities = {
   supportsReferenceImages: false,
   supportsImageToImage: false,
+  supportsImageEditing: false,
   supportsSeed: false,
 };
 
@@ -86,7 +89,13 @@ export type ImageGenerationResult =
   | { ok: false; error: ImageGenerationError; message: string };
 
 export type ImageConnectionTest =
-  | { ok: true; model: string; message: string }
+  | {
+      ok: true;
+      model: string;
+      message: string;
+      capabilities?: ImageProviderCapabilities;
+      referenceConditioning?: boolean;
+    }
   | { ok: false; error: ImageGenerationError; message: string };
 
 export type ImageGenerationSettings = {
@@ -105,9 +114,9 @@ export type ImageGenerationSettings = {
 
 export const defaultImageSettings: ImageGenerationSettings = {
   enabled: false,
-  provider: "openai",
-  baseUrl: "https://api.openai.com/v1",
-  model: "gpt-image-1",
+  provider: "together",
+  baseUrl: "https://api.together.xyz/v1/images/generations",
+  model: "Qwen/Qwen-Image-2.0",
   defaultAspectRatio: "1:1",
   defaultQuality: "standard",
   dailyLimit: 5,

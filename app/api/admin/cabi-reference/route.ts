@@ -12,6 +12,7 @@ import { cabiReferencePreviewUrl, activateCabiReference, listCabiReferences, sav
 import { resolveCabiReference } from "@/lib/cabi/reference/resolve.server";
 import { cabiReferenceMaxBytes, type CabiReferenceRow } from "@/lib/cabi/reference/types";
 import { imageCapabilitiesFor } from "@/lib/image-generation/provider";
+import { imageModelFor, IMAGE_PROVIDER_OPTIONS } from "@/lib/image-generation/registry";
 import { readImageSettings } from "@/lib/image-generation/settings";
 import { assertSameOrigin, jsonError } from "@/lib/security/request";
 
@@ -54,6 +55,8 @@ export async function GET() {
   const activePath = isUpload ? resolved.path : activeRow?.storagePath ?? null;
   const preview = activePath ? await cabiReferencePreviewUrl(activePath).catch(() => null) : null;
   const capabilities = imageCapabilitiesFor({ provider: settings.provider, model: settings.model });
+  const model = imageModelFor(settings.provider, settings.model);
+  const providerLabel = IMAGE_PROVIDER_OPTIONS.find((option) => option.id === settings.provider)?.label ?? settings.provider;
 
   const historyWithUrls = await Promise.all(history.map(async (row: CabiReferenceRow) => ({
     ...row,
@@ -78,13 +81,15 @@ export async function GET() {
       },
       history: historyWithUrls,
       provider: {
-        provider: settings.provider,
+        provider: providerLabel,
         model: settings.model,
-        referenceConfigured: Boolean(activeRow) || Boolean(activePath),
+        // The bundled fallback is the official reference too. It is available
+        // even before the owner uploads a private replacement.
+        referenceConfigured: Boolean(activeRow) || ("source" in resolved && resolved.source === "BUNDLED"),
         capabilities,
         /** Never claims conditioning the model cannot do. */
         message: capabilities.supportsReferenceImages
-          ? "The active model accepts Cabi's official reference automatically with every generation."
+          ? `${model?.label ?? settings.model} accepts Cabi's official reference automatically with every generation.`
           : "The current model uses Cabi's character specification, but cannot directly condition on the uploaded reference image.",
       },
       bible: {

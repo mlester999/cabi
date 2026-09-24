@@ -77,14 +77,19 @@ describe("environment configuration", () => {
     expect(resolveTogetherApiKey()).toBeNull();
   });
 
-  it("defaults the model to Qwen/Qwen-Image", () => {
-    expect(resolveTogetherModel()).toBe("Qwen/Qwen-Image");
-    expect(defaultTogetherImageModel).toBe("Qwen/Qwen-Image");
+  it("defaults the model to Qwen/Qwen-Image-2.0", () => {
+    expect(resolveTogetherModel()).toBe("Qwen/Qwen-Image-2.0");
+    expect(defaultTogetherImageModel).toBe("Qwen/Qwen-Image-2.0");
   });
 
   it("honours TOGETHER_IMAGE_MODEL when set", () => {
+    process.env.TOGETHER_IMAGE_MODEL = "Qwen/Qwen-Image-2.0-Pro";
+    expect(resolveTogetherModel()).toBe("Qwen/Qwen-Image-2.0-Pro");
+  });
+
+  it("falls back to the curated default for an unknown model", () => {
     process.env.TOGETHER_IMAGE_MODEL = "black-forest-labs/FLUX.1-schnell";
-    expect(resolveTogetherModel()).toBe("black-forest-labs/FLUX.1-schnell");
+    expect(resolveTogetherModel()).toBe("Qwen/Qwen-Image-2.0");
   });
 
   it("returns a friendly message, not a crash, when the key is absent", async () => {
@@ -133,7 +138,7 @@ describe("request construction", () => {
     expect(calls[0].body.response_format).toBe("url");
     expect(calls[0].body.width).toBe(1344);
     expect(calls[0].body.height).toBe(768);
-    expect(calls[0].body.model).toBe("Qwen/Qwen-Image");
+    expect(calls[0].body.model).toBe("Qwen/Qwen-Image-2.0");
   });
 
   it("authenticates with the key as a bearer token and never in the body", async () => {
@@ -152,15 +157,17 @@ describe("request construction", () => {
     expect(prompt).toContain(cabiImageIdentity.composition);
   });
 
-  it("does not send reference images to a text-to-image model", async () => {
+  it("does not send reference images to the verified text-to-image-only model", async () => {
     stubFetch(() => new Response(JSON.stringify({ data: [{ b64_json: pngB64 }] }), { status: 200 }));
-    await generateTogetherImage({ prompt: "Cabi waving", aspectRatio: "1:1", referenceImages: ["/assets/cabi-cpu-model.png"] });
+    await generateTogetherImage({ prompt: "Cabi waving", aspectRatio: "1:1", referenceImages: ["/assets/cabi-cpu-model.png"] }, { model: "Qwen/Qwen-Image" });
     expect(calls[0].body).not.toHaveProperty("image_url");
   });
 
   it("only claims reference support for models that accept it", () => {
     expect(supportsReferenceImages("Qwen/Qwen-Image")).toBe(false);
-    expect(supportsReferenceImages("Qwen/Qwen-Image-Edit")).toBe(true);
+    expect(supportsReferenceImages("Qwen/Qwen-Image-2.0")).toBe(true);
+    expect(supportsReferenceImages("Qwen/Qwen-Image-2.0-Pro")).toBe(true);
+    expect(supportsReferenceImages("Qwen/Qwen-Image-Edit")).toBe(false);
   });
 });
 
@@ -185,7 +192,7 @@ describe("provider abstraction surface", () => {
       prompt: "Cabi waving",
       aspectRatio: "1:1",
       referenceImages: ["/assets/cabi-cpu-model.png"],
-    });
+    }, { model: "Qwen/Qwen-Image" });
     expect(result.ok).toBe(true);
     expect(calls[0].body).not.toHaveProperty("image_url");
   });
@@ -267,7 +274,7 @@ describe("error handling", () => {
     if (result.ok) return;
     expect(result.message).not.toContain("sk-abc123");
     expect(result.message).not.toContain("acme");
-    expect(result.message).not.toContain("Invalid API key");
+    expect(result.message).toBe("Invalid API key");
   });
 
   it("reports a network failure as a provider error", async () => {
@@ -419,8 +426,20 @@ describe("connection test", () => {
     const result = await testTogetherConnection();
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.model).toBe("Qwen/Qwen-Image");
+    expect(result.model).toBe("Qwen/Qwen-Image-2.0");
     expect(calls).toHaveLength(1);
+  });
+
+  it("uses the controlled connection prompt and selected reference-capable model", async () => {
+    stubFetch(() => new Response(JSON.stringify({ data: [{ b64_json: pngB64 }] }), { status: 200 }));
+    const result = await testTogetherConnection({
+      model: "Qwen/Qwen-Image-2.0",
+      referenceImages: ["https://app.example/official/cabi-reference.png"],
+    });
+    expect(result.ok).toBe(true);
+    expect(calls[0].body.model).toBe("Qwen/Qwen-Image-2.0");
+    expect(calls[0].body.prompt).toContain("Cabi smiling in a cozy room wearing her lavender CPU shirt.");
+    expect(calls[0].body.image_url).toBe("https://app.example/official/cabi-reference.png");
   });
 
   it("fails the test when generation fails", async () => {
