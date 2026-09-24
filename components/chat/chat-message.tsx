@@ -8,6 +8,7 @@ import remarkGfm from "remark-gfm";
 import { ActionCardView } from "@/components/chat/action-card";
 import { MiniCabi } from "@/components/cabi/mini-cabi";
 import type { ActionCard } from "@/lib/actions/types";
+import { resolveStatusMessages, type CabiStatusOverrides } from "@/lib/cabi/status-messages";
 
 export type ChatMessageModel = {
   id: string;
@@ -31,18 +32,11 @@ type Props = {
   /** Re-asks for an image with the same prompt. Subject to the normal quota. */
   onRegenerateImage?: (prompt: string) => void;
   onUseImageAsAvatar?: (card: Extract<ActionCard, { kind: "IMAGE" }>) => void;
+  /** Owner-added chat-thinking copy, resolved from the server-side status settings. */
+  statusMessages?: CabiStatusOverrides | null;
 };
 
-const CABI_THINKING_LINES = [
-  "Cabi is fluffing her thoughts",
-  "Cabi is chasing a clever idea",
-  "Cabi is checking the cozy corners",
-  "Cabi is polishing a tiny answer",
-  "Cabi is untangling her whiskers",
-  "Cabi is warming up a sweet reply",
-] as const;
-
-export function ChatMessage({ message, onRetry, onDelete, onEdit, onShare, onReact, onRegenerateImage, onUseImageAsAvatar }: Props) {
+export function ChatMessage({ message, onRetry, onDelete, onEdit, onShare, onReact, onRegenerateImage, onUseImageAsAvatar, statusMessages }: Props) {
   const [copied, setCopied] = useState(false);
   const isCabi = message.role === "assistant";
   const copy = async () => {
@@ -67,7 +61,7 @@ export function ChatMessage({ message, onRetry, onDelete, onEdit, onShare, onRea
                   p: ({ children }) => <p className="my-1.5 first:mt-0 last:mb-0">{children}</p>,
                 }}>{message.content}</ReactMarkdown>
                 {message.status === "streaming" && <span className="ml-1 inline-block h-4 w-1.5 animate-pulse rounded-full bg-violet-300 align-middle" aria-label="Cabi is typing" />}
-              </> : message.status === "streaming" ? <CabiThinking /> : <span>…</span>}
+              </> : message.status === "streaming" ? <CabiThinking overrides={statusMessages} /> : <span>…</span>}
             </div>
           ) : <p className="whitespace-pre-wrap break-words">{message.content}</p>}
           {message.status === "failed" && <div className="mt-3 flex items-center gap-2 border-t border-white/[0.06] pt-2.5 text-xs text-rose-300"><span className="flex-1">Looks like my brain needs a second.</span><button onClick={onRetry} className="focus-ring rounded-lg px-2 py-1 hover:bg-white/[0.05]">Try again</button></div>}
@@ -91,17 +85,18 @@ function Reaction({ label, active, onClick, children }: { label: string; active:
   return <button className={`focus-ring grid h-8 min-w-8 place-items-center rounded-lg px-2 ${active ? "bg-violet-300/[0.1] text-violet-300" : "text-[#706a7d] hover:bg-white/[0.05] hover:text-white"}`} onClick={onClick} aria-label={label} aria-pressed={active}>{children}</button>;
 }
 
-export function CabiThinking() {
+export function CabiThinking({ overrides }: { overrides?: CabiStatusOverrides | null } = {}) {
+  const lines = resolveStatusMessages("CHAT_THINKING", overrides);
   const [line, setLine] = useState(0);
 
   useEffect(() => {
-    const timer = window.setInterval(() => setLine((current) => (current + 1) % CABI_THINKING_LINES.length), 1_900);
+    const timer = window.setInterval(() => setLine((current) => (current + 1) % lines.length), 1_900);
     return () => window.clearInterval(timer);
-  }, []);
+  }, [lines.length]);
 
   return <span role="status" aria-live="polite" className="inline-flex min-w-0 max-w-full items-center gap-2 text-[13px] text-[#b9b1c8]">
     <Sparkles size={14} className="shrink-0 animate-pulse text-violet-300" aria-hidden="true" />
-    <span className="truncate">{CABI_THINKING_LINES[line]}</span>
+    <span className="truncate">{lines[line] ?? lines[0]}</span>
     <span className="flex shrink-0 gap-1" aria-hidden="true"><i className="h-1 w-1 animate-bounce rounded-full bg-violet-300 [animation-delay:-.2s]" /><i className="h-1 w-1 animate-bounce rounded-full bg-violet-300 [animation-delay:-.1s]" /><i className="h-1 w-1 animate-bounce rounded-full bg-violet-300" /></span>
   </span>;
 }

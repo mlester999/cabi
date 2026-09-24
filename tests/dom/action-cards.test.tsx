@@ -10,6 +10,7 @@ import { ActionCardView } from "@/components/chat/action-card";
 import { ChatMessage } from "@/components/chat/chat-message";
 import { SlashCommandPalette } from "@/components/chat/slash-command-palette";
 import { tokenCard, tradeCard, clarifyCard } from "@/lib/actions/cards";
+import { cabiStatusDefaults } from "@/lib/cabi/status-messages";
 import type { TokenMetadata } from "@/lib/tokens/metadata";
 
 const CPU_ADDRESS = "0x1a421A5065316d9b4062939E9959DDEcE6630528";
@@ -87,12 +88,12 @@ describe("action card rendering", () => {
     try {
       render(<ChatMessage message={{ id: "m3", role: "assistant", content: "", status: "streaming" }} />);
       const thinking = screen.getByRole("status");
-      expect(thinking).toHaveTextContent("Cabi is fluffing her thoughts");
+      expect(thinking).toHaveTextContent(cabiStatusDefaults.CHAT_THINKING[0]);
 
       act(() => {
         vi.advanceTimersByTime(1_900);
       });
-      expect(thinking).toHaveTextContent("Cabi is chasing a clever idea");
+      expect(thinking).toHaveTextContent(cabiStatusDefaults.CHAT_THINKING[1]);
     } finally {
       vi.useRealTimers();
     }
