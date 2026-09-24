@@ -1,12 +1,14 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  IMAGE_PROVIDERS,
   IMAGE_MODELS,
   IMAGE_PROVIDER_OPTIONS,
   imageModelFor,
   recommendedImageModel,
 } from "@/lib/image-generation/registry";
 import {
+  canonicalizeImageSelection,
   isLegacyImageSettings,
   needsImageSettingsNormalization,
   parseImageSettings,
@@ -17,14 +19,50 @@ describe("curated image catalog", () => {
   it("exposes Together AI as the only owner-facing provider", () => {
     expect(IMAGE_PROVIDER_OPTIONS.map((provider) => provider.id)).toEqual(["together"]);
     expect(IMAGE_PROVIDER_OPTIONS[0]?.label).toBe("Together AI");
+    expect(IMAGE_PROVIDERS.together.endpoint).toBe("https://api.together.xyz/v1/images/generations");
   });
 
-  it("keeps the recommended and premium reference-capable models explicit", () => {
+  it("keeps the recommended and curated reference-capable models explicit", () => {
     expect(recommendedImageModel("together").id).toBe("Qwen/Qwen-Image-2.0");
+    expect(Object.keys(IMAGE_MODELS)).toEqual([
+      "Qwen/Qwen-Image-2.0",
+      "Qwen/Qwen-Image-2.0-Pro",
+      "Qwen/Qwen-Image",
+      "black-forest-labs/FLUX.1-kontext-pro",
+    ]);
     expect(IMAGE_MODELS["Qwen/Qwen-Image-2.0"].supportsReferenceImages).toBe(true);
     expect(IMAGE_MODELS["Qwen/Qwen-Image-2.0-Pro"].supportsReferenceImages).toBe(true);
     expect(IMAGE_MODELS["Qwen/Qwen-Image"].supportsReferenceImages).toBe(false);
+    expect(IMAGE_MODELS["black-forest-labs/FLUX.1-kontext-pro"].supportsReferenceImages).toBe(true);
+    expect(IMAGE_MODELS["black-forest-labs/FLUX.1-kontext-pro"].referenceParameter).toBe("image_url");
     expect(imageModelFor("together", "Qwen/Qwen-Image-Edit")).toBeNull();
+  });
+
+  it("keeps model labels, badges, and use cases in the registry", () => {
+    expect(IMAGE_MODELS["Qwen/Qwen-Image-2.0"].badges).toEqual(["Recommended", "Reference Ready", "Image Editing"]);
+    expect(IMAGE_MODELS["Qwen/Qwen-Image-2.0-Pro"].badges[0]).toBe("Highest Quality");
+    expect(IMAGE_MODELS["Qwen/Qwen-Image"].badges).toEqual(["Budget", "Text to Image"]);
+    expect(IMAGE_MODELS["black-forest-labs/FLUX.1-kontext-pro"].useCase).toContain("identity");
+  });
+
+  it("keeps a saved non-default Together selection canonical", () => {
+    expect(parseImageSettings({ provider: "together", model: "Qwen/Qwen-Image-2.0-Pro" })).toMatchObject({
+      provider: "together",
+      model: "Qwen/Qwen-Image-2.0-Pro",
+      baseUrl: togetherImageEndpoint,
+    });
+  });
+
+  it("keeps friendly labels out of canonical selection values", () => {
+    const selection = canonicalizeImageSelection({ provider: "Together AI", model: "Qwen Image 2.0 · Recommended" });
+    expect(selection.provider).toBe("together");
+    expect(selection.model).toBe("Qwen/Qwen-Image-2.0");
+    expect(isLegacyImageSettings({ provider: "Together AI", model: "Qwen Image 2.0 · Recommended" })).toBe(true);
+    expect(needsImageSettingsNormalization({ provider: "Together AI", model: "Qwen Image 2.0 · Recommended" })).toBe(true);
+    expect(parseImageSettings({ provider: "Together AI", model: "Qwen Image 2.0 · Recommended" })).toMatchObject({
+      provider: "together",
+      model: "Qwen/Qwen-Image-2.0",
+    });
   });
 });
 

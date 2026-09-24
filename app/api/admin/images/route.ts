@@ -6,13 +6,13 @@ import { createImageProvider, imageCapabilitiesFor } from "@/lib/image-generatio
 import {
   IMAGE_PROVIDER_OPTIONS,
   imageModelsForProvider,
+  imageProviderFor,
   isImageModelForProvider,
   isSupportedImageProvider,
 } from "@/lib/image-generation/registry";
 import {
   imageSettingsKey,
   isMaskedImageApiKey,
-  normalizeImageApiKey,
   parseImageSettings,
   readStoredImageProviderConfig,
   readImageSettings,
@@ -29,18 +29,41 @@ export const dynamic = "force-dynamic";
  * The browser can select only catalog entries. In particular, it cannot send a
  * base URL: Together's official endpoint is an adapter invariant.
  */
-export const imageAdminSaveSchema = z.object({
-  enabled: z.boolean(),
+const imageSelectionFields = {
   provider: z.string().trim().min(1).max(40),
   model: z.string().trim().min(1).max(120),
+} as const;
+
+const imageAdminPersistSchema = z.object({
+  ...imageSelectionFields,
+  enabled: z.boolean(),
   defaultAspectRatio: z.enum(["1:1", "16:9", "9:16"]),
   defaultQuality: z.enum(["standard", "high"]),
   dailyLimit: z.number().int().min(1).max(100),
   allowGuestGeneration: z.boolean(),
   apiKey: z.string().trim().max(400).optional(),
   clearApiKey: z.boolean().optional(),
-  action: z.enum(["save", "test"]),
-}).strict().superRefine((value, context) => {
+  action: z.literal("save"),
+}).strict();
+
+const imageAdminTestSchema = z.object({
+  ...imageSelectionFields,
+  action: z.literal("test"),
+  // Accept the previous full-form payload during the transition, but none of
+  // these values influence a test. The current browser sends only provider and
+  // model, so a test always reflects the live controls rather than saved form
+  // defaults.
+  enabled: z.boolean().optional(),
+  defaultAspectRatio: z.enum(["1:1", "16:9", "9:16"]).optional(),
+  defaultQuality: z.enum(["standard", "high"]).optional(),
+  dailyLimit: z.number().int().min(1).max(100).optional(),
+  allowGuestGeneration: z.boolean().optional(),
+  // Kept optional for old clients, but the current browser never sends this
+  // field and the server deliberately ignores it for tests.
+  apiKey: z.string().trim().max(400).optional(),
+}).strict();
+
+function validateImageSelection(value: { provider: string; model: string; apiKey?: string }, context: z.RefinementCtx) {
   if (!isSupportedImageProvider(value.provider)) {
     context.addIssue({ code: z.ZodIssueCode.custom, path: ["provider"], message: "Choose a supported image provider." });
   }
@@ -50,7 +73,11 @@ export const imageAdminSaveSchema = z.object({
   if (value.apiKey && isMaskedImageApiKey(value.apiKey)) {
     context.addIssue({ code: z.ZodIssueCode.custom, path: ["apiKey"], message: "Enter a new API key or leave this field blank." });
   }
-});
+}
+
+export const imageAdminSaveSchema = z
+  .discriminatedUnion("action", [imageAdminPersistSchema, imageAdminTestSchema])
+  .superRefine((value, context) => validateImageSelection(value, context));
 
 type AdminImageSettings = Omit<ImageGenerationSettings, "baseUrl">;
 
@@ -71,6 +98,27 @@ function responseHeaders() {
   return { "Cache-Control": "private, no-store" };
 }
 
+function safeSelectionValue(value: unknown): string | null {
+  return typeof value === "string" ? value.trim().slice(0, 120) || null : null;
+}
+
+function selectionDiagnostics(value: unknown) {
+  const raw = value && typeof value === "object" ? value as Record<string, unknown> : {};
+  const providerReceived = safeSelectionValue(raw.provider);
+  const modelReceived = safeSelectionValue(raw.model);
+  const providerValid = providerReceived !== null && isSupportedImageProvider(providerReceived);
+  const modelValid = providerValid && modelReceived !== null && isImageModelForProvider(providerReceived, modelReceived);
+  return { providerReceived, providerValid, modelReceived, modelValid };
+}
+
+function invalidSelectionResponse(value: unknown) {
+  return Response.json({
+    error: "Choose a provider and model from the available options.",
+    code: "INVALID_INPUT",
+    diagnostics: selectionDiagnostics(value),
+  }, { status: 400, headers: responseHeaders() });
+}
+
 /** Admin image-generation settings. The endpoint and decrypted key stay server-side. */
 export async function GET() {
   // This is an owner surface, not a public app API. The admin session is the
@@ -88,22 +136,40 @@ export async function POST(request: Request) {
   if (auth.response) return auth.response;
   const admin = auth.session;
 
-  const parsed = imageAdminSaveSchema.safeParse(await request.json().catch(() => null));
-  if (!parsed.success) return jsonError("Choose a provider and model from the available options.", 400, "INVALID_INPUT");
-  const { action, apiKey, clearApiKey, ...settings } = parsed.data;
+  const body = await request.json().catch(() => null);
+  const parsed = imageAdminSaveSchema.safeParse(body);
+  if (!parsed.success) return invalidSelectionResponse(body);
+  const { action } = parsed.data;
 
   if (action === "test") {
-    // A saved encrypted key is authoritative. The browser may omit the key
-    // entirely, and a typed replacement is only used when no saved key exists.
+    // A saved encrypted key is authoritative. The browser sends only the
+    // current provider/model selection; credentials stay server-side.
     const stored = await readStoredImageProviderConfig();
-    const candidate = stored?.apiKey ?? normalizeImageApiKey(apiKey) ?? resolveEnvironmentTogetherApiKey();
-    if (!candidate) return jsonError("Add a Together AI API key first.", 400, "NOT_CONFIGURED");
+    const candidate = stored?.apiKey ?? resolveEnvironmentTogetherApiKey();
+    const selection = selectionDiagnostics(parsed.data);
+    const endpoint = imageProviderFor(parsed.data.provider)?.endpoint ?? "";
+    if (!candidate) {
+      return Response.json({
+        error: "Add a Together AI API key first.",
+        code: "NOT_CONFIGURED",
+        diagnostics: {
+          ...selection,
+          provider: imageProviderFor(parsed.data.provider)?.label ?? "Together AI",
+          endpoint,
+          keyLoaded: false,
+          keySuffix: null,
+          storedKeyPresent: Boolean(stored?.apiKey),
+          providerRequestStarted: false,
+          httpStatus: null,
+        },
+      }, { status: 400, headers: responseHeaders() });
+    }
 
-    const testSettings = parseImageSettings(settings);
-    const capabilities = imageCapabilitiesFor({ provider: "together", model: testSettings.model });
+    const testSettings = parseImageSettings({ provider: parsed.data.provider, model: parsed.data.model });
+    const capabilities = imageCapabilitiesFor({ provider: testSettings.provider, model: testSettings.model });
 
     const provider = createImageProvider({
-      provider: "together",
+      provider: testSettings.provider,
       apiKey: candidate,
       baseUrl: testSettings.baseUrl,
       model: testSettings.model,
@@ -112,18 +178,32 @@ export async function POST(request: Request) {
     });
     const result = await provider.testConnection();
     await auditAdmin(request, admin.email, "image_settings.test", "image_settings", "singleton", result.ok ? "success" : "failure", {
-      provider: "together",
+      provider: testSettings.provider,
       model: testSettings.model,
       httpStatus: result.diagnostics?.httpStatus ?? null,
-      keySource: stored ? "admin" : apiKey ? "request" : "environment",
+      keySource: stored ? "admin" : "environment",
     });
+    const diagnostics = {
+      ...result.diagnostics,
+      ...selection,
+      provider: result.diagnostics?.provider ?? "Together AI",
+      endpoint: result.diagnostics?.endpoint ?? endpoint,
+      keyLoaded: result.diagnostics?.keyLoaded ?? true,
+      keySuffix: result.diagnostics?.keySuffix ?? candidate.slice(-4),
+      storedKeyPresent: Boolean(stored?.apiKey),
+      providerRequestStarted: result.diagnostics?.providerRequestStarted ?? false,
+      httpStatus: result.diagnostics?.httpStatus ?? null,
+    };
+    const safeResult = { ...result, diagnostics };
     return Response.json(
-      result.ok
-        ? { ...result, capabilities, referenceConditioning: capabilities.supportsReferenceImages }
-        : result,
-      { status: result.ok ? 200 : 400, headers: responseHeaders() },
+      safeResult.ok
+        ? { ...safeResult, capabilities, referenceConditioning: capabilities.supportsReferenceImages }
+        : safeResult,
+      { status: safeResult.ok ? 200 : 400, headers: responseHeaders() },
     );
   }
+
+  const { apiKey, clearApiKey, ...settings } = parsed.data;
 
   try {
     // `parseImageSettings` applies the official Together endpoint internally.

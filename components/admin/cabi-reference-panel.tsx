@@ -208,8 +208,8 @@ export function CabiReferencePanel({ selectedProvider, selectedModel, selectedMo
   const supportsReference = capability?.supportsReferenceImages === true;
   const capabilityMessage = selectedModelDefinition
     ? (selectedModelDefinition.supportsReferenceImages
-        ? "Cabi's official reference will be used automatically with every generation."
-        : "This model cannot use Cabi's official reference image directly. Character consistency may be lower.")
+        ? "Cabi's official reference will be used automatically."
+        : "This model uses Cabi's character specification only.")
     : payload?.provider.message ?? "Capability is resolved from the configured model.";
 
   return (
@@ -322,10 +322,10 @@ export function CabiReferencePanel({ selectedProvider, selectedModel, selectedMo
         <dl className="mt-3 space-y-2 text-[12px]">
           <Row label="Provider" value={effectiveProvider} />
           <Row label="Model" value={selectedModelDefinition?.label ?? effectiveModel} />
-          <Row label="Reference Image" value={payload?.provider.referenceConfigured ? "Configured" : "Not configured"} />
+          {supportsReference ? <Row label="Cabi Reference" value="ACTIVE" /> : null}
           <Row
             label="Reference Conditioning"
-            value={!capabilityKnown ? "CHECKING…" : supportsReference ? "SUPPORTED" : "NOT SUPPORTED BY CURRENT MODEL"}
+            value={!capabilityKnown ? "CHECKING…" : supportsReference ? "SUPPORTED" : "NOT SUPPORTED"}
           />
         </dl>
         <p className="mt-3 flex items-start gap-2 rounded-xl border border-white/[0.06] bg-white/[0.02] p-3 text-[11px] leading-5 text-[#8e889b]">
@@ -337,7 +337,7 @@ export function CabiReferencePanel({ selectedProvider, selectedModel, selectedMo
         <p className="mt-2 text-[11px] leading-5 text-[#625d6d]">
           {supportsReference
             ? "No client upload or replacement is needed; the active official image is selected server-side."
-            : "Choose Qwen Image 2.0 or Qwen Image 2.0 Pro to condition directly on the official reference."}
+            : "No reference image is sent for this model."}
         </p>
       </section>
 

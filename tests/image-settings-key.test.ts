@@ -88,7 +88,29 @@ describe("admin image key persistence", () => {
     expect(stored?.apiKey).toBe("together-secret-value");
     expect(stored?.apiKeySource).toBe("admin");
     expect(mocks.state.secret?.last_four).toBe("alue");
+    expect(mocks.state.setting?.value_json.provider).toBe("together");
+    expect(mocks.state.setting?.value_json.model).toBe("Qwen/Qwen-Image-2.0");
     expect(JSON.stringify(mocks.state.upserts)).not.toContain("together-secret-value");
+  });
+
+  it("normalizes friendly labels on reload and rewrites the saved canonical row", async () => {
+    mocks.state.setting = {
+      value_json: {
+        ...settings,
+        provider: "Together AI",
+        model: "Qwen Image 2.0 · Recommended",
+      },
+    };
+
+    const loaded = await readImageSettings();
+    expect(loaded.provider).toBe("together");
+    expect(loaded.model).toBe("Qwen/Qwen-Image-2.0");
+    expect(mocks.state.setting?.value_json.provider).toBe("together");
+    expect(mocks.state.setting?.value_json.model).toBe("Qwen/Qwen-Image-2.0");
+
+    const reloaded = await readImageSettings();
+    expect(reloaded.provider).toBe("together");
+    expect(reloaded.model).toBe("Qwen/Qwen-Image-2.0");
   });
 
   it("preserves the existing encrypted key when the admin input is blank", async () => {

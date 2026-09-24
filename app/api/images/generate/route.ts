@@ -217,6 +217,7 @@ export async function POST(request: Request) {
     aspectRatio,
     quality: providerConfig.settings.defaultQuality,
     seed: plan.seed ?? undefined,
+    negativePrompt: plan.negative,
     referenceImages: plan.referenceImages,
     preparedPrompt: plan.prompt,
   });

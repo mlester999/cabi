@@ -25,7 +25,10 @@ const payload = {
   models: imageModelsForProvider("together"),
 };
 
+const requestBodies: Array<Record<string, unknown>> = [];
+
 beforeEach(() => {
+  requestBodies.length = 0;
   globalThis.fetch = vi.fn(async (input: RequestInfo | URL) => {
     if (String(input).includes("/api/admin/images")) return new Response(JSON.stringify(payload), { status: 200 });
     return new Response("not found", { status: 404 });
@@ -40,7 +43,9 @@ describe("owner image settings panel", () => {
     expect(screen.getByRole("combobox", { name: "Provider" })).toHaveValue("together");
     expect(screen.getByRole("combobox", { name: "Model" })).toHaveValue("Qwen/Qwen-Image-2.0");
     expect(screen.getByRole("option", { name: /Qwen Image 2\.0 · Recommended/ })).toBeInTheDocument();
-    expect(screen.getByRole("option", { name: /Qwen Image 2\.0 Pro · Premium/ })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: /Qwen Image 2\.0 Pro · Highest Quality/ })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: /Qwen Image · Budget/ })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: /FLUX Kontext Pro · Character Consistency/ })).toBeInTheDocument();
     expect(screen.getByLabelText("Together AI API Key")).toHaveAttribute("type", "password");
     expect(screen.queryByLabelText(/Base URL/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/OpenAI-compatible/i)).not.toBeInTheDocument();
@@ -52,7 +57,51 @@ describe("owner image settings panel", () => {
     render(<AdminImagesPanel />);
     const model = await screen.findByRole("combobox", { name: "Model" });
     fireEvent.change(model, { target: { value: "Qwen/Qwen-Image" } });
-    expect(screen.getByText("Text only")).toBeInTheDocument();
+    expect(screen.getAllByText("Text to Image").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Reference Images").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("✕").length).toBeGreaterThan(0);
     expect(screen.getByTestId("cabi-reference-panel")).toHaveAttribute("data-model", "Qwen/Qwen-Image");
+  });
+
+  it("can select Qwen Image 2.0 Pro and keeps it after a reload", async () => {
+    let serverPayload = payload;
+    globalThis.fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input).includes("/api/admin/images") && init?.method === "POST") {
+        const body = JSON.parse(String(init.body)) as Record<string, unknown>;
+        expect(body.model).toBe("Qwen/Qwen-Image-2.0-Pro");
+        serverPayload = {
+          ...payload,
+          settings: { ...payload.settings, model: "Qwen/Qwen-Image-2.0-Pro" },
+        };
+      }
+      if (String(input).includes("/api/admin/images")) return new Response(JSON.stringify(serverPayload), { status: 200 });
+      return new Response("not found", { status: 404 });
+    }) as unknown as typeof fetch;
+
+    const first = render(<AdminImagesPanel />);
+    const model = await screen.findByRole("combobox", { name: "Model" });
+    fireEvent.change(model, { target: { value: "Qwen/Qwen-Image-2.0-Pro" } });
+    expect(model).toHaveValue("Qwen/Qwen-Image-2.0-Pro");
+    fireEvent.click(screen.getByRole("button", { name: "Save settings" }));
+    await waitFor(() => expect(screen.getByRole("combobox", { name: "Model" })).toHaveValue("Qwen/Qwen-Image-2.0-Pro"));
+
+    first.unmount();
+    render(<AdminImagesPanel />);
+    await waitFor(() => expect(screen.getByRole("combobox", { name: "Model" })).toHaveValue("Qwen/Qwen-Image-2.0-Pro"));
+  });
+
+  it("sends only the current canonical selection for a connection test", async () => {
+    globalThis.fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (init?.body) requestBodies.push(JSON.parse(String(init.body)) as Record<string, unknown>);
+      if (String(input).includes("/api/admin/images")) return new Response(JSON.stringify(payload), { status: 200 });
+      return new Response("not found", { status: 404 });
+    }) as unknown as typeof fetch;
+
+    render(<AdminImagesPanel />);
+    await waitFor(() => expect(screen.getByRole("combobox", { name: "Provider" })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "Test Together AI" }));
+
+    await waitFor(() => expect(requestBodies).toHaveLength(1));
+    expect(requestBodies[0]).toEqual({ provider: "together", model: "Qwen/Qwen-Image-2.0", action: "test" });
   });
 });

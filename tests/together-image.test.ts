@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   defaultTogetherImageModel,
   classifyTogetherHttpError,
+  buildTogetherRequestBody,
   generateTogetherImage,
   resolveTogetherApiKey,
   resolveTogetherModel,
@@ -145,6 +146,24 @@ describe("request construction", () => {
     expect(calls[0].body.model).toBe("Qwen/Qwen-Image-2.0");
   });
 
+  it("builds optional fields for a reference-capable Qwen model from the registry", () => {
+    const { body } = buildTogetherRequestBody({
+      prompt: "Cabi at a desk",
+      aspectRatio: "1:1",
+      seed: 42,
+      negativePrompt: "blurry",
+      referenceImages: ["data:image/png;base64,reference"],
+    }, "Qwen/Qwen-Image-2.0");
+    expect(body).toMatchObject({
+      model: "Qwen/Qwen-Image-2.0",
+      steps: 28,
+      seed: 42,
+      negative_prompt: "blurry",
+      image_url: "data:image/png;base64,reference",
+    });
+    expect(body).not.toHaveProperty("reference_images");
+  });
+
   it("authenticates with the key as a bearer token and never in the body", async () => {
     stubFetch(() => new Response(JSON.stringify({ data: [{ b64_json: pngB64 }] }), { status: 200 }));
     await generateTogetherImage({ prompt: "Cabi waving", aspectRatio: "1:1" });
@@ -169,14 +188,42 @@ describe("request construction", () => {
 
   it("does not send reference images to the verified text-to-image-only model", async () => {
     stubFetch(() => new Response(JSON.stringify({ data: [{ b64_json: pngB64 }] }), { status: 200 }));
-    await generateTogetherImage({ prompt: "Cabi waving", aspectRatio: "1:1", referenceImages: ["/assets/cabi-cpu-model.png"] }, { model: "Qwen/Qwen-Image" });
+    await generateTogetherImage({
+      prompt: "Cabi waving",
+      aspectRatio: "1:1",
+      seed: 123,
+      negativePrompt: "blurry",
+      referenceImages: ["/assets/cabi-cpu-model.png"],
+    }, { model: "Qwen/Qwen-Image" });
     expect(calls[0].body).not.toHaveProperty("image_url");
+    expect(calls[0].body).not.toHaveProperty("reference_images");
+    expect(calls[0].body).not.toHaveProperty("seed");
+    expect(calls[0].body).not.toHaveProperty("negative_prompt");
+    expect(calls[0].body.steps).toBe(28);
+  });
+
+  it("uses the verified Kontext model and its image_url reference field", async () => {
+    stubFetch(() => new Response(JSON.stringify({ data: [{ b64_json: pngB64 }] }), { status: 200 }));
+    await generateTogetherImage({
+      prompt: "Cabi in a new scene",
+      aspectRatio: "16:9",
+      seed: 7,
+      referenceImages: ["https://example.test/cabi.png"],
+    }, { model: "black-forest-labs/FLUX.1-kontext-pro" });
+    expect(calls[0].body).toMatchObject({
+      model: "black-forest-labs/FLUX.1-kontext-pro",
+      image_url: "https://example.test/cabi.png",
+      seed: 7,
+      steps: 28,
+    });
+    expect(calls[0].body).not.toHaveProperty("reference_images");
   });
 
   it("only claims reference support for models that accept it", () => {
     expect(supportsReferenceImages("Qwen/Qwen-Image")).toBe(false);
     expect(supportsReferenceImages("Qwen/Qwen-Image-2.0")).toBe(true);
     expect(supportsReferenceImages("Qwen/Qwen-Image-2.0-Pro")).toBe(true);
+    expect(supportsReferenceImages("black-forest-labs/FLUX.1-kontext-pro")).toBe(true);
     expect(supportsReferenceImages("Qwen/Qwen-Image-Edit")).toBe(false);
   });
 });
@@ -192,6 +239,13 @@ describe("provider abstraction surface", () => {
     stubFetch(() => new Response(JSON.stringify({ data: [{ b64_json: pngB64 }] }), { status: 200 }));
     await generateTogetherImage({ prompt: "Cabi waving", aspectRatio: "1:1" });
     expect(calls[0].body).not.toHaveProperty("seed");
+  });
+
+  it("tests the selected Together model instead of reverting to the default", async () => {
+    stubFetch(() => new Response(JSON.stringify({ data: [{ b64_json: pngB64 }] }), { status: 200 }));
+    const result = await testTogetherConnection({ model: "Qwen/Qwen-Image-2.0-Pro" });
+    expect(result.ok).toBe(true);
+    expect(calls[0].body.model).toBe("Qwen/Qwen-Image-2.0-Pro");
   });
 
   it("accepts a referenceImages array without sending it to a text-to-image model", async () => {
@@ -468,7 +522,18 @@ describe("connection test", () => {
     expect(calls[0].body).not.toHaveProperty("reference_images");
     expect(JSON.stringify(result)).not.toContain("test-key-not-real");
     if (!result.ok) return;
-    expect(result.diagnostics).toMatchObject({ provider: "Together AI", endpoint: togetherImageEndpoint, keyLoaded: true, keySuffix: "real", httpStatus: 200 });
+    expect(result.diagnostics).toMatchObject({
+      provider: "Together AI",
+      providerReceived: "together",
+      providerValid: true,
+      modelReceived: "Qwen/Qwen-Image-2.0",
+      modelValid: true,
+      providerRequestStarted: true,
+      endpoint: togetherImageEndpoint,
+      keyLoaded: true,
+      keySuffix: "real",
+      httpStatus: 200,
+    });
   });
 
   it("fails the test when generation fails", async () => {

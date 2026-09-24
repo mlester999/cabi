@@ -2,7 +2,7 @@ import "server-only";
 
 import { generateTogetherImage } from "@/lib/ai/image/together";
 import { buildCabiImagePrompt, cabiNegativePrompt, cabiReferenceAsset } from "@/lib/image-generation/cabi-character";
-import { imageModelFor, recommendedImageModel } from "@/lib/image-generation/registry";
+import { imageModelFor, imageProviderFor, recommendedImageModel } from "@/lib/image-generation/registry";
 import {
   aspectRatioSizes,
   noImageCapabilities,
@@ -59,6 +59,8 @@ export type ImageGenerationRequest = {
   quality?: ImageQuality;
   /** Reproducible results when the provider supports seeding. */
   seed?: number;
+  /** Server-controlled negative guidance, when the selected model supports it. */
+  negativePrompt?: string;
   /**
    * Canonical reference images for character consistency. Server-controlled:
    * never populated from client input.
@@ -102,8 +104,8 @@ function decodeBase64Image(value: unknown): { bytes: Uint8Array; contentType: Ge
 
 /** OpenAI-compatible images API (`/images/generations`). */
 function createOpenAiCompatibleProvider(config: ImageProviderConfig): ImageGenerationProvider {
-  const base = (config.baseUrl || "https://api.openai.com/v1").replace(/\/$/u, "");
-  const model = config.model || "gpt-image-1";
+  const base = config.baseUrl?.trim().replace(/\/$/u, "") || null;
+  const model = config.model?.trim() || null;
   /*
    * This adapter calls `/images/generations`, which is a text-to-image endpoint on
    * every service that implements it. There is no image input on that route, so
@@ -111,10 +113,13 @@ function createOpenAiCompatibleProvider(config: ImageProviderConfig): ImageGener
    * conditioning the request would silently drop.
    */
   const capabilities: ImageProviderCapabilities = {
+    supportsTextToImage: false,
     supportsReferenceImages: false,
     supportsImageToImage: false,
     supportsImageEditing: false,
     supportsSeed: false,
+    supportsNegativePrompt: false,
+    supportsSteps: false,
   };
 
   return {
@@ -123,6 +128,7 @@ function createOpenAiCompatibleProvider(config: ImageProviderConfig): ImageGener
     supportsReferenceImage: capabilities.supportsReferenceImages,
     capabilities,
     async generateCabiImage({ scene, aspectRatio, quality, preparedPrompt, signal }) {
+      if (!base || !model) return fail("NOT_CONFIGURED", "The image provider is missing its endpoint or model.");
       const { signal: scoped, clear } = timedSignal(signal);
       try {
         const response = await fetch(`${base}/images/generations`, {
@@ -155,6 +161,7 @@ function createOpenAiCompatibleProvider(config: ImageProviderConfig): ImageGener
       }
     },
     async testConnection() {
+      if (!base || !model) return { ok: false, error: "NOT_CONFIGURED", message: "The image provider is missing its endpoint or model." };
       const { signal, clear } = timedSignal();
       try {
         const response = await fetch(`${base}/models`, { headers: { Authorization: `Bearer ${config.apiKey}` }, signal });
@@ -268,11 +275,11 @@ function createTogetherProvider(config: ImageProviderConfig): ImageGenerationPro
     label: "Together AI",
     supportsReferenceImage: capabilities.supportsReferenceImages,
     capabilities,
-    async generateCabiImage({ scene, aspectRatio, seed, referenceImages, preparedPrompt }) {
+    async generateCabiImage({ scene, aspectRatio, seed, negativePrompt, referenceImages, preparedPrompt }) {
       // seed and referenceImages are forwarded, but the Together service only
       // sends them when the selected model genuinely supports them.
       const result = await generateTogetherImage(
-        { prompt: scene, aspectRatio, seed, referenceImages, preparedPrompt },
+        { prompt: scene, aspectRatio, seed, negativePrompt, referenceImages, preparedPrompt },
         { apiKey: config.apiKey, model },
       );
       if (result.ok) return result;
@@ -302,8 +309,11 @@ export function createImageProvider(config: ImageProviderConfig): ImageGeneratio
     };
     return unconfigured;
   }
+  // Catalog-backed providers route through their registry definition first;
+  // legacy adapters below remain available only for deliberately persisted
+  // non-catalog settings.
+  if (imageProviderFor(config.provider)?.id === "together") return createTogetherProvider(config);
   switch (config.provider) {
-    case "together": return createTogetherProvider(config);
     case "stability": return createStabilityProvider(config);
     case "custom": return createCustomProvider(config);
     case "replicate": return createOpenAiCompatibleProvider({ ...config, baseUrl: config.baseUrl || "https://api.replicate.com/v1" });
@@ -323,10 +333,14 @@ export function imageCapabilitiesFor(config: { provider: ImageProviderConfig["pr
   const model = imageModelFor(config.provider, config.model ?? "");
   if (!model) return { ...noImageCapabilities };
   return {
+    supportsTextToImage: model.supportsTextToImage,
     supportsReferenceImages: model.supportsReferenceImages,
     supportsImageToImage: model.supportsImageEditing,
     supportsImageEditing: model.supportsImageEditing,
     supportsSeed: model.supportsSeed,
+    referenceParameter: model.referenceParameter,
+    supportsNegativePrompt: model.supportsNegativePrompt,
+    supportsSteps: model.supportsSteps,
   };
 }
 export { cabiReferenceAsset };

@@ -1,4 +1,35 @@
-import type { ImageProviderId } from "@/lib/image-generation/types";
+import type { AspectRatio, ImageProviderId } from "@/lib/image-generation/types";
+
+export type ImageProviderDefinition = {
+  id: Extract<ImageProviderId, "together">;
+  label: string;
+  description: string;
+  endpoint: string;
+};
+
+/**
+ * Canonical provider registry.
+ *
+ * The id is the value persisted in settings and submitted by the admin form;
+ * the label is presentation-only. Keep provider metadata here so the UI,
+ * validation, persistence normalization, and adapters cannot drift apart.
+ */
+export const IMAGE_PROVIDERS = {
+  together: {
+    id: "together",
+    label: "Together AI",
+    description: "Verified image generation and reference conditioning for Cabi.",
+    endpoint: "https://api.together.xyz/v1/images/generations",
+  },
+} as const satisfies Record<string, ImageProviderDefinition>;
+
+export type CatalogImageProviderId = keyof typeof IMAGE_PROVIDERS;
+
+export type ImageReferenceParameter = "image_url" | "reference_images";
+
+export type ImageModelTier = "budget" | "standard" | "pro" | "specialized";
+
+const supportedTogetherSizes = ["1:1", "16:9", "9:16"] as const satisfies readonly AspectRatio[];
 
 /**
  * The image catalog is the single source of truth for the owner-facing model
@@ -7,15 +38,22 @@ import type { ImageProviderId } from "@/lib/image-generation/types";
  */
 export type ImageModelDefinition = {
   id: string;
-  provider: Extract<ImageProviderId, "together">;
+  provider: CatalogImageProviderId;
   label: string;
   description: string;
+  useCase: string;
   qualityNote?: string;
+  badges: readonly string[];
+  tier: ImageModelTier;
+  supportedSizes: readonly AspectRatio[];
+  supportsTextToImage: boolean;
   supportsReferenceImages: boolean;
+  referenceParameter?: ImageReferenceParameter;
   supportsImageEditing: boolean;
   supportsSeed: boolean;
+  supportsNegativePrompt: boolean;
+  supportsSteps: boolean;
   recommended?: boolean;
-  premium?: boolean;
 };
 
 export const IMAGE_MODELS = {
@@ -24,9 +62,17 @@ export const IMAGE_MODELS = {
     provider: "together",
     label: "Qwen Image 2.0",
     description: "Best balance for Cabi generation and reference-image consistency.",
+    useCase: "Best default balance for Cabi.",
+    badges: ["Recommended", "Reference Ready", "Image Editing"],
+    tier: "standard",
+    supportedSizes: supportedTogetherSizes,
+    supportsTextToImage: true,
     supportsReferenceImages: true,
+    referenceParameter: "image_url",
     supportsImageEditing: true,
     supportsSeed: true,
+    supportsNegativePrompt: true,
+    supportsSteps: true,
     recommended: true,
   },
   "Qwen/Qwen-Image-2.0-Pro": {
@@ -35,10 +81,17 @@ export const IMAGE_MODELS = {
     label: "Qwen Image 2.0 Pro",
     description: "Use when you want maximum visual quality for a final generation.",
     qualityNote: "Highest quality · higher generation cost",
+    useCase: "Higher-quality final Cabi generations.",
+    badges: ["Highest Quality", "Reference Ready", "Image Editing"],
+    tier: "pro",
+    supportedSizes: supportedTogetherSizes,
+    supportsTextToImage: true,
     supportsReferenceImages: true,
+    referenceParameter: "image_url",
     supportsImageEditing: true,
     supportsSeed: true,
-    premium: true,
+    supportsNegativePrompt: true,
+    supportsSteps: true,
   },
   "Qwen/Qwen-Image": {
     id: "Qwen/Qwen-Image",
@@ -46,23 +99,46 @@ export const IMAGE_MODELS = {
     label: "Qwen Image",
     description: "Verified text-to-image option for scenes that do not need direct reference conditioning.",
     qualityNote: "Text-to-image only",
+    useCase: "Cheaper generations where exact character consistency is less important.",
+    badges: ["Budget", "Text to Image"],
+    tier: "budget",
+    supportedSizes: supportedTogetherSizes,
+    supportsTextToImage: true,
     supportsReferenceImages: false,
     supportsImageEditing: false,
+    supportsSeed: false,
+    supportsNegativePrompt: false,
+    supportsSteps: true,
+  },
+  "black-forest-labs/FLUX.1-kontext-pro": {
+    id: "black-forest-labs/FLUX.1-kontext-pro",
+    provider: "together",
+    label: "FLUX Kontext Pro",
+    description: "Strong reference preservation for identity-led edits and scene changes.",
+    useCase: "Strong Cabi identity and reference preservation.",
+    badges: ["Character Consistency", "Reference Image", "Image Editing"],
+    tier: "specialized",
+    supportedSizes: supportedTogetherSizes,
+    supportsTextToImage: true,
+    supportsReferenceImages: true,
+    referenceParameter: "image_url",
+    supportsImageEditing: true,
     supportsSeed: true,
+    supportsNegativePrompt: false,
+    supportsSteps: true,
   },
 } satisfies Record<string, ImageModelDefinition>;
 
 export type ImageModelId = keyof typeof IMAGE_MODELS;
 
-export const IMAGE_PROVIDER_OPTIONS = [
-  {
-    id: "together" as const,
-    label: "Together AI",
-    description: "Verified image generation and reference conditioning for Cabi.",
-  },
-] as const;
+/** UI options are derived from the provider registry; labels are never stored. */
+export const IMAGE_PROVIDER_OPTIONS = Object.values(IMAGE_PROVIDERS);
 
 export type ImageProviderOption = (typeof IMAGE_PROVIDER_OPTIONS)[number];
+
+export function imageProviderFor(provider: string): ImageProviderDefinition | null {
+  return Object.values(IMAGE_PROVIDERS).find((candidate) => candidate.id === provider) ?? null;
+}
 
 export function imageModelsForProvider(provider: string): ImageModelDefinition[] {
   return Object.values(IMAGE_MODELS).filter((model) => model.provider === provider);
@@ -76,7 +152,7 @@ export function imageModelFor(provider: string, modelId: string): ImageModelDefi
 }
 
 export function isSupportedImageProvider(value: string): value is ImageProviderOption["id"] {
-  return IMAGE_PROVIDER_OPTIONS.some((provider) => provider.id === value);
+  return imageProviderFor(value) !== null;
 }
 
 export function isImageModelForProvider(provider: string, modelId: string): boolean {

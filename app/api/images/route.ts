@@ -126,6 +126,7 @@ export async function POST(request: Request) {
     aspectRatio: aspectRatio as "1:1" | "16:9" | "9:16",
     quality,
     seed: plan.seed ?? undefined,
+    negativePrompt: plan.negative,
     referenceImages: plan.referenceImages,
     preparedPrompt: plan.prompt,
   });

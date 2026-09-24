@@ -53,7 +53,7 @@ type ConnectionResult = {
 };
 
 const emptySettings: Settings = {
-  enabled: false,
+  enabled: true,
   provider: "together",
   model: "Qwen/Qwen-Image-2.0",
   defaultAspectRatio: "1:1",
@@ -144,16 +144,21 @@ export function AdminImagesPanel() {
     const { hasApiKey: _hasApiKey, keyLastFour: _keyLastFour, ...editableSettings } = settings;
     void _hasApiKey;
     void _keyLastFour;
-    try {
-      const response = await fetch("/api/admin/images", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+    const body = action === "test"
+      // Testing is a read-only operation: the server resolves the stored key
+      // and validates exactly the current selection shown in these controls.
+      ? { provider: settings.provider, model: settings.model, action }
+      : {
           ...editableSettings,
           action,
           ...(apiKey ? { apiKey } : {}),
           ...(clearApiKey ? { clearApiKey: true } : {}),
-        }),
+        };
+    try {
+      const response = await fetch("/api/admin/images", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
       });
       const payload = await response.json() as CatalogPayload & ConnectionResult & { error?: string };
       if (!response.ok) {
@@ -239,18 +244,25 @@ export function AdminImagesPanel() {
             <span className={label}>Model</span>
             <span className="relative mt-2 block">
               <select aria-label="Model" value={settings.model} onChange={(event) => changeModel(event.target.value)} className={`${field} appearance-none pr-10`}>
-                {models.filter((entry) => entry.provider === settings.provider).map((model) => <option key={model.id} value={model.id}>{model.label}{model.recommended ? " · Recommended" : model.premium ? " · Premium" : ""}</option>)}
+                {models.filter((entry) => entry.provider === settings.provider).map((model) => <option key={model.id} value={model.id}>{model.label}{model.badges[0] ? ` · ${model.badges[0]}` : ""}</option>)}
               </select>
               <ChevronDown size={15} className="pointer-events-none absolute right-3 top-3.5 text-[#777180]" aria-hidden="true" />
             </span>
             {selectedModel ? (
               <span className="mt-2 block rounded-xl border border-white/[0.07] bg-white/[0.02] px-3 py-2.5">
                 <span className="block text-[12px] font-semibold text-white">{selectedModel.label}</span>
-                <span className="mt-0.5 block text-[11px] leading-5 text-[#8e889b]">{selectedModel.description}</span>
+                <span className="mt-0.5 block text-[11px] leading-5 text-[#8e889b]">{selectedModel.useCase}</span>
+                {selectedModel.qualityNote ? <span className="mt-1 block text-[10px] text-[#625d6d]">{selectedModel.qualityNote}</span> : null}
                 <span className="mt-2 flex flex-wrap gap-1.5">
-                  <Badge tone={selectedModel.supportsReferenceImages ? "green" : "muted"}>{selectedModel.supportsReferenceImages ? "Reference ready" : "Text only"}</Badge>
-                  {selectedModel.supportsImageEditing ? <Badge tone="violet">Image editing</Badge> : null}
-                  {selectedModel.premium ? <Badge tone="amber">Higher cost</Badge> : null}
+                  {selectedModel.badges.map((badge) => <Badge key={badge} tone={badge === "Recommended" || badge === "Reference Ready" || badge === "Character Consistency" ? "green" : badge === "Highest Quality" ? "amber" : "violet"}>{badge}</Badge>)}
+                </span>
+                <span className="mt-3 grid gap-1.5 sm:grid-cols-2" aria-label="Model capabilities">
+                  <Capability label="Text to Image" supported={selectedModel.supportsTextToImage} />
+                  <Capability label="Reference Images" supported={selectedModel.supportsReferenceImages} />
+                  <Capability label="Image Editing" supported={selectedModel.supportsImageEditing} />
+                  <Capability label="Seed" supported={selectedModel.supportsSeed} />
+                  <Capability label="Negative Prompt" supported={selectedModel.supportsNegativePrompt} />
+                  <Capability label="Steps" supported={selectedModel.supportsSteps} />
                 </span>
                 <span className="mt-2 block font-mono text-[10px] text-[#625d6d]">{selectedModel.id}</span>
               </span>
@@ -324,8 +336,12 @@ export function AdminImagesPanel() {
                 {connection.diagnostics ? (
                   <dl className="mt-3 grid gap-x-4 gap-y-1 text-[10px] text-white/60 sm:grid-cols-2">
                     <div><dt className="uppercase tracking-[.1em] text-white/35">Provider</dt><dd>{connection.diagnostics.provider}</dd></div>
+                    <div><dt className="uppercase tracking-[.1em] text-white/35">Provider value</dt><dd>{connection.diagnostics.providerReceived ?? "—"} · {connection.diagnostics.providerValid === undefined ? "—" : connection.diagnostics.providerValid ? "valid" : "invalid"}</dd></div>
+                    <div><dt className="uppercase tracking-[.1em] text-white/35">Model value</dt><dd>{connection.diagnostics.modelReceived ?? "—"} · {connection.diagnostics.modelValid === undefined ? "—" : connection.diagnostics.modelValid ? "valid" : "invalid"}</dd></div>
+                    <div><dt className="uppercase tracking-[.1em] text-white/35">Stored key</dt><dd>{connection.diagnostics.storedKeyPresent === undefined ? "—" : connection.diagnostics.storedKeyPresent ? "Yes" : "No"}</dd></div>
                     <div><dt className="uppercase tracking-[.1em] text-white/35">Key loaded</dt><dd>{connection.diagnostics.keyLoaded ? "Yes" : "No"}</dd></div>
                     <div><dt className="uppercase tracking-[.1em] text-white/35">Key suffix</dt><dd>{connection.diagnostics.keySuffix ?? "—"}</dd></div>
+                    <div><dt className="uppercase tracking-[.1em] text-white/35">Request started</dt><dd>{connection.diagnostics.providerRequestStarted === undefined ? "—" : connection.diagnostics.providerRequestStarted ? "Yes" : "No"}</dd></div>
                     <div><dt className="uppercase tracking-[.1em] text-white/35">HTTP status</dt><dd>{connection.diagnostics.httpStatus ?? "—"}</dd></div>
                     <div className="sm:col-span-2"><dt className="uppercase tracking-[.1em] text-white/35">Endpoint</dt><dd className="break-all">{connection.diagnostics.endpoint}</dd></div>
                   </dl>
@@ -365,4 +381,13 @@ function Badge({ children, tone }: { children: React.ReactNode; tone: "green" | 
     muted: "border-white/[0.1] bg-white/[0.04] text-[#8e889b]",
   }[tone];
   return <span className={`rounded-full border px-2 py-0.5 text-[10px] ${styles}`}>{children}</span>;
+}
+
+function Capability({ label, supported }: { label: string; supported: boolean }) {
+  return (
+    <span className="flex items-center gap-1.5 text-[10px] text-[#a8a3b3]">
+      <span aria-hidden="true" className={supported ? "text-emerald-300" : "text-[#625d6d]"}>{supported ? "✓" : "✕"}</span>
+      <span>{label}</span>
+    </span>
+  );
 }

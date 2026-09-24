@@ -1,3 +1,5 @@
+import { IMAGE_PROVIDERS } from "@/lib/image-generation/registry";
+
 /**
  * Image generation types.
  *
@@ -37,21 +39,32 @@ export type ImageQuality = "standard" | "high";
  * on an image at all.
  */
 export type ImageProviderCapabilities = {
+  /** Accepts a text prompt as the generation source. */
+  supportsTextToImage?: boolean;
   /** Accepts a reference image alongside the prompt. */
   supportsReferenceImages: boolean;
   /** Accepts an input image to edit rather than only a text prompt. */
   supportsImageToImage: boolean;
   /** Registry-facing name for image editing support. */
   supportsImageEditing?: boolean;
+  /** The Together wire field used for an accepted reference image. */
+  referenceParameter?: "image_url" | "reference_images";
   /** Accepts a seed for reproducible output. */
   supportsSeed: boolean;
+  /** Accepts a negative prompt. */
+  supportsNegativePrompt?: boolean;
+  /** Accepts an explicit inference-step count. */
+  supportsSteps?: boolean;
 };
 
 export const noImageCapabilities: ImageProviderCapabilities = {
+  supportsTextToImage: false,
   supportsReferenceImages: false,
   supportsImageToImage: false,
   supportsImageEditing: false,
   supportsSeed: false,
+  supportsNegativePrompt: false,
+  supportsSteps: false,
 };
 
 export type ImageProviderConfig = {
@@ -90,6 +103,15 @@ export type ImageGenerationResult =
 
 export type ImageConnectionDiagnostics = {
   provider: string;
+  /** Canonical values used by server-side validation, separate from labels. */
+  providerReceived?: string;
+  providerValid?: boolean;
+  modelReceived?: string;
+  modelValid?: boolean;
+  /** True only when the decrypted admin key was the selected source. */
+  storedKeyPresent?: boolean;
+  /** True once the provider fetch was actually started. */
+  providerRequestStarted?: boolean;
   endpoint: string;
   keyLoaded: boolean;
   keySuffix: string | null;
@@ -124,9 +146,9 @@ export type ImageGenerationSettings = {
 };
 
 export const defaultImageSettings: ImageGenerationSettings = {
-  enabled: false,
+  enabled: true,
   provider: "together",
-  baseUrl: "https://api.together.xyz/v1/images/generations",
+  baseUrl: IMAGE_PROVIDERS.together.endpoint,
   model: "Qwen/Qwen-Image-2.0",
   defaultAspectRatio: "1:1",
   defaultQuality: "standard",

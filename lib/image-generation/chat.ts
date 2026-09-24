@@ -276,6 +276,7 @@ export async function generateChatImage(message: string, options: ChatImageOptio
     aspectRatio,
     quality: providerConfig.settings.defaultQuality,
     seed: plan.seed ?? undefined,
+    negativePrompt: plan.negative,
     referenceImages: plan.referenceImages,
     preparedPrompt: plan.prompt,
   });

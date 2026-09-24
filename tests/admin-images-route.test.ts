@@ -98,6 +98,27 @@ describe("admin Together connection route", () => {
     expect(mocks.configs[0]?.apiKey).toBe("environment-key");
   });
 
+  it("tests the current canonical selection instead of the saved model", async () => {
+    const response = await POST(request({ provider: "together", model: "Qwen/Qwen-Image-2.0-Pro", action: "test" }));
+    expect(response.status).toBe(200);
+    expect(mocks.configs[0]).toMatchObject({ provider: "together", model: "Qwen/Qwen-Image-2.0-Pro" });
+    const payload = await response.json() as { diagnostics?: Record<string, unknown> };
+    expect(payload.diagnostics).toMatchObject({
+      providerReceived: "together",
+      providerValid: true,
+      modelReceived: "Qwen/Qwen-Image-2.0-Pro",
+      modelValid: true,
+      storedKeyPresent: true,
+    });
+  });
+
+  it("does not use an unsaved browser key for a connection test", async () => {
+    mocks.readStored.mockResolvedValue(null);
+    const response = await POST(request({ ...settings, action: "test", apiKey: "typed-unsaved-key" }));
+    expect(response.status).toBe(200);
+    expect(mocks.configs[0]?.apiKey).toBe("environment-key");
+  });
+
   it("never accepts a masked suffix as a replacement key", async () => {
     const response = await POST(request({ ...settings, action: "save", apiKey: "••••••••••uvEA" }));
     expect(response.status).toBe(400);

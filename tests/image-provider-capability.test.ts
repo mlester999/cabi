@@ -54,6 +54,7 @@ describe("capability is derived from the model, not the provider", () => {
   it("matches only exact curated catalog entries", () => {
     expect(supportsReferenceImages("qwen/qwen-image-2.0")).toBe(false);
     expect(supportsReferenceImages("black-forest-labs/FLUX.1-Kontext-pro")).toBe(false);
+    expect(supportsReferenceImages("black-forest-labs/FLUX.1-kontext-pro")).toBe(true);
     expect(supportsReferenceImages("Qwen/Qwen-Image-2.0")).toBe(true);
     expect(supportsReferenceImages("Qwen/Qwen-Image")).toBe(false);
     expect(supportsReferenceImages("")).toBe(false);

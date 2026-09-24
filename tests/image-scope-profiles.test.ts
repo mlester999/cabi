@@ -150,8 +150,8 @@ describe("cabi character consistency", () => {
 });
 
 describe("image settings defaults", () => {
-  it("defaults to disabled with guest generation off and a small quota", () => {
-    expect(defaultImageSettings.enabled).toBe(false);
+  it("defaults to enabled with guest generation off and a small quota", () => {
+    expect(defaultImageSettings.enabled).toBe(true);
     expect(defaultImageSettings.allowGuestGeneration).toBe(false);
     expect(defaultImageSettings.dailyLimit).toBe(5);
     expect(defaultImageSettings.hasApiKey).toBe(false);

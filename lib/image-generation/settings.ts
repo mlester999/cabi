@@ -3,8 +3,7 @@ import "server-only";
 import { env } from "@/lib/config/env";
 import { getServiceClient } from "@/lib/db/supabase";
 import { decryptSecret, encryptSecret, type SecretEnvelope } from "@/lib/security/crypto";
-import { togetherImageEndpoint } from "@/lib/ai/image/together";
-import { imageModelFor, recommendedImageModel } from "@/lib/image-generation/registry";
+import { imageModelFor, imageProviderFor, recommendedImageModel } from "@/lib/image-generation/registry";
 import {
   defaultImageSettings,
   type AspectRatio,
@@ -30,6 +29,7 @@ import { z } from "zod";
 export const imageSettingsKey = "image_generation";
 export const imageSecretKey = "image_generation_api_key";
 const imageSecretAad = `cabi:secret_settings:${imageSecretKey}:v1`;
+const togetherImageEndpoint = imageProviderFor("together")!.endpoint;
 
 export type ImageApiKeySource = "admin" | "environment";
 
@@ -74,12 +74,44 @@ function recordFrom(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" ? value as Record<string, unknown> : {};
 }
 
+const providerAliases: Record<string, ImageProviderId> = {
+  together: "together",
+  "together ai": "together",
+};
+
+const modelAliases: Record<string, string> = {
+  "qwen image": "Qwen/Qwen-Image",
+  "qwen image 2.0": "Qwen/Qwen-Image-2.0",
+  "qwen image 2.0 · recommended": "Qwen/Qwen-Image-2.0",
+  "qwen image 2.0 pro": "Qwen/Qwen-Image-2.0-Pro",
+  "qwen image 2.0 pro · premium": "Qwen/Qwen-Image-2.0-Pro",
+};
+
+/**
+ * Converts presentation labels from older settings rows back to canonical
+ * ids before schema parsing. Labels are never valid persistence values.
+ */
+export function canonicalizeImageSelection(value: unknown): Record<string, unknown> {
+  const raw = recordFrom(value);
+  const rawProvider = typeof raw.provider === "string" ? raw.provider.trim() : "";
+  const rawModel = typeof raw.model === "string" ? raw.model.trim() : "";
+  const provider = providerAliases[rawProvider.toLowerCase()] ?? raw.provider;
+  const model = provider === "together"
+    ? modelAliases[rawModel.toLowerCase()] ?? raw.model
+    : raw.model;
+  return { ...raw, provider, model };
+}
+
 /** Detects the shipped pre-Together defaults only. */
 export function isLegacyImageSettings(value: unknown): boolean {
   const raw = recordFrom(value);
-  const provider = typeof raw.provider === "string" ? raw.provider.trim().toLowerCase() : "";
-  const model = typeof raw.model === "string" ? raw.model.trim() : "";
+  const canonical = canonicalizeImageSelection(value);
+  const rawProvider = typeof raw.provider === "string" ? raw.provider.trim() : "";
+  const rawModel = typeof raw.model === "string" ? raw.model.trim() : "";
+  const provider = typeof canonical.provider === "string" ? canonical.provider.trim().toLowerCase() : "";
+  const model = typeof canonical.model === "string" ? canonical.model.trim() : "";
 
+  if (rawProvider !== String(canonical.provider ?? "") || rawModel !== String(canonical.model ?? "")) return true;
   if (provider === "openai-compatible") return true;
   if (provider !== "openai") return false;
   // A deliberately configured OpenAI adapter may still use the official
@@ -90,8 +122,9 @@ export function isLegacyImageSettings(value: unknown): boolean {
 /** True when the persisted Together record needs a safe canonical rewrite. */
 export function needsImageSettingsNormalization(value: unknown): boolean {
   const raw = recordFrom(value);
-  const provider = typeof raw.provider === "string" ? raw.provider.trim().toLowerCase() : "";
-  const model = typeof raw.model === "string" ? raw.model.trim() : "";
+  const canonical = canonicalizeImageSelection(value);
+  const provider = typeof canonical.provider === "string" ? canonical.provider.trim().toLowerCase() : "";
+  const model = typeof canonical.model === "string" ? canonical.model.trim() : "";
   const baseUrl = typeof raw.baseUrl === "string" ? raw.baseUrl.trim() : "";
 
   if (isLegacyImageSettings(value)) return true;
@@ -113,7 +146,7 @@ export function modelFromEnvironment(): string | null {
 }
 
 export function parseImageSettings(value: unknown): ImageSettingsInput {
-  const parsed = imageSettingsSchema.partial().safeParse(value ?? {});
+  const parsed = imageSettingsSchema.partial().safeParse(canonicalizeImageSelection(value));
   const data = parsed.success ? parsed.data : {};
   let provider = (data.provider ?? providerFromEnvironment() ?? defaultImageSettings.provider) as ImageProviderId;
   let model = data.model && data.model.length > 0 ? data.model : modelFromEnvironment() ?? defaultImageSettings.model;

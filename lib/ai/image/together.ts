@@ -1,7 +1,12 @@
 import "server-only";
 
 import { buildCabiImagePrompt } from "@/lib/cabi/image-identity";
-import { imageModelFor, recommendedImageModel } from "@/lib/image-generation/registry";
+import {
+  IMAGE_PROVIDERS,
+  imageModelFor,
+  recommendedImageModel,
+  type ImageModelDefinition,
+} from "@/lib/image-generation/registry";
 import {
   aspectRatioSizes,
   type AspectRatio,
@@ -24,7 +29,7 @@ import {
  * reach a client.
  */
 
-export const togetherImageEndpoint = "https://api.together.xyz/v1/images/generations";
+export const togetherImageEndpoint = IMAGE_PROVIDERS.together.endpoint;
 
 /** The recommended Together model for Cabi's generation and reference workflow. */
 export const defaultTogetherImageModel = recommendedImageModel("together").id;
@@ -46,6 +51,8 @@ export type TogetherRequest = {
   aspectRatio: AspectRatio;
   /** Seeds a reproducible result when supplied by the caller. */
   seed?: number;
+  /** Negative guidance, sent only to models that advertise support. */
+  negativePrompt?: string;
   /** Reference images for character consistency, when the selected model accepts them. */
   referenceImages?: string[];
   /**
@@ -72,6 +79,10 @@ export type TogetherProviderConfig = {
 
 export function supportsReferenceImages(model: string): boolean {
   return imageModelFor("together", model)?.supportsReferenceImages === true;
+}
+
+function modelDefinitionFor(model: string): ImageModelDefinition {
+  return imageModelFor("together", model) ?? recommendedImageModel("together");
 }
 
 /** How many inference steps to request. Qwen-Image is a step-distilled model. */
@@ -145,7 +156,55 @@ export function togetherAuthorizationHeader(apiKey: string): string {
 
 export function resolveTogetherModel(): string {
   const model = process.env.TOGETHER_IMAGE_MODEL?.trim();
-  return model && imageModelFor("together", model)?.id ? model : recommendedImageModel("together").id;
+  return imageModelFor("together", model ?? "")?.id ?? recommendedImageModel("together").id;
+}
+
+function sizeForModel(model: ImageModelDefinition, ratio: AspectRatio): { width: number; height: number; aspectRatio: AspectRatio } {
+  const aspectRatio = model.supportedSizes.includes(ratio)
+    ? ratio
+    : model.supportedSizes[0] ?? "1:1";
+  return { ...sizeForAspectRatio(aspectRatio), aspectRatio };
+}
+
+/**
+ * Builds the Together wire body from the selected registry entry.
+ *
+ * Keeping this separate makes it possible to test that unsupported fields are
+ * omitted without making a provider call. The registry is the only place that
+ * decides which optional Together parameters are legal for a model.
+ */
+export function buildTogetherRequestBody(
+  request: TogetherRequest,
+  model: string,
+): { body: Record<string, unknown>; width: number; height: number; aspectRatio: AspectRatio } {
+  const definition = modelDefinitionFor(model);
+  const size = sizeForModel(definition, request.aspectRatio);
+  const body: Record<string, unknown> = {
+    model: definition.id,
+    prompt: request.preparedPrompt ?? buildCabiImagePrompt(request.prompt),
+    n: 1,
+    response_format: "url",
+  };
+
+  if (definition.supportedSizes.length > 0) {
+    body.width = size.width;
+    body.height = size.height;
+  }
+  if (definition.supportsSteps) body.steps = defaultSteps;
+  if (definition.supportsSeed && typeof request.seed === "number") body.seed = request.seed;
+  if (definition.supportsNegativePrompt && request.negativePrompt?.trim()) {
+    body.negative_prompt = request.negativePrompt.trim();
+  }
+
+  if (definition.supportsReferenceImages && definition.referenceParameter && request.referenceImages?.length) {
+    if (definition.referenceParameter === "reference_images") {
+      body.reference_images = [...request.referenceImages];
+    } else {
+      body.image_url = request.referenceImages[0];
+    }
+  }
+
+  return { body, width: size.width, height: size.height, aspectRatio: size.aspectRatio };
 }
 
 /**
@@ -169,26 +228,12 @@ export async function generateTogetherImage(
   const model = config?.model && imageModelFor("together", config.model)?.id
     ? config.model
     : resolveTogetherModel();
-  const { width, height } = sizeForAspectRatio(request.aspectRatio);
+  const selectedModel = modelDefinitionFor(model);
+  const { body, width, height } = buildTogetherRequestBody(request, selectedModel.id);
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), config?.timeoutMs ?? 120_000);
 
   try {
-    const body: Record<string, unknown> = {
-      model,
-      prompt: request.preparedPrompt ?? buildCabiImagePrompt(request.prompt),
-      n: 1,
-      width,
-      height,
-      response_format: "url",
-      steps: defaultSteps,
-    };
-    if (typeof request.seed === "number") body.seed = request.seed;
-    // Only sent when the model is known to accept image inputs.
-    if (request.referenceImages?.length && supportsReferenceImages(model)) {
-      body.image_url = request.referenceImages[0];
-    }
-
     const response = await fetch(config?.endpoint ?? togetherImageEndpoint, {
       method: "POST",
       headers: {
@@ -245,8 +290,17 @@ export async function testTogetherConnection(config?: Partial<TogetherProviderCo
 > {
   const endpoint = config?.endpoint ?? togetherImageEndpoint;
   const apiKey = config?.apiKey?.trim() || resolveTogetherApiKey();
+  const requestedModel = config?.model?.trim() || resolveTogetherModel();
+  const selectedModel = imageModelFor("together", requestedModel);
+  const model = selectedModel?.id ?? recommendedImageModel("together").id;
+  let providerRequestStarted = false;
   const diagnostics = (httpStatus: number | null, loadedKey: string | null): ImageConnectionDiagnostics => ({
     provider: "Together AI",
+    providerReceived: "together",
+    providerValid: true,
+    modelReceived: requestedModel,
+    modelValid: selectedModel !== null,
+    providerRequestStarted,
     endpoint,
     keyLoaded: Boolean(loadedKey),
     keySuffix: loadedKey ? loadedKey.slice(-4) : null,
@@ -261,9 +315,6 @@ export async function testTogetherConnection(config?: Partial<TogetherProviderCo
       diagnostics: diagnostics(null, null),
     };
   }
-  const model = config?.model && imageModelFor("together", config.model)?.id
-    ? config.model
-    : resolveTogetherModel();
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), config?.timeoutMs ?? 30_000);
@@ -271,20 +322,24 @@ export async function testTogetherConnection(config?: Partial<TogetherProviderCo
     // This is deliberately a minimal real generation request. It proves the
     // exact Together key can authenticate and generate without involving the
     // Cabi reference pipeline or any OpenAI-compatible route.
+    providerRequestStarted = true;
+    const body: Record<string, unknown> = {
+      // Keep this probe independent from the generation prompt/capability
+      // pipeline: it validates the selected model with the smallest real call.
+      model,
+      prompt: "Cabi connection test",
+      width: 512,
+      height: 512,
+      n: 1,
+      response_format: "url",
+    };
     const response = await fetch(endpoint, {
       method: "POST",
       headers: {
         Authorization: togetherAuthorizationHeader(apiKey),
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        model,
-        prompt: "Cabi connection test",
-        width: 512,
-        height: 512,
-        n: 1,
-        response_format: "url",
-      }),
+      body: JSON.stringify(body),
       signal: controller.signal,
     });
     const responseDiagnostics = diagnostics(response.status, apiKey);
