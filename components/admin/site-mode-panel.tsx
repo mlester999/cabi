@@ -99,7 +99,7 @@ export function SiteModePanel() {
         </div>
       )}
 
-      <div className="mt-5 rounded-2xl border border-[var(--cabi-hairline)] bg-[var(--cabi-surface)] p-5">
+      <div className="mt-5 rounded-[24px] border border-white/[0.065] bg-[#0e0c15] p-5">
         <fieldset disabled={busy || !state?.databaseReady}>
           <legend className="sr-only">Website mode</legend>
           <div className="grid gap-3 sm:grid-cols-3">
@@ -108,7 +108,7 @@ export function SiteModePanel() {
               return (
                 <label
                   key={mode}
-                  className={`flex cursor-pointer flex-col rounded-2xl border p-4 transition ${active ? "border-violet-300/35 bg-violet-300/[0.07]" : "border-[var(--cabi-hairline)] bg-[var(--cabi-surface-1)] hover:border-[var(--cabi-border)]"}`}
+                  className={`flex cursor-pointer flex-col rounded-2xl border p-4 transition ${active ? "border-violet-300/35 bg-violet-300/[0.07]" : "border-white/[0.07] bg-white/[0.02] hover:border-white/[0.12]"}`}
                 >
                   <span className="flex items-center justify-between gap-2">
                     <span className="text-sm font-semibold">{siteModeLabels[mode]}</span>
@@ -121,25 +121,25 @@ export function SiteModePanel() {
                       className="accent-violet-300"
                     />
                   </span>
-                  <span className="mt-2 text-[11px] leading-5 text-[var(--cabi-text-muted)]">{siteModeDescriptions[mode]}</span>
+                  <span className="mt-2 text-[11px] leading-5 text-[#777180]">{siteModeDescriptions[mode]}</span>
                 </label>
               );
             })}
           </div>
         </fieldset>
 
-        <dl className="mt-5 grid gap-3 rounded-2xl border border-[var(--cabi-hairline)] bg-[var(--cabi-surface-1)] p-4 text-xs sm:grid-cols-3">
+        <dl className="mt-5 grid gap-3 rounded-2xl border border-white/[0.06] bg-white/[0.02] p-4 text-xs sm:grid-cols-3">
           <div>
-            <dt className="text-[var(--cabi-text-muted)]">Effective mode</dt>
-            <dd className="mt-1 font-semibold text-[var(--cabi-text-secondary)]">{state ? siteModeLabels[state.mode] : "Loading…"}</dd>
+            <dt className="text-[#777180]">Effective mode</dt>
+            <dd className="mt-1 font-semibold text-violet-100">{state ? siteModeLabels[state.mode] : "Loading…"}</dd>
           </div>
           <div>
-            <dt className="text-[var(--cabi-text-muted)]">Source</dt>
-            <dd className="mt-1 text-[var(--cabi-text-secondary)]">{state ? sourceLabel[state.source] : "—"}</dd>
+            <dt className="text-[#777180]">Source</dt>
+            <dd className="mt-1 text-[#a8a3b3]">{state ? sourceLabel[state.source] : "—"}</dd>
           </div>
           <div>
-            <dt className="text-[var(--cabi-text-muted)]">Saved value</dt>
-            <dd className="mt-1 text-[var(--cabi-text-secondary)]">{state?.stored ? siteModeLabels[state.stored] : "Not saved yet"}</dd>
+            <dt className="text-[#777180]">Saved value</dt>
+            <dd className="mt-1 text-[#a8a3b3]">{state?.stored ? siteModeLabels[state.stored] : "Not saved yet"}</dd>
           </div>
         </dl>
 
@@ -148,38 +148,38 @@ export function SiteModePanel() {
             type="button"
             disabled={busy || !dirty || !state?.databaseReady}
             onClick={() => { if (draft === "LIVE") setConfirming(true); else void save(draft); }}
-            className="focus-ring flex h-11 items-center gap-2 rounded-xl bg-[var(--cabi-primary)] px-4 text-sm font-semibold text-[var(--cabi-on-primary)] transition hover:brightness-105 disabled:opacity-40"
+            className="focus-ring flex h-11 items-center gap-2 rounded-xl bg-violet-200 px-4 text-sm font-semibold text-[#160f27] transition hover:brightness-105 disabled:opacity-40"
           >
             {busy ? <LoaderCircle size={15} className="animate-spin" /> : <Check size={15} />}
             {draft === "LIVE" ? "Launch Cabi" : "Save mode"}
           </button>
           <PreviewStartButton />
-          <Link href="/" className="focus-ring flex h-11 items-center gap-2 rounded-xl border border-[var(--cabi-hairline)] bg-[var(--cabi-surface-2)] px-4 text-sm text-[var(--cabi-text-secondary)] transition hover:bg-[var(--cabi-surface-3)]">
+          <Link href="/" className="focus-ring flex h-11 items-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.03] px-4 text-sm text-[#d5d0de] transition hover:bg-white/[0.06]">
             <ExternalLink size={15} /> View public page
           </Link>
         </div>
 
-        {notice && <p role="status" className="mt-3 text-xs text-[var(--cabi-primary)]">{notice}</p>}
+        {notice && <p role="status" className="mt-3 text-xs text-violet-200">{notice}</p>}
         {error && <p role="alert" className="mt-3 text-xs text-rose-200">{error}</p>}
       </div>
 
       {confirming && (
         <div className="fixed inset-0 z-[90] grid place-items-center bg-black/75 p-4 backdrop-blur-md" role="dialog" aria-modal="true" aria-labelledby="launch-cabi-title">
           <button className="absolute inset-0" onClick={() => setConfirming(false)} aria-label="Cancel launch" />
-          <div className="glass relative w-full max-w-md rounded-2xl p-6">
-            <span className="grid h-12 w-12 place-items-center rounded-2xl border border-violet-200/15 bg-violet-300/[0.07] text-[var(--cabi-primary)]">
+          <div className="glass relative w-full max-w-md rounded-[28px] p-6">
+            <span className="grid h-12 w-12 place-items-center rounded-2xl border border-violet-200/15 bg-violet-300/[0.07] text-violet-200">
               <Rocket size={21} aria-hidden="true" />
             </span>
             <h2 id="launch-cabi-title" className="mt-5 text-xl font-semibold tracking-[-.03em]">Make Cabi public?</h2>
-            <p className="mt-2 text-sm leading-6 text-[var(--cabi-text-secondary)]">
-              Every visitor will be able to open the full application at <code className="font-mono text-[var(--cabi-text-secondary)]">/</code>, connect a wallet, and start chats.
+            <p className="mt-2 text-sm leading-6 text-[#a8a3b3]">
+              Every visitor will be able to open the full application at <code className="font-mono text-[#ddd6fe]">/</code>, connect a wallet, and start chats.
               This applies immediately and is recorded in the audit log.
             </p>
             <div className="mt-6 flex items-center gap-3">
               <button
                 type="button"
                 onClick={() => setConfirming(false)}
-                className="focus-ring h-11 flex-1 rounded-xl border border-[var(--cabi-hairline)] bg-[var(--cabi-surface-2)] text-sm font-semibold text-[var(--cabi-text-secondary)] transition hover:bg-[var(--cabi-surface-3)]"
+                className="focus-ring h-11 flex-1 rounded-xl border border-white/[0.08] bg-white/[0.03] text-sm font-semibold text-[#d5d0de] transition hover:bg-white/[0.06]"
               >
                 Cancel
               </button>
@@ -187,7 +187,7 @@ export function SiteModePanel() {
                 type="button"
                 disabled={busy}
                 onClick={() => void save("LIVE")}
-                className="focus-ring flex h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-[var(--cabi-primary)] text-sm font-semibold text-[var(--cabi-on-primary)] transition hover:brightness-105 disabled:opacity-50"
+                className="focus-ring flex h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-violet-200 text-sm font-semibold text-[#160f27] transition hover:brightness-105 disabled:opacity-50"
               >
                 {busy ? <LoaderCircle size={15} className="animate-spin" /> : <Rocket size={15} />} Launch Cabi
               </button>

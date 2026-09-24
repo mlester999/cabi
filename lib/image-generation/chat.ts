@@ -311,7 +311,7 @@ export async function generateChatImage(message: string, options: ChatImageOptio
       usedProvider: true,
       reply: "",
       card: noticeCard({
-        title: "I could not draw that one",
+        title: "Couldn't make that image",
         message: "I couldn't make that image right now. You can try again when you're ready.",
         tone: "error",
         retry: { label: "Try Again", prompt: message, parentGenerationId: generationId },
@@ -364,7 +364,7 @@ export async function generateChatImage(message: string, options: ChatImageOptio
   // The scene is echoed because the user wrote it; the identity layers and the
   // reference path are never returned.
   const prompt = plan.scene;
-  const reply = "Okayyy, give me a second. Here you go.";
+  const reply = "Here you go.";
 
   return {
     handled: true,

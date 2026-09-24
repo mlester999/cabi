@@ -2,23 +2,19 @@
 
 import { MiniCabi } from "@/components/cabi/mini-cabi";
 import { ChatMessage, type ChatMessageModel } from "@/components/chat/chat-message";
-import { CpuTokenCard } from "@/components/cpu/cpu-token-card";
 import { CpuAccessStatusMonitor } from "@/components/cpu/cpu-access-status-monitor";
 import type { CabiStatusOverrides } from "@/lib/cabi/status-messages";
-import { CpuGateBypassNotice } from "@/components/cpu/cpu-gate-bypass-notice";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { WalletButton } from "@/components/wallet/wallet-button";
 import { useWallet } from "@/components/wallet/wallet-provider";
-import { LockedFeatures, useLockedNotice } from "@/components/features/locked-feature";
-import { ImageQuotaHint } from "@/components/images/image-quota-hint";
 import { SlashCommandPalette } from "@/components/chat/slash-command-palette";
-import { InitialsAvatar, RankBadge } from "@/components/ranking/rank-badge";
+import { InitialsAvatar } from "@/components/ranking/rank-badge";
 import { ProfileSetupModal } from "@/components/profile/profile-setup-modal";
 import { RankUpCelebration } from "@/components/ranking/rank-up-celebration";
 import { tierByNumber, type RankTier } from "@/lib/ranking/tiers";
 import { celebrationFor } from "@/lib/ranking/progression-frame";
 import { readEventStream } from "@/lib/client/sse";
-import { defaultFeatureFlags, lockedFeatureOrder, type FeatureFlags } from "@/lib/config/feature-flags";
+import { defaultFeatureFlags, type FeatureFlags } from "@/lib/config/feature-flags";
 import { shouldImportGuestChat } from "@/lib/wallet/persistence";
 import {
   ImagePlus,
@@ -27,11 +23,9 @@ import {
   ChevronLeft,
   Clock3,
   Download,
-  Heart,
   Lock,
   Menu,
   MessageCircleMore,
-  MoreHorizontal,
   Pencil,
   Pin,
   PinOff,
@@ -50,7 +44,6 @@ import { FormEvent, KeyboardEvent, useCallback, useEffect, useMemo, useRef, useS
 
 type ConversationGroup = "Today" | "Yesterday" | "Previous 7 Days" | "Older";
 type Conversation = { id: string; title: string; pinned: boolean; updated_at: string; group?: ConversationGroup };
-type Bond = { level: number; label: string; progress: number; points: number };
 type StreamPayload = {
   text?: string;
   message?: string;
@@ -58,7 +51,7 @@ type StreamPayload = {
   conversationId?: string;
   persistent?: boolean;
   sources?: ChatMessageModel["sources"];
-  bond?: Bond;
+  bond?: { level: number; label: string; progress: number; points: number };
   /** Emitted by the action layer before any text, when a request produced a card. */
   card?: ChatMessageModel["actionCard"];
   /** Present only when this turn crossed a tier threshold. */
@@ -70,29 +63,27 @@ type StreamPayload = {
 const quickPrompts = ["Tell me something random", "What is Clank.trade?", "How are you today?", "Remember something about me"];
 const groupOrder = ["Pinned", "Today", "Yesterday", "Previous 7 Days", "Older"] as const;
 
-function PresenceArt({ mood, speaking = false, authenticated, bond, className = "" }: { mood: string; speaking?: boolean; authenticated: boolean; bond: Bond | null; className?: string }) {
+function PresenceArt({ mood, speaking = false, authenticated, className = "" }: { mood: string; speaking?: boolean; authenticated: boolean; className?: string }) {
   const [failed, setFailed] = useState(false);
-  const progress = authenticated ? (bond?.progress ?? 0) : 0;
   return (
-    <div className={`relative flex min-h-0 ${className || "h-[clamp(300px,42vh,500px)]"} flex-none items-end justify-center overflow-hidden rounded-2xl border border-[var(--cabi-hairline)] bg-[var(--cabi-surface)]`}>
+    <div className={`relative flex min-h-0 ${className || "h-[clamp(300px,42vh,500px)]"} flex-none items-end justify-center overflow-hidden rounded-2xl border border-violet-200/[0.10] bg-[#0d0b15]`}>
       <div className={`absolute left-1/2 top-[43%] h-[420px] w-[420px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-violet-500/[0.15] blur-[75px] transition duration-700 ${speaking ? "scale-110 opacity-100" : "scale-100 opacity-70"}`} />
       <div className="cabi-orbit absolute left-1/2 top-[42%] h-[330px] w-[330px] -translate-x-1/2 -translate-y-1/2 rounded-full border border-dashed border-violet-300/[0.14]" />
       <div className="absolute left-1/2 top-[42%] h-[250px] w-[250px] -translate-x-1/2 -translate-y-1/2 rounded-full border border-violet-300/[0.10] shadow-[0_0_80px_rgba(167,139,250,.1)]" />
       <span className="absolute left-8 top-8 h-1.5 w-1.5 rounded-full bg-[var(--cabi-primary)]/70 shadow-[42px_80px_0_rgba(196,181,253,.36),250px_42px_0_rgba(196,181,253,.4),215px_190px_0_rgba(196,181,253,.25)]" />
       {!failed ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src="/assets/cabi-main.png" alt="Cabi wearing her purple CPU shirt" className={`cabi-breathe relative z-10 max-h-[91%] w-full object-contain object-bottom drop-shadow-[0_28px_45px_rgba(0,0,0,.55)] ${speaking ? "brightness-110" : ""}`} onError={() => setFailed(true)} />
+         <img src="/assets/cabi-cpu-model.png" alt="Cabi wearing her purple CPU shirt" className={`cabi-breathe relative z-10 max-h-[91%] w-full object-contain object-bottom drop-shadow-[0_28px_45px_rgba(0,0,0,.55)] ${speaking ? "brightness-110" : ""}`} onError={() => setFailed(true)} />
       ) : (
         <div className="cabi-breathe relative z-10 mb-24 grid h-64 w-64 place-items-center rounded-full border border-violet-200/10 bg-gradient-to-b from-violet-300/10 to-transparent text-center shadow-[0_0_100px_rgba(139,92,246,.12)]">
           <div><MiniCabi className="mx-auto h-28 w-28 rounded-2xl" priority /><div className="mt-3 text-xs font-semibold uppercase tracking-[0.28em] text-[var(--cabi-primary)]/60">Cat Partner Unit</div></div>
         </div>
       )}
-      <div className="absolute inset-x-4 bottom-4 z-20 rounded-2xl border border-[var(--cabi-hairline)] bg-[var(--cabi-surface)]/80 p-4 shadow-2xl backdrop-blur-xl">
+      <div className="absolute inset-x-4 bottom-4 z-20 rounded-xl border border-white/[0.07] bg-[#0c0914]/75 px-3 py-2.5 shadow-xl backdrop-blur-xl">
         <div className="flex items-center justify-between gap-3">
-          <div><div className="flex items-center gap-2 text-sm font-semibold"><span>Cabi</span><span className="rounded-full bg-violet-300/10 px-2 py-0.5 text-[var(--cabi-text-overline)] tracking-[.16em] text-[var(--cabi-primary)]">CPU</span></div><p className="mt-1 text-xs text-[var(--cabi-text-muted)]">{authenticated ? (bond ? `${bond.label} · ${bond.progress}%` : "Bond saved with wallet") : "Temporary guest chat"}</p></div>
-          <div className="text-right"><p className="text-xs text-[var(--cabi-text-muted)]">Mood</p><p className="text-sm capitalize text-[var(--cabi-text-secondary)]">{mood}</p></div>
+          <div className="flex min-w-0 items-center gap-2 text-xs font-semibold"><span>Cabi</span><span className="text-white/35">/</span><span className="text-[11px] font-normal text-violet-200/80">{mood}</span></div>
+          <span className="flex shrink-0 items-center gap-1.5 text-[10px] text-white/55"><span className={`h-1.5 w-1.5 rounded-full ${speaking ? "animate-pulse bg-violet-200" : "bg-emerald-300"}`} />{authenticated ? "Saved" : "Guest"}</span>
         </div>
-        {authenticated && <div className="mt-3 h-1 overflow-hidden rounded-full bg-[var(--cabi-surface-3)]"><div className="h-full rounded-full bg-gradient-to-r from-violet-300 via-violet-400 to-violet-500 shadow-[0_0_14px_rgba(167,139,250,.8)] transition-[width]" style={{ width: `${progress}%` }} /></div>}
       </div>
     </div>
   );
@@ -160,12 +151,14 @@ export function CabiExperience({ flags = defaultFeatureFlags, viewport = "full",
    */
   cpuGateBypassed?: boolean;
   /**
-   * Owner-added activity lines, resolved on the server. Appended to the built-in
-   * catalogue rather than replacing it, so the rotation never runs empty.
+    * Owner-added activity lines, resolved on the server. The first valid owner
+    * line is used as the calm visible label when present.
    */
   statusMessages?: CabiStatusOverrides | null;
 } = {}) {
   const wallet = useWallet();
+  void flags;
+  void cpuGateBypassed;
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -178,13 +171,12 @@ export function CabiExperience({ flags = defaultFeatureFlags, viewport = "full",
   const [composer, setComposer] = useState("");
   const [search, setSearch] = useState("");
   const [sending, setSending] = useState(false);
-  const [status, setStatus] = useState("here with you");
+  const [status, setStatus] = useState("Ready when you are");
   const [notice, setNotice] = useState<string>();
   const [onboardingName, setOnboardingName] = useState(false);
   const [shareMessage, setShareMessage] = useState<ChatMessageModel>();
   const [savePromptOpen, setSavePromptOpen] = useState(false);
   const [savingGuestChat, setSavingGuestChat] = useState(false);
-  const [bond, setBond] = useState<Bond | null>(null);
   // Identity and rank for the header chip. Server-provided; never computed here.
   const [rank, setRank] = useState<{ username: string | null; initials: string | null; tier: RankTier; profileComplete: boolean } | null>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
@@ -197,7 +189,6 @@ export function CabiExperience({ flags = defaultFeatureFlags, viewport = "full",
   // Set from the `done` frame when a tier threshold is crossed. Held separately
   // from the transcript so a celebration never becomes part of the conversation.
   const [celebration, setCelebration] = useState<{ tier: RankTier; achievements: string[] } | null>(null);
-  const lockedNotice = useLockedNotice();
   const endRef = useRef<HTMLDivElement>(null);
   const previousAuthRef = useRef(false);
   const promptedGuestImportRef = useRef(false);
@@ -313,7 +304,6 @@ export function CabiExperience({ flags = defaultFeatureFlags, viewport = "full",
           setConversationId(undefined);
           setTemporaryChat(true);
           setMessages([]);
-          setBond(null);
           promptedGuestImportRef.current = false;
           setNotice("Wallet disconnected. New messages are temporary.");
         }
@@ -411,7 +401,6 @@ export function CabiExperience({ flags = defaultFeatureFlags, viewport = "full",
         if (item.event === "action" && data.card) setMessages((current) => current.map((entry) => (entry.id === assistantId || entry.id === assistantServerIdRef.current || entry.id === data.assistantMessageId) && entry.role === "assistant" ? { ...entry, actionCard: data.card } : entry));
         if (item.event === "done") {
           setMessages((current) => current.map((entry) => entry.role === "assistant" && entry.status === "streaming" ? { ...entry, status: "complete", sources: data.sources ?? entry.sources } : entry));
-          if (data.bond && persistent) setBond(data.bond);
           // Scenario 7: the server decides a rank-up happened; the client only
           // renders it. Nothing here can award a tier.
           //
@@ -425,7 +414,7 @@ export function CabiExperience({ flags = defaultFeatureFlags, viewport = "full",
         if (item.event === "error") throw new Error(data.message ?? "Looks like my brain needs a second.");
       }
       if (persistent) await refreshConversations();
-      setStatus("here with you");
+      setStatus("Ready when you are");
       setOnboardingName(false);
     } catch (error) {
       if (controller.signal.aborted) setMessages((current) => current.map((entry) => entry.role === "assistant" && entry.status === "streaming" ? { ...entry, status: "cancelled", content: entry.content || "Stopped." } : entry));
@@ -459,7 +448,7 @@ export function CabiExperience({ flags = defaultFeatureFlags, viewport = "full",
     setConversationId(payload.conversation.id);
     setTemporaryChat(false);
     setSavePromptOpen(false);
-    setNotice("Chat saved to your wallet profile.");
+    setNotice("Chat saved with your Cabi profile.");
     await refreshConversations();
   };
 
@@ -522,7 +511,7 @@ export function CabiExperience({ flags = defaultFeatureFlags, viewport = "full",
       <a href="#cabi-chat" className="focus-ring fixed left-3 top-3 z-[100] -translate-y-24 rounded-xl bg-[var(--cabi-primary)] px-4 py-2 text-sm font-semibold text-[var(--cabi-on-primary)] focus:translate-y-0">Skip to chat</a>
       <div className="grid h-full min-h-0 grid-cols-[272px_minmax(0,1fr)_352px] max-2xl:grid-cols-[248px_minmax(0,1fr)_320px] max-xl:grid-cols-[232px_minmax(0,1fr)_300px] max-lg:grid-cols-[232px_minmax(0,1fr)] max-md:grid-cols-1">
         <aside className={`${sidebarOpen ? "translate-x-0" : "max-md:-translate-x-full"} z-50 flex min-h-0 flex-col border-r border-[var(--cabi-hairline)] bg-[var(--cabi-surface)]/95 p-3 transition-transform duration-300 max-md:fixed max-md:inset-y-0 max-md:left-0 max-md:w-[min(86vw,312px)] max-md:shadow-2xl`} aria-label="Conversation navigation">
-          <div className="flex h-12 items-center gap-3 px-2"><MiniCabi className="h-9 w-9" /><div className="min-w-0 flex-1"><p className="text-[var(--cabi-text-body)] font-bold tracking-[.1em]">CABI</p><p className="text-[var(--cabi-text-overline)] uppercase tracking-[.21em] text-[var(--cabi-text-muted)]">Cat Partner Unit</p></div><button onClick={() => setSidebarOpen(false)} className="focus-ring hidden h-9 w-10 place-items-center rounded-xl text-[var(--cabi-text-muted)] hover:bg-[var(--cabi-surface-3)] max-md:grid" aria-label="Close menu"><ChevronLeft size={20} /></button></div>
+          <div className="flex h-12 items-center gap-3 px-2"><MiniCabi className="h-9 w-9" /><div className="min-w-0 flex-1"><p className="text-[15px] font-bold tracking-[.12em]">CABI</p><p className="text-[11px] text-white/50">Cat Partner Unit</p></div><button onClick={() => setSidebarOpen(false)} className="focus-ring hidden h-9 w-10 place-items-center rounded-xl text-white/55 hover:bg-white/[0.05] max-md:grid" aria-label="Close menu"><ChevronLeft size={20} /></button></div>
           <button onClick={newChat} className="focus-ring mt-3 flex h-11 items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-[var(--cabi-primary)] to-[var(--cabi-primary-strong)] text-sm font-semibold text-[var(--cabi-on-primary)] shadow-[0_12px_34px_rgba(139,92,246,.18)] hover:brightness-105"><Plus size={17} strokeWidth={2.4} /> New chat</button>
 
           {wallet.authenticated ? <>
@@ -530,21 +519,10 @@ export function CabiExperience({ flags = defaultFeatureFlags, viewport = "full",
             <div className="scrollbar-cabi mt-5 min-h-0 flex-1 overflow-y-auto">
               {conversations.length === 0 ? <div className="px-3 py-8 text-center"><MiniCabi className="mx-auto h-9 w-10 opacity-60" decorative /><p className="mt-3 text-xs leading-5 text-[var(--cabi-text-muted)]">{search ? "No chats match that search." : "No saved chats yet."}</p></div> : groupOrder.map((label) => grouped[label]?.length ? <div key={label} className="mb-5"><div className="mb-2 flex items-center justify-between px-2 text-[var(--cabi-text-caption)] font-semibold uppercase tracking-[.14em] text-[var(--cabi-text-faint)]"><span>{label}</span>{label === "Pinned" ? <Pin size={12} /> : <Clock3 size={13} />}</div><div className="space-y-1">{grouped[label].map((conversation) => <div key={conversation.id} className={`group flex items-center rounded-xl pr-1 ${conversation.id === conversationId ? "bg-[var(--cabi-surface-3)]" : "hover:bg-[var(--cabi-surface-2)]"}`}><button onClick={() => void openConversation(conversation.id)} className={`focus-ring flex min-w-0 flex-1 items-center gap-3 rounded-xl px-3 py-3 text-left ${conversation.id === conversationId ? "text-white" : "text-[var(--cabi-text-muted)] group-hover:text-white"}`}><MessageCircleMore size={16} className={conversation.id === conversationId ? "text-[var(--cabi-primary)]" : "text-[var(--cabi-text-faint)]"} /><span className="min-w-0 flex-1 truncate text-[var(--cabi-text-sm)]">{conversation.title}</span></button><div className="hidden shrink-0 items-center group-hover:flex group-focus-within:flex"><button onClick={() => void updateConversation(conversation, { pinned: !conversation.pinned })} className="focus-ring grid h-8 w-8 place-items-center rounded-lg text-[var(--cabi-text-muted)] hover:text-[var(--cabi-primary)]" aria-label={conversation.pinned ? "Unpin chat" : "Pin chat"}>{conversation.pinned ? <PinOff size={13} /> : <Pin size={13} />}</button><button onClick={() => void renameConversation(conversation)} className="focus-ring grid h-8 w-8 place-items-center rounded-lg text-[var(--cabi-text-muted)] hover:text-white" aria-label="Rename chat"><Pencil size={13} /></button><button onClick={() => void deleteConversation(conversation)} className="focus-ring grid h-8 w-8 place-items-center rounded-lg text-[var(--cabi-text-muted)] hover:text-rose-300" aria-label="Delete chat"><Trash2 size={13} /></button></div></div>)}</div></div> : null)}
             </div>
-          </> : <div className="mt-5 flex min-h-0 flex-1 flex-col"><button onClick={wallet.openConnect} className="focus-ring flex flex-1 flex-col items-center justify-center rounded-2xl border border-dashed border-[var(--cabi-hairline)] bg-[var(--cabi-surface-1)] p-5 text-center hover:border-violet-200/20 hover:bg-violet-300/[0.025]"><span className="grid h-11 w-11 place-items-center rounded-full bg-[var(--cabi-surface-2)] text-[var(--cabi-text-muted)]"><Lock size={18} /></span><span className="mt-4 text-[var(--cabi-text-sm)] font-semibold text-[var(--cabi-text-secondary)]">Connect your wallet to save your chats.</span><span className="mt-2 text-[var(--cabi-text-caption)] leading-5 text-[var(--cabi-text-muted)]">Recent chats, memory, settings, and bond continuity unlock after a free login signature.</span><span className="mt-5 rounded-xl border border-[var(--cabi-border)] bg-[var(--cabi-surface-2)] px-4 py-2.5 text-xs font-semibold text-white">Connect Wallet</span></button></div>}
+          </> : <div className="mt-5 flex min-h-0 flex-1 flex-col"><button onClick={wallet.openConnect} className="focus-ring flex flex-1 flex-col items-center justify-center rounded-2xl border border-dashed border-white/[0.08] bg-white/[0.015] p-5 text-center hover:border-violet-200/20 hover:bg-violet-300/[0.025]"><span className="grid h-11 w-11 place-items-center rounded-full bg-white/[0.04] text-[#777180]"><Lock size={18} /></span><span className="mt-4 text-[13px] font-semibold text-[#d5d0de]">Connect your wallet to save your chats.</span><span className="mt-2 text-[11px] leading-5 text-[#706a7d]">Recent chats, memory, and settings unlock after a free login signature.</span><span className="mt-5 rounded-xl border border-white/[0.1] bg-white/[0.04] px-4 py-2.5 text-xs font-semibold text-white">Connect Wallet</span></button></div>}
 
-          <div className="mt-3 rounded-2xl border border-violet-200/[0.10] bg-[var(--cabi-surface-2)] p-3"><div className="flex items-center gap-3"><MiniCabi className="h-9 w-9" decorative /><div className="min-w-0 flex-1"><p className="text-xs font-medium text-[var(--cabi-text-secondary)]">{wallet.authenticated ? (bond?.label ?? "Wallet companion") : "Temporary companion"}</p><p className="mt-0.5 text-[var(--cabi-text-caption)] text-[var(--cabi-text-muted)]">{wallet.authenticated ? "Bond is saved independently of $CPU" : "Guest bond is not saved"}</p></div><Heart size={15} className="text-[var(--cabi-primary)]" fill="currentColor" /></div></div>
-          <div className="mt-2 flex items-center gap-2"><button onClick={wallet.authenticated ? undefined : wallet.openConnect} className="focus-ring flex h-11 min-w-0 flex-1 items-center gap-3 rounded-xl px-3 text-left hover:bg-[var(--cabi-surface-2)]">{rank?.initials ? <InitialsAvatar initials={rank.initials} size={28} label="Your avatar" /> : <span className="grid h-[28px] w-7 place-items-center rounded-full bg-[var(--cabi-surface-3)]"><UserRound size={14} /></span>}<span className="min-w-0 flex-1 truncate text-xs text-[var(--cabi-text-secondary)]">{rank?.username ?? (wallet.authenticated && wallet.address ? `${wallet.address.slice(0, 6)}…${wallet.address.slice(-4)}` : "Guest")}</span>{rank?.username ? <RankBadge tier={rank.tier} size="sm" showLabel={false} /> : null}</button><Link href="/profile" className="focus-ring grid h-11 w-11 place-items-center rounded-xl text-[var(--cabi-text-muted)] hover:bg-[var(--cabi-surface-2)] hover:text-white" aria-label="Your profile"><UserRound size={17} /></Link><Link href="/settings" className="focus-ring grid h-11 w-11 place-items-center rounded-xl text-[var(--cabi-text-muted)] hover:bg-[var(--cabi-surface-2)] hover:text-white" aria-label="Settings"><Settings size={17} /></Link></div>
+          <div className="mt-2 flex items-center gap-2"><button onClick={wallet.authenticated ? undefined : wallet.openConnect} className="focus-ring flex h-11 min-w-0 flex-1 items-center gap-3 rounded-xl px-3 text-left hover:bg-white/[0.035]">{rank?.initials ? <InitialsAvatar initials={rank.initials} size={28} label="Your avatar" /> : <span className="grid h-7 w-7 place-items-center rounded-full bg-white/[0.06]"><UserRound size={14} /></span>}<span className="min-w-0 flex-1 truncate text-xs text-[#a8a3b3]">{rank?.username ?? (wallet.authenticated && wallet.address ? `${wallet.address.slice(0, 6)}…${wallet.address.slice(-4)}` : "Guest")}</span></button><Link href="/profile" className="focus-ring grid h-11 w-11 place-items-center rounded-xl text-[#706a7d] hover:bg-white/[0.035] hover:text-white" aria-label="Your profile"><UserRound size={17} /></Link><Link href="/settings" className="focus-ring grid h-11 w-11 place-items-center rounded-xl text-[#706a7d] hover:bg-white/[0.035] hover:text-white" aria-label="Settings"><Settings size={17} /></Link></div>
         </aside>
-
-        {/* One shared acknowledgement for locked cards, so the message appears in a
-          single predictable place instead of inside each card. */}
-      {lockedNotice.notice ? (
-        <div role="status" aria-live="polite" className="pointer-events-none fixed inset-x-0 bottom-24 z-[74] flex justify-center px-4">
-          <p className="rounded-full border border-[var(--cabi-border-hover)] bg-[var(--cabi-surface)]/96 px-4 py-2 text-[var(--cabi-text-sm)] font-medium text-[var(--cabi-text-secondary)] shadow-[0_10px_30px_rgba(0,0,0,.4)] backdrop-blur-xl">
-            {lockedNotice.notice}
-          </p>
-        </div>
-      ) : null}
 
       <RankUpCelebration tier={celebration?.tier ?? null} achievements={celebration?.achievements ?? []} onDismiss={() => { setCelebration(null); void refreshRank(); }} />
 
@@ -554,37 +532,37 @@ export function CabiExperience({ flags = defaultFeatureFlags, viewport = "full",
       />
 
       <section id="cabi-chat" className="relative flex min-h-0 min-w-0 flex-col bg-[var(--cabi-bg)]/55" tabIndex={-1}>
-          <header className="flex h-[68px] shrink-0 items-center border-b border-[var(--cabi-hairline)] px-4 max-sm:h-[60px] max-sm:px-3"><button onClick={() => { setSidebarOpen(true); setProfileOpen(false); }} className="focus-ring mr-2 hidden h-11 w-11 place-items-center rounded-xl text-[var(--cabi-text-secondary)] hover:bg-[var(--cabi-surface-2)] max-md:grid" aria-label="Open menu"><Menu size={20} /></button><button onClick={() => setProfileOpen(true)} className="focus-ring mr-3 hidden rounded-lg max-lg:block" aria-label="Open Cabi profile"><MiniCabi className="h-9 w-9" /></button><div className="min-w-0 flex-1"><div className="flex items-center gap-2"><h1 className="text-[var(--cabi-text-body)] font-semibold">Cabi</h1><span className="relative h-2 w-2 rounded-full bg-emerald-300"><span className="absolute inset-0 animate-ping rounded-full bg-emerald-300/50" /></span></div>{sending ? (
-              // The conversation bubble owns the only visible thinking indicator;
-              // keep this subtitle slot stable while the response streams.
-              <span className="mt-0.5 block h-4" aria-hidden="true" />
-            ) : (
-              <p className="truncate text-xs text-[var(--cabi-text-muted)]">{status}{temporaryChat && wallet.authenticated ? " · temporary chat" : ""}</p>
-            )}</div><nav className="mr-3 hidden items-center gap-1 md:flex" aria-label="Primary"><Link href="/" aria-current="page" className="focus-ring rounded-xl bg-[var(--cabi-surface-3)] px-3 py-2 text-xs font-semibold">Chat</Link><Link href="/cpu" className="focus-ring rounded-xl px-3 py-2 text-xs font-semibold text-[var(--cabi-text-muted)] hover:bg-[var(--cabi-surface-2)] hover:text-white">$CPU</Link></nav>{rank?.username ? <Link href="/profile" className="focus-ring mr-2 hidden items-center gap-2 rounded-full border border-[var(--cabi-hairline)] bg-[var(--cabi-surface-2)] py-1 pl-1 pr-2.5 transition hover:bg-[var(--cabi-surface-3)] sm:flex" aria-label={`Your profile, rank ${rank.tier.label}`}><InitialsAvatar initials={rank.initials ?? "?"} size={26} label="Your avatar" /><span className="max-w-[120px] truncate text-[var(--cabi-text-sm)] font-semibold text-white">{rank.username}</span><RankBadge tier={rank.tier} size="sm" /></Link> : null}<WalletButton compact /><button className="focus-ring ml-2 grid h-9 w-10 place-items-center rounded-xl text-[var(--cabi-text-muted)] hover:bg-[var(--cabi-surface-2)] hover:text-white" aria-label="Conversation actions"><MoreHorizontal size={19} /></button></header>
+          <header className="flex h-[68px] shrink-0 items-center border-b border-white/[0.06] px-4 max-sm:h-[60px] max-sm:px-3">
+            <button onClick={() => { setSidebarOpen(true); setProfileOpen(false); }} className="focus-ring mr-2 hidden h-11 w-11 place-items-center rounded-xl text-white/60 hover:bg-white/[0.04] max-md:grid" aria-label="Open menu"><Menu size={20} /></button>
+            <button onClick={() => setProfileOpen(true)} className="focus-ring mr-3 hidden rounded-lg max-lg:block" aria-label="Open Cabi profile"><MiniCabi className="h-9 w-9" /></button>
+            <div className="min-w-0 flex-1"><div className="flex items-center gap-2"><h1 className="font-semibold">Cabi</h1><span className="relative h-2 w-2 rounded-full bg-emerald-300"><span className="absolute inset-0 animate-ping rounded-full bg-emerald-300/50" /></span></div><p className="truncate text-xs text-white/45">{sending ? "" : `${status}${temporaryChat && wallet.authenticated ? " · temporary chat" : ""}`}</p></div>
+            <nav className="mr-3 hidden items-center gap-1 md:flex" aria-label="Primary"><Link href="/cpu" className="focus-ring rounded-xl px-3 py-2 text-xs font-semibold text-white/55 hover:bg-white/[0.04] hover:text-white">$CPU</Link></nav>
+            <WalletButton compact />
+          </header>
           <div className={`scrollbar-cabi flex min-h-0 flex-1 flex-col px-5 max-sm:px-3 ${hasMessages ? "overflow-y-auto pb-6 pt-8" : "overflow-hidden py-3"}`}>
             <div className={`mx-auto flex w-full max-w-[820px] flex-1 flex-col ${hasMessages ? "justify-start" : "justify-center"}`}>
-              {!hasMessages ? <><motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .55 }} className="mx-auto max-w-xl text-center"><div className="relative mx-auto mb-4 grid h-[clamp(4.5rem,12vh,6rem)] w-[clamp(4.5rem,12vh,6rem)]"><div className="absolute inset-0 rounded-2xl bg-violet-400/15 blur-2xl" /><MiniCabi className="relative h-full w-full rounded-2xl" priority /></div><span className="inline-flex items-center gap-2 rounded-full border border-[var(--cabi-border)] bg-[var(--cabi-primary)]/[0.05] px-3 py-1.5 text-[var(--cabi-text-caption)] font-semibold uppercase tracking-[.13em] text-[var(--cabi-primary)]"><Sparkles size={13} /> Your Cat Partner Unit</span><h2 className="mt-3 text-balance text-[clamp(2rem,4vw,3.55rem)] font-semibold leading-[1.02] tracking-[-0.055em]">Hi, I&apos;m Cabi.</h2><p className="mx-auto mt-3 max-w-md text-pretty text-sm leading-6 text-[var(--cabi-text-secondary)]">Cute, loyal, and always by your side. Talk, chill, ask anything — I&apos;m here.</p><button onClick={beginOnboarding} className="focus-ring mt-5 inline-flex h-12 items-center gap-2 rounded-2xl bg-white px-5 text-sm font-semibold text-[var(--cabi-on-primary)] shadow-[0_12px_40px_rgba(255,255,255,.1)] hover:bg-violet-100">Talk to Cabi <ArrowUp size={16} className="rotate-45" /></button><p className="mt-2 text-[var(--cabi-text-caption)] text-[var(--cabi-text-faint)]">No wallet needed to start chatting.</p></motion.div><div className="cabi-welcome-prompts mt-6 flex flex-wrap justify-center gap-2">{quickPrompts.map((prompt) => <button key={prompt} onClick={() => { setComposer(prompt); composerRef.current?.focus(); }} className="focus-ring rounded-full border border-[var(--cabi-hairline)] bg-[var(--cabi-surface-1)] px-3.5 py-2 text-xs text-[var(--cabi-text-muted)] transition hover:border-violet-300/20 hover:bg-[var(--cabi-surface-3)] hover:text-white">{prompt}</button>)}</div></> : <ol className="space-y-6" aria-label="Conversation messages">{messages.map((message, index) => <li key={message.id}><ChatMessage message={message} statusMessages={statusMessages} onRegenerateImage={regenerateImage} onUseImageAsAvatar={(card) => void adoptImageAsAvatar(card)} onRetryPrompt={(prompt, parentGenerationId) => void send(prompt, message.id, parentGenerationId)} onRetry={() => retry(index)} onDelete={() => void deleteMessage(message)} onEdit={() => void editMessage(message)} onShare={() => setShareMessage(message)} onReact={(reaction) => void reactToMessage(message, reaction)} /></li>)}</ol>}
+              {!hasMessages ? <><motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .55 }} className="mx-auto max-w-xl text-center"><div className="relative mx-auto mb-4 grid h-[clamp(4.5rem,12vh,6rem)] w-[clamp(4.5rem,12vh,6rem)]"><div className="absolute inset-0 rounded-2xl bg-violet-400/15 blur-2xl" /><MiniCabi className="relative h-full w-full rounded-2xl" priority /></div><span className="inline-flex items-center gap-2 rounded-full border border-violet-200/[0.12] bg-violet-200/[0.05] px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[.13em] text-violet-200"><Sparkles size={13} /> Cabi</span><h2 className="mt-3 text-balance text-[clamp(2rem,4vw,3.15rem)] font-semibold leading-[1.02] tracking-[-0.055em]">Hey, I&apos;m Cabi.</h2><p className="mx-auto mt-3 max-w-md text-pretty text-sm leading-6 text-[#a8a3b3]">Ask me anything, make an image, or pick up where we left off.</p><button onClick={beginOnboarding} className="focus-ring mt-5 inline-flex h-11 items-center gap-2 rounded-xl bg-violet-200 px-5 text-sm font-semibold text-[#160f27] shadow-[0_10px_30px_rgba(139,92,246,.16)] hover:bg-violet-100">Start chatting <ArrowUp size={16} className="rotate-45" /></button><p className="mt-2 text-[11px] text-[#625d6d]">No wallet needed to start chatting.</p></motion.div><div className="cabi-welcome-prompts mt-6 flex flex-wrap justify-center gap-2">{quickPrompts.map((prompt) => <button key={prompt} onClick={() => { setComposer(prompt); composerRef.current?.focus(); }} className="focus-ring rounded-full border border-white/[0.07] bg-white/[0.025] px-3.5 py-2 text-xs text-[#9a95a5] transition hover:border-violet-300/20 hover:bg-violet-300/[0.06] hover:text-white">{prompt}</button>)}</div></> : <ol className="space-y-6" aria-label="Conversation messages">{messages.map((message, index) => <li key={message.id}><ChatMessage message={message} statusMessages={statusMessages} onRegenerateImage={regenerateImage} onUseImageAsAvatar={(card) => void adoptImageAsAvatar(card)} onRetryPrompt={(prompt, parentGenerationId) => void send(prompt, message.id, parentGenerationId)} onRetry={() => retry(index)} onDelete={() => void deleteMessage(message)} onEdit={() => void editMessage(message)} onShare={() => setShareMessage(message)} onReact={(reaction) => void reactToMessage(message, reaction)} /></li>)}</ol>}
               {notice && <div role="alert" className="mx-auto mt-4 flex max-w-xl items-center gap-3 rounded-xl border border-rose-300/15 bg-rose-300/[0.05] px-3 py-2 text-xs text-rose-200"><span className="flex-1">{notice}</span><button className="focus-ring grid h-8 w-8 place-items-center rounded-lg hover:bg-[var(--cabi-surface-3)]" onClick={() => setNotice(undefined)} aria-label="Dismiss"><X size={14} /></button></div>}
               <div ref={endRef} />
             </div>
           </div>
-          <div className="shrink-0 bg-gradient-to-t from-[var(--cabi-bg)] via-[var(--cabi-bg)] to-transparent px-5 cabi-safe-bottom pt-4 max-sm:px-3"><div className="mx-auto max-w-[820px]"><SlashCommandPalette value={composer} onRun={(command) => void send(command.id)} /></div><form className="mx-auto max-w-[820px]" onSubmit={submit}><div className="rounded-2xl border border-[var(--cabi-border)] bg-[var(--cabi-surface)] p-2 shadow-[0_18px_60px_rgba(0,0,0,.35)] focus-within:border-violet-300/30 focus-within:shadow-[0_18px_60px_rgba(0,0,0,.35),0_0_0_3px_rgba(139,92,246,.06)]"><textarea ref={composerRef} value={composer} onChange={(event) => setComposer(event.target.value)} onKeyDown={onKeyDown} rows={2} className="scrollbar-cabi max-h-40 min-h-[50px] w-full resize-none bg-transparent px-3 pt-2.5 text-[var(--cabi-text-body)] leading-6 text-white outline-none placeholder:text-[var(--cabi-text-faint)]" placeholder="What's on your mind?" aria-label="Message Cabi" disabled={sending} /><div className="flex items-center justify-between px-1 pb-1"><p className="hidden pl-2 text-[var(--cabi-text-overline)] text-[var(--cabi-text-faint)] sm:block">Enter to send · Shift + Enter for a new line</p><span className="sm:hidden" /><div className="flex items-center gap-1.5">{/* A shortcut, not a separate workflow: it prefills the composer, so the request still goes through chat. */}
+          <div className="shrink-0 bg-gradient-to-t from-[#07070d] via-[#07070d] to-transparent px-5 cabi-safe-bottom pt-3 max-sm:px-3"><div className="mx-auto max-w-[820px]"><SlashCommandPalette value={composer} onRun={(command) => void send(command.id)} /></div><form className="mx-auto max-w-[820px]" onSubmit={submit}><div className="rounded-2xl border border-violet-200/[0.12] bg-[#11101a] p-2 shadow-[0_18px_60px_rgba(0,0,0,.30)] focus-within:border-violet-300/25 focus-within:shadow-[0_18px_60px_rgba(0,0,0,.30),0_0_0_3px_rgba(139,92,246,.05)]"><textarea ref={composerRef} value={composer} onChange={(event) => setComposer(event.target.value)} onKeyDown={onKeyDown} rows={2} className="scrollbar-cabi max-h-40 min-h-[50px] w-full resize-none bg-transparent px-3 pt-2.5 text-[15px] leading-6 text-white outline-none placeholder:text-[#625d6d]" placeholder="What's on your mind?" aria-label="Message Cabi" disabled={sending} /><div className="flex items-center justify-between px-1 pb-1"><p className="hidden pl-2 text-[10px] text-[#5d5868] sm:block">Enter to send · Shift + Enter for a new line</p><span className="sm:hidden" /><div className="flex items-center gap-1.5">{/* A shortcut, not a separate workflow: it prefills the composer, so the request still goes through chat. */}
                     <button
                       type="button"
                       onClick={() => { setComposer("Generate an image of Cabi "); composerRef.current?.focus(); }}
                       disabled={sending}
-                      className="focus-ring mr-1 inline-flex h-9 items-center gap-1.5 rounded-lg border border-[var(--cabi-hairline)] bg-[var(--cabi-surface-2)] px-3 text-[var(--cabi-text-caption)] font-semibold text-[var(--cabi-text-secondary)] hover:bg-[var(--cabi-surface-3)] disabled:opacity-40"
+                      className="focus-ring mr-1 inline-flex h-9 items-center gap-1.5 rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 text-[11px] font-semibold text-[#d5d0de] hover:bg-white/[0.06] disabled:opacity-40"
                       aria-label="Start a Cabi image request"
                     >
                       <ImagePlus size={13} aria-hidden="true" /> Image
-                    </button>{sending ? <button type="button" onClick={() => controllerRef.current?.abort()} className="focus-ring grid h-9 w-10 place-items-center rounded-lg bg-white text-[var(--cabi-on-primary)]" aria-label="Stop generating"><Square size={15} fill="currentColor" /></button> : <button type="submit" disabled={!composer.trim()} className="focus-ring grid h-9 w-10 place-items-center rounded-lg bg-gradient-to-br from-violet-200 to-violet-400 text-[var(--cabi-on-primary)] shadow-[0_8px_24px_rgba(139,92,246,.28)] hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-35" aria-label="Send message"><ArrowUp size={18} strokeWidth={2.4} /></button>}</div></div></div><p className="mt-2 text-center text-[var(--cabi-text-overline)] text-[var(--cabi-text-faint)]">{wallet.authenticated && !temporaryChat ? "Saved to your wallet profile · Cabi can make mistakes." : "Temporary in this tab · Cabi can make mistakes."}</p></form></div>
+                    </button>{sending ? <button type="button" onClick={() => controllerRef.current?.abort()} className="focus-ring grid h-9 w-10 place-items-center rounded-lg bg-white text-[#160f27]" aria-label="Stop generating"><Square size={15} fill="currentColor" /></button> : <button type="submit" disabled={!composer.trim()} className="focus-ring grid h-9 w-10 place-items-center rounded-lg bg-gradient-to-br from-violet-200 to-violet-400 text-[#160f27] shadow-[0_8px_24px_rgba(139,92,246,.24)] hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-35" aria-label="Send message"><ArrowUp size={18} strokeWidth={2.4} /></button>}</div></div></div>{wallet.authenticated && !temporaryChat ? <p className="mt-2 text-center text-[10px] text-[#625d6d]">Saved with your Cabi profile</p> : null}</form></div>
         </section>
 
-        <aside className="scrollbar-cabi flex min-h-0 flex-col gap-3 overflow-y-auto border-l border-[var(--cabi-hairline)] p-3 max-lg:hidden" aria-label="Cabi presence"><PresenceArt mood="cozy" speaking={sending} authenticated={wallet.authenticated} bond={bond} />{cpuGateBypassed && <CpuGateBypassNotice />}<CpuTokenCard compact />{wallet.authenticated ? <ImageQuotaHint className="px-1" /> : null}{/* Future features, presented as intentionally unreleased. */}<LockedFeatures flags={flags} keys={lockedFeatureOrder} onNotice={lockedNotice.show} /></aside>
+        <aside className="scrollbar-cabi flex min-h-0 flex-col gap-3 overflow-y-auto border-l border-white/[0.06] p-3 max-lg:hidden" aria-label="Cabi presence"><PresenceArt mood="cozy" speaking={sending} authenticated={wallet.authenticated} /><p className="px-2 text-[11px] leading-5 text-white/45">A calm place to think, make, and chat.</p></aside>
       </div>
 
       {sidebarOpen && <button className="fixed inset-0 z-40 bg-black/65 backdrop-blur-sm md:hidden" onClick={() => setSidebarOpen(false)} aria-label="Close menu" />}
-      {profileOpen && <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 p-3 backdrop-blur-sm lg:hidden" role="dialog" aria-modal="true" aria-label="Cabi profile"><button className="absolute inset-0" onClick={() => setProfileOpen(false)} aria-label="Close Cabi profile" /><div className="scrollbar-cabi relative max-h-[88dvh] w-full max-w-md overflow-y-auto rounded-2xl border border-violet-200/10 bg-[var(--cabi-surface)] p-3 shadow-2xl"><button className="focus-ring absolute right-5 top-5 z-30 grid h-9 w-10 place-items-center rounded-xl bg-black/35 text-white" onClick={() => setProfileOpen(false)} aria-label="Close"><X size={18} /></button><div className="h-[min(58dvh,520px)]"><PresenceArt mood="cozy" speaking={sending} authenticated={wallet.authenticated} bond={bond} className="h-full w-full" /></div><div className="mt-3"><CpuTokenCard compact /></div><div className="mt-3"><LockedFeatures flags={flags} keys={lockedFeatureOrder} onNotice={lockedNotice.show} /></div></div></div>}
+      {profileOpen && <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 p-3 backdrop-blur-sm lg:hidden" role="dialog" aria-modal="true" aria-label="Cabi profile"><button className="absolute inset-0" onClick={() => setProfileOpen(false)} aria-label="Close Cabi profile" /><div className="scrollbar-cabi relative max-h-[88dvh] w-full max-w-md overflow-y-auto rounded-2xl border border-violet-200/10 bg-[#0b0912] p-3 shadow-2xl"><button className="focus-ring absolute right-5 top-5 z-30 grid h-9 w-10 place-items-center rounded-xl bg-black/35 text-white" onClick={() => setProfileOpen(false)} aria-label="Close"><X size={18} /></button><div className="h-[min(58dvh,520px)]"><PresenceArt mood="cozy" speaking={sending} authenticated={wallet.authenticated} className="h-full w-full" /></div><Link href="/profile" onClick={() => setProfileOpen(false)} className="mt-3 flex h-10 items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.03] text-xs font-semibold text-[#d5d0de]">Open profile</Link></div></div>}
       {shareMessage && <div className="fixed inset-0 z-[70] grid place-items-center bg-black/75 p-4 backdrop-blur-md" role="dialog" aria-modal="true" aria-labelledby="share-title"><button className="absolute inset-0" onClick={() => setShareMessage(undefined)} aria-label="Close share dialog" /><div className="glass relative w-full max-w-md rounded-2xl p-5"><div className="flex items-start gap-3"><MiniCabi className="h-11 w-11" /><div className="min-w-0 flex-1"><h2 id="share-title" className="text-lg font-semibold">Make a Cabi card</h2><p className="mt-1 text-sm text-[var(--cabi-text-muted)]">Only this response will be added to the image.</p></div><button className="focus-ring grid h-9 w-10 place-items-center rounded-xl text-[var(--cabi-text-muted)] hover:bg-[var(--cabi-surface-3)]" onClick={() => setShareMessage(undefined)} aria-label="Close"><X size={18} /></button></div><blockquote className="mt-5 max-h-52 overflow-y-auto rounded-2xl border border-violet-200/10 bg-[var(--cabi-surface-2)] p-4 text-sm leading-6 text-[var(--cabi-text-secondary)]">{shareMessage.content}</blockquote><div className="mt-4 grid grid-cols-2 gap-2"><button onClick={() => downloadShareCard(shareMessage.content, false)} className="focus-ring flex h-11 items-center justify-center gap-2 rounded-xl bg-white text-sm font-semibold text-[var(--cabi-on-primary)]"><Download size={15} /> Square</button><button onClick={() => downloadShareCard(shareMessage.content, true)} className="focus-ring flex h-11 items-center justify-center gap-2 rounded-xl border border-[var(--cabi-hairline)] bg-[var(--cabi-surface-2)] text-sm font-semibold hover:bg-[var(--cabi-surface-3)]"><Download size={15} /> 16:9</button></div></div></div>}
 
       <Dialog open={savePromptOpen} onOpenChange={(open) => { if (!open && !savingGuestChat) { setSavePromptOpen(false); setTemporaryChat(true); } }}>

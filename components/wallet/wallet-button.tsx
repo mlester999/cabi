@@ -4,7 +4,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { explorerAddressUrl, shortenAddress } from "@/lib/wallet/client";
 import { useWallet } from "@/components/wallet/wallet-provider";
 import { WalletLogo } from "@/components/wallet/wallet-logo";
-import { Check, Copy, ExternalLink, LogOut, Network } from "lucide-react";
+import { Check, Copy, ExternalLink, FlaskConical, LogOut, Network, Settings, UserRound } from "lucide-react";
+import Link from "next/link";
 import { useState } from "react";
 
 /**
@@ -92,6 +93,9 @@ export function WalletButton({ compact = false, requiredChainId = null }: { comp
         {wallet.error ? <p role="alert" className="cabi-error-text mt-3">{wallet.error}</p> : null}
 
         <div className="mt-3 grid gap-1">
+          <MenuRow href="/profile" external={false} icon={<UserRound size={15} />}>Profile</MenuRow>
+          <MenuRow href="/lab" external={false} icon={<FlaskConical size={15} />}>Cabi Lab</MenuRow>
+          <MenuRow href="/settings" external={false} icon={<Settings size={15} />}>Settings</MenuRow>
           <MenuRow onClick={() => void copyAddress()} icon={copied ? <Check size={15} className="text-[var(--cabi-success)]" /> : <Copy size={15} />}>
             {copied ? "Copied" : "Copy address"}
           </MenuRow>
@@ -110,12 +114,14 @@ function MenuRow({
   icon,
   onClick,
   href,
+  external,
   tone = "neutral",
 }: {
   children: React.ReactNode;
   icon: React.ReactNode;
   onClick?: () => void;
   href?: string;
+  external?: boolean;
   tone?: "neutral" | "danger";
 }) {
   const classes = `cabi-focus flex h-9 items-center gap-3 rounded-lg px-3 text-left text-[13px] transition-colors ${
@@ -123,6 +129,9 @@ function MenuRow({
       ? "text-[var(--cabi-text-secondary)] hover:bg-[var(--cabi-danger-surface)] hover:text-[var(--cabi-danger)]"
       : "text-[var(--cabi-text-secondary)] hover:bg-[var(--cabi-surface-2)] hover:text-white"
   }`;
+  if (href && external === false) {
+    return <Link href={href} className={classes}>{icon}{children}</Link>;
+  }
   if (href) {
     return <a href={href} target="_blank" rel="noopener noreferrer" className={classes}>{icon}{children}</a>;
   }

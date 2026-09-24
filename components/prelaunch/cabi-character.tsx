@@ -130,8 +130,8 @@ export function CabiCharacter({ className = "", mood = "cozy" }: { className?: s
     >
       <motion.div aria-hidden="true" style={{ x: auraX, y: auraY }} className="pointer-events-none absolute inset-0">
         <div className="cabi-glow absolute left-1/2 top-[42%] h-[86%] w-[86%] -translate-x-1/2 -translate-y-1/2 rounded-full bg-violet-500/[0.20] blur-[86px]" />
-        <div className="absolute left-1/2 top-[30%] h-[46%] w-[62%] -translate-x-1/2 rounded-full bg-[var(--cabi-accent)]/[0.14] blur-[64px]" />
-        <div className="absolute inset-x-[8%] bottom-[4%] h-[16%] rounded-[100%] bg-[var(--cabi-accent)]/[0.30] blur-[48px]" />
+        <div className="absolute left-1/2 top-[30%] h-[46%] w-[62%] -translate-x-1/2 rounded-full bg-[#8b5cf6]/[0.14] blur-[64px]" />
+        <div className="absolute inset-x-[8%] bottom-[4%] h-[16%] rounded-[100%] bg-[#4c1d95]/[0.30] blur-[48px]" />
       </motion.div>
 
       <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
@@ -220,9 +220,9 @@ function CabiPlaceholder() {
       <div className="absolute left-1/2 top-[36%] h-[52%] w-[52%] -translate-x-1/2 -translate-y-1/2 rounded-full border border-violet-300/[0.14]" />
       <div className="cabi-orbit absolute left-1/2 top-[36%] h-[66%] w-[66%] -translate-x-1/2 -translate-y-1/2 rounded-full border border-dashed border-violet-300/[0.12]" />
       <div className="relative flex flex-col items-center">
-        <MiniCabi className="h-[104px] w-[104px] rounded-2xl sm:h-[132px] sm:w-[132px] sm:rounded-full" />
-        <p className="mt-6 text-center text-[11px] font-semibold uppercase tracking-[.34em] text-[var(--cabi-primary)]/70">Cat Partner Unit</p>
-        <p className="mt-2 max-w-[15rem] text-center text-[11px] leading-5 text-[var(--cabi-text-faint)]">
+        <MiniCabi className="h-[104px] w-[104px] rounded-[32px] sm:h-[132px] sm:w-[132px] sm:rounded-[40px]" />
+        <p className="mt-6 text-center text-[11px] font-semibold uppercase tracking-[.34em] text-violet-300/70">Cat Partner Unit</p>
+        <p className="mt-2 max-w-[15rem] text-center text-[11px] leading-5 text-[#625d6d]">
           Cabi&apos;s official artwork appears here as soon as it is uploaded.
         </p>
       </div>

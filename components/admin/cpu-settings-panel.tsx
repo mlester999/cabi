@@ -189,17 +189,17 @@ export function CpuSettingsPanel() {
           official $CPU token. The minimum and the two switches are saved
           server-side, validated, and audited.
          ------------------------------------------------------------------ */}
-      <section className="mt-7 rounded-2xl border border-violet-200/[0.12] bg-[var(--cabi-surface)] p-5">
+      <section className="mt-7 rounded-[24px] border border-violet-200/[0.12] bg-[#0e0c15] p-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h2 className="text-sm font-semibold">CPU Access Gate</h2>
-            <p className="mt-1 max-w-xl text-xs leading-5 text-[var(--cabi-text-muted)]">
+            <p className="mt-1 max-w-xl text-xs leading-5 text-[#777180]">
               While the site is LIVE, a normal wallet must hold at least the minimum below to use Cabi. The balance is read
               on the server, straight from the official contract, using <code className="font-mono">balanceOf</code> and{" "}
               <code className="font-mono">decimals()</code>. Admin/owner wallets on the allowlist are exempt.
             </p>
           </div>
-          <label className="flex items-center gap-2 rounded-xl border border-[var(--cabi-hairline)] bg-[var(--cabi-surface-2)] px-3 py-2 text-xs text-[var(--cabi-text-secondary)]">
+          <label className="flex items-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-xs text-[#d5d0de]">
             <input type="checkbox" checked={gate.enabled} onChange={(event) => setGate((current) => ({ ...current, enabled: event.target.checked }))} className="accent-violet-300" />
             Gate enabled
           </label>
@@ -228,33 +228,33 @@ export function CpuSettingsPanel() {
           <Field label="RPC used for the balance read" help="Server-only. Never taken from a browser.">
             <input className="field font-mono text-[11px]" value={gate.rpcUrl} readOnly disabled />
           </Field>
-          <label className="flex items-center gap-2 self-end rounded-xl border border-[var(--cabi-hairline)] bg-[var(--cabi-surface-2)] px-3 py-2.5 text-xs text-[var(--cabi-text-secondary)]">
+          <label className="flex items-center gap-2 self-end rounded-xl border border-white/[0.08] bg-white/[0.03] px-3 py-2.5 text-xs text-[#d5d0de]">
             <input type="checkbox" checked={gate.allowAdminBypass} onChange={(event) => setGate((current) => ({ ...current, allowAdminBypass: event.target.checked }))} className="accent-violet-300" />
             Allow admin/owner bypass
           </label>
         </div>
 
         <div className="mt-4 flex flex-wrap items-center gap-3">
-          <button type="button" onClick={() => void saveGate()} disabled={gateBusy || !databaseReady} className="focus-ring flex h-11 items-center gap-2 rounded-xl bg-[var(--cabi-primary)] px-4 text-sm font-semibold text-[var(--cabi-on-primary)] disabled:opacity-40">
+          <button type="button" onClick={() => void saveGate()} disabled={gateBusy || !databaseReady} className="focus-ring flex h-11 items-center gap-2 rounded-xl bg-violet-200 px-4 text-sm font-semibold text-[#160f27] disabled:opacity-40">
             <Save size={15} /> {gateBusy ? "Saving…" : "Save access gate"}
           </button>
-          <button type="button" onClick={() => setGate(gateInitial)} className="focus-ring flex h-11 items-center gap-2 rounded-xl border border-[var(--cabi-hairline)] bg-[var(--cabi-surface-2)] px-4 text-sm">
+          <button type="button" onClick={() => setGate(gateInitial)} className="focus-ring flex h-11 items-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.03] px-4 text-sm">
             <RotateCcw size={15} /> Reset
           </button>
-          {gateNotice && <p role="status" className="text-xs text-[var(--cabi-primary)]">{gateNotice}</p>}
+          {gateNotice && <p role="status" className="text-xs text-violet-200">{gateNotice}</p>}
         </div>
-        <p className="mt-3 text-[11px] leading-5 text-[var(--cabi-text-faint)]">
+        <p className="mt-3 text-[11px] leading-5 text-[#625d6d]">
           Every change here is written to the admin audit log. Effective values now: gate{" "}
-          <span className="text-[var(--cabi-text-secondary)]">{gate.enabled ? "ON" : "OFF"}</span> ({gate.source.enabled}), minimum{" "}
-          <span className="text-[var(--cabi-text-secondary)]">{gate.minimumBalance.toLocaleString("en-US")}</span> ({gate.source.minimumBalance}), bypass{" "}
-          <span className="text-[var(--cabi-text-secondary)]">{gate.allowAdminBypass ? "ON" : "OFF"}</span> ({gate.source.allowAdminBypass}).
+          <span className="text-[#a8a3b3]">{gate.enabled ? "ON" : "OFF"}</span> ({gate.source.enabled}), minimum{" "}
+          <span className="text-[#a8a3b3]">{gate.minimumBalance.toLocaleString("en-US")}</span> ({gate.source.minimumBalance}), bypass{" "}
+          <span className="text-[#a8a3b3]">{gate.allowAdminBypass ? "ON" : "OFF"}</span> ({gate.source.allowAdminBypass}).
         </p>
       </section>
 
-      <section className="mt-7 rounded-2xl border border-[var(--cabi-hairline)] bg-[var(--cabi-surface)] p-5">
+      <section className="mt-7 rounded-[24px] border border-white/[0.065] bg-[#0e0c15] p-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
-          <div><h2 className="text-sm font-semibold">Token publication</h2><p className="mt-1 text-xs leading-5 text-[var(--cabi-text-muted)]">LIVE requires a valid EVM address, an enabled chain, and the exact Clank.trade coin URL.</p></div>
-          <label className="flex items-center gap-3 text-xs text-[var(--cabi-text-secondary)]">Launch status<select value={value.cpu.launchStatus} onChange={(event) => updateCpu("launchStatus", event.target.value as Cpu["launchStatus"])} className="field !w-auto"><option value="PRELAUNCH">PRELAUNCH</option><option value="LIVE">LIVE</option></select></label>
+          <div><h2 className="text-sm font-semibold">Token publication</h2><p className="mt-1 text-xs leading-5 text-[#777180]">LIVE requires a valid EVM address, an enabled chain, and the exact Clank.trade coin URL.</p></div>
+          <label className="flex items-center gap-3 text-xs text-[#a8a3b3]">Launch status<select value={value.cpu.launchStatus} onChange={(event) => updateCpu("launchStatus", event.target.value as Cpu["launchStatus"])} className="field !w-auto"><option value="PRELAUNCH">PRELAUNCH</option><option value="LIVE">LIVE</option></select></label>
         </div>
         <div className="mt-6 grid gap-5 lg:grid-cols-2">
           <Field label="Token name"><input className="field" value={value.cpu.tokenName} onChange={(event) => updateCpu("tokenName", event.target.value)} /></Field>
@@ -265,24 +265,24 @@ export function CpuSettingsPanel() {
           <Field label="Explicit contract explorer URL" help="Optional; otherwise the selected chain explorer is used."><input className="field" type="url" placeholder="https://…/address/0x…" value={value.cpu.explorerUrl} onChange={(event) => updateCpu("explorerUrl", event.target.value)} /></Field>
           <Field label="X URL"><input className="field" type="url" value={value.cpu.xUrl} onChange={(event) => updateCpu("xUrl", event.target.value)} /></Field>
           <Field label="Website URL"><input className="field" type="url" value={value.cpu.websiteUrl} onChange={(event) => updateCpu("websiteUrl", event.target.value)} /></Field>
-          <label className="lg:col-span-2"><span className="text-xs font-medium text-[var(--cabi-text-secondary)]">What is CPU?</span><textarea className="field mt-2 h-auto resize-y py-3 leading-6" rows={4} value={value.cpu.description} onChange={(event) => updateCpu("description", event.target.value)} /></label>
+          <label className="lg:col-span-2"><span className="text-xs font-medium text-[#a8a3b3]">What is CPU?</span><textarea className="field mt-2 h-auto resize-y py-3 leading-6" rows={4} value={value.cpu.description} onChange={(event) => updateCpu("description", event.target.value)} /></label>
         </div>
       </section>
 
-      <section className="mt-5 rounded-2xl border border-[var(--cabi-hairline)] bg-[var(--cabi-surface)] p-5">
-        <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-sm font-semibold">Supported EVM chains</h2><p className="mt-1 text-xs leading-5 text-[var(--cabi-text-muted)]">Nothing is assumed for Robinhood Chain. Add only verified chain details from an authoritative source.</p></div><button type="button" onClick={() => setValue((current) => ({ ...current, chains: [...current.chains, newChain()] }))} className="focus-ring flex h-9 items-center gap-2 rounded-xl border border-[var(--cabi-hairline)] bg-[var(--cabi-surface-2)] px-3 text-xs"><Plus size={14} /> Add chain</button></div>
+      <section className="mt-5 rounded-[24px] border border-white/[0.065] bg-[#0e0c15] p-5">
+        <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-sm font-semibold">Supported EVM chains</h2><p className="mt-1 text-xs leading-5 text-[#777180]">Nothing is assumed for Robinhood Chain. Add only verified chain details from an authoritative source.</p></div><button type="button" onClick={() => setValue((current) => ({ ...current, chains: [...current.chains, newChain()] }))} className="focus-ring flex h-10 items-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.03] px-3 text-xs"><Plus size={14} /> Add chain</button></div>
         <div className="mt-5 space-y-4">
-          {value.chains.length === 0 && <div className="rounded-2xl border border-dashed border-[var(--cabi-hairline)] p-7 text-center text-sm text-[var(--cabi-text-muted)]">No chain details configured. Wallet authentication can still be used for saved chats.</div>}
-          {value.chains.map((chain, index) => <div key={`${chain.id}-${index}`} className="rounded-2xl border border-[var(--cabi-hairline)] bg-[var(--cabi-surface-1)] p-4"><div className="flex items-center justify-between gap-3"><label className="flex items-center gap-2 text-xs text-[var(--cabi-text-secondary)]"><input type="checkbox" checked={chain.enabled} onChange={(event) => updateChain(index, { enabled: event.target.checked })} className="accent-violet-300" /> Enabled</label><button type="button" aria-label={`Remove ${chain.name || "chain"}`} onClick={() => setValue((current) => ({ ...current, chains: current.chains.filter((_, itemIndex) => itemIndex !== index), primaryChainId: current.primaryChainId === chain.id ? null : current.primaryChainId, cpu: current.cpu.chainId === chain.id ? { ...current.cpu, chainId: null } : current.cpu }))} className="focus-ring grid h-9 w-9 place-items-center rounded-lg text-[var(--cabi-text-muted)] hover:bg-rose-300/[0.06] hover:text-rose-300"><Trash2 size={15} /></button></div><div className="mt-4 grid gap-4 lg:grid-cols-3"><Field label="Chain ID"><input className="field" type="number" min="1" value={chain.id} onChange={(event) => updateChain(index, { id: Number(event.target.value) })} /></Field><Field label="Chain name"><input className="field" value={chain.name} onChange={(event) => updateChain(index, { name: event.target.value })} /></Field><Field label="Currency name"><input className="field" value={chain.nativeCurrency.name} onChange={(event) => updateCurrency(index, { name: event.target.value })} /></Field><Field label="Currency symbol"><input className="field" value={chain.nativeCurrency.symbol} onChange={(event) => updateCurrency(index, { symbol: event.target.value })} /></Field><Field label="Currency decimals"><input className="field" type="number" min="0" max="36" value={chain.nativeCurrency.decimals} onChange={(event) => updateCurrency(index, { decimals: Number(event.target.value) })} /></Field><Field label="Icon URL"><input className="field" value={chain.iconUrl} onChange={(event) => updateChain(index, { iconUrl: event.target.value })} /></Field><label className="lg:col-span-2"><span className="text-xs font-medium text-[var(--cabi-text-secondary)]">RPC URL</span><input className="field mt-2" type="url" value={chain.rpcUrl} onChange={(event) => updateChain(index, { rpcUrl: event.target.value })} /></label><Field label="Block explorer URL"><input className="field" type="url" value={chain.blockExplorerUrl} onChange={(event) => updateChain(index, { blockExplorerUrl: event.target.value })} /></Field></div></div>)}
+          {value.chains.length === 0 && <div className="rounded-2xl border border-dashed border-white/[0.08] p-7 text-center text-sm text-[#777180]">No chain details configured. Wallet authentication can still be used for saved chats.</div>}
+          {value.chains.map((chain, index) => <div key={`${chain.id}-${index}`} className="rounded-2xl border border-white/[0.07] bg-white/[0.02] p-4"><div className="flex items-center justify-between gap-3"><label className="flex items-center gap-2 text-xs text-[#a8a3b3]"><input type="checkbox" checked={chain.enabled} onChange={(event) => updateChain(index, { enabled: event.target.checked })} className="accent-violet-300" /> Enabled</label><button type="button" aria-label={`Remove ${chain.name || "chain"}`} onClick={() => setValue((current) => ({ ...current, chains: current.chains.filter((_, itemIndex) => itemIndex !== index), primaryChainId: current.primaryChainId === chain.id ? null : current.primaryChainId, cpu: current.cpu.chainId === chain.id ? { ...current.cpu, chainId: null } : current.cpu }))} className="focus-ring grid h-9 w-9 place-items-center rounded-lg text-[#777180] hover:bg-rose-300/[0.06] hover:text-rose-300"><Trash2 size={15} /></button></div><div className="mt-4 grid gap-4 lg:grid-cols-3"><Field label="Chain ID"><input className="field" type="number" min="1" value={chain.id} onChange={(event) => updateChain(index, { id: Number(event.target.value) })} /></Field><Field label="Chain name"><input className="field" value={chain.name} onChange={(event) => updateChain(index, { name: event.target.value })} /></Field><Field label="Currency name"><input className="field" value={chain.nativeCurrency.name} onChange={(event) => updateCurrency(index, { name: event.target.value })} /></Field><Field label="Currency symbol"><input className="field" value={chain.nativeCurrency.symbol} onChange={(event) => updateCurrency(index, { symbol: event.target.value })} /></Field><Field label="Currency decimals"><input className="field" type="number" min="0" max="36" value={chain.nativeCurrency.decimals} onChange={(event) => updateCurrency(index, { decimals: Number(event.target.value) })} /></Field><Field label="Icon URL"><input className="field" value={chain.iconUrl} onChange={(event) => updateChain(index, { iconUrl: event.target.value })} /></Field><label className="lg:col-span-2"><span className="text-xs font-medium text-[#a8a3b3]">RPC URL</span><input className="field mt-2" type="url" value={chain.rpcUrl} onChange={(event) => updateChain(index, { rpcUrl: event.target.value })} /></label><Field label="Block explorer URL"><input className="field" type="url" value={chain.blockExplorerUrl} onChange={(event) => updateChain(index, { blockExplorerUrl: event.target.value })} /></Field></div></div>)}
         </div>
-        <label className="mt-5 block max-w-md"><span className="text-xs font-medium text-[var(--cabi-text-secondary)]">Primary chain</span><select className="field mt-2" value={value.primaryChainId ?? ""} onChange={(event) => setValue((current) => ({ ...current, primaryChainId: event.target.value ? Number(event.target.value) : null }))}><option value="">Not configured</option>{value.chains.filter((chain) => chain.enabled).map((chain) => <option key={chain.id} value={chain.id}>{chain.name || `Chain ${chain.id}`} · {chain.id}</option>)}</select></label>
+        <label className="mt-5 block max-w-md"><span className="text-xs font-medium text-[#a8a3b3]">Primary chain</span><select className="field mt-2" value={value.primaryChainId ?? ""} onChange={(event) => setValue((current) => ({ ...current, primaryChainId: event.target.value ? Number(event.target.value) : null }))}><option value="">Not configured</option>{value.chains.filter((chain) => chain.enabled).map((chain) => <option key={chain.id} value={chain.id}>{chain.name || `Chain ${chain.id}`} · {chain.id}</option>)}</select></label>
       </section>
 
-      <div className="mt-4 flex flex-wrap items-center gap-3"><button type="button" onClick={() => setValue(initial)} className="focus-ring flex h-11 items-center gap-2 rounded-xl border border-[var(--cabi-hairline)] bg-[var(--cabi-surface-2)] px-4 text-sm"><RotateCcw size={15} /> Reset</button><button disabled={busy || !databaseReady} className="focus-ring flex h-11 items-center gap-2 rounded-xl bg-[var(--cabi-primary)] px-4 text-sm font-semibold text-[var(--cabi-on-primary)] disabled:opacity-40"><Save size={15} /> {busy ? "Saving…" : "Save"}</button>{notice && <p role="status" className="text-xs text-[var(--cabi-primary)]">{notice}</p>}</div>
+      <div className="mt-4 flex flex-wrap items-center gap-3"><button type="button" onClick={() => setValue(initial)} className="focus-ring flex h-11 items-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.03] px-4 text-sm"><RotateCcw size={15} /> Reset</button><button disabled={busy || !databaseReady} className="focus-ring flex h-11 items-center gap-2 rounded-xl bg-violet-200 px-4 text-sm font-semibold text-[#160f27] disabled:opacity-40"><Save size={15} /> {busy ? "Saving…" : "Save"}</button>{notice && <p role="status" className="text-xs text-violet-200">{notice}</p>}</div>
     </form>
   );
 }
 
 function Field({ label, help, children }: { label: string; help?: string; children: React.ReactNode }) {
-  return <label><span className="text-xs font-medium text-[var(--cabi-text-secondary)]">{label}</span>{help && <span className="ml-2 text-[10px] text-[var(--cabi-text-faint)]">{help}</span>}<div className="mt-2">{children}</div></label>;
+  return <label><span className="text-xs font-medium text-[#a8a3b3]">{label}</span>{help && <span className="ml-2 text-[10px] text-[#625d6d]">{help}</span>}<div className="mt-2">{children}</div></label>;
 }

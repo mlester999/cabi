@@ -41,9 +41,9 @@ export function PrelaunchVeil() {
       <div className="flex flex-col items-center">
         <span className="relative grid h-16 w-16 place-items-center">
           <span className="absolute inset-0 rounded-full bg-violet-400/20 blur-2xl" />
-          <MiniCabi className="relative h-12 w-12 rounded-lg" decorative />
+          <MiniCabi className="relative h-12 w-12 rounded-[15px]" decorative />
         </span>
-        <p className="mt-5 text-[13px] font-bold tracking-[.34em] text-[var(--cabi-text-secondary)]">CABI</p>
+        <p className="mt-5 text-[13px] font-bold tracking-[.34em] text-violet-100">CABI</p>
         <span className="cabi-indeterminate mt-3 block h-px w-24 overflow-hidden rounded-full bg-white/10" />
       </div>
     </div>

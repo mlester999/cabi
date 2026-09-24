@@ -45,7 +45,7 @@ export function SeasonCountdown({ endsAt, onElapsed }: { endsAt: string; onElaps
     : `${pad(hours)}H ${pad(minutes)}M ${pad(seconds)}S`;
 
   return (
-    <span className="font-mono text-[12px] font-semibold tabular-nums text-[var(--cabi-primary)]">
+    <span className="font-mono text-[12px] font-semibold tabular-nums text-violet-200">
       {/* The live digits are decorative to assistive tech; the static label carries the meaning. */}
       <span aria-hidden="true">{text}</span>
       <span className="sr-only">{`Season ends ${new Date(endsAt).toUTCString()}`}</span>

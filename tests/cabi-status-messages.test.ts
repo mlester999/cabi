@@ -19,17 +19,16 @@ import {
  * Cabi's activity messages.
  *
  * Three properties are load-bearing: a category can never end up with nothing to
- * say, the rotation is slow enough not to flicker, and the escalation describes
- * elapsed time rather than inventing a completion percentage.
+ * say, the visible activity copy stays calm, and no message invents a completion
+ * percentage.
  */
 
 describe("message catalogues", () => {
   it("has built-in defaults for every activity", () => {
     for (const type of cabiStatusTypes) {
-      // Every category ships with more than one line, so nothing rotates onto
-      // itself. The saving categories are intentionally short: they describe an
-      // instant, not a wait.
-      expect(cabiStatusDefaults[type].length).toBeGreaterThanOrEqual(2);
+      // Every category ships with at least one line. Chat and image work use one
+      // stable line so a single request does not look like stacked loaders.
+      expect(cabiStatusDefaults[type].length).toBeGreaterThanOrEqual(1);
       for (const message of cabiStatusDefaults[type]) {
         expect(message.trim().length).toBeGreaterThan(0);
         expect(message.length).toBeLessThanOrEqual(120);
@@ -46,15 +45,9 @@ describe("message catalogues", () => {
     expect(cabiStatusTypes).toContain("IMAGE_SAVING");
   });
 
-  it("includes the lines the brief specifies for chat and images", () => {
-    const chat = cabiStatusDefaults.CHAT_THINKING.join(" ");
-    for (const line of ["Cabi is thinking...", "Give me a sec...", "Thinking with my tiny CPU...", "Connecting the dots..."]) {
-      expect(chat).toContain(line);
-    }
-    const images = cabiStatusDefaults.IMAGE_GENERATING.join(" ");
-    for (const line of ["Cabi is getting ready...", "Picking an outfit...", "Fixing my hair...", "Rendering Cabi...", "Adding the final touches..."]) {
-      expect(images).toContain(line);
-    }
+  it("uses one concise line for chat and image work", () => {
+    expect(cabiStatusDefaults.CHAT_THINKING).toEqual(["Cabi is thinking…"]);
+    expect(cabiStatusDefaults.IMAGE_GENERATING).toEqual(["Cabi is generating your image…"]);
   });
 
   it("keeps memory, wallet, profile, and storage wording subtle and honest", () => {
@@ -72,7 +65,7 @@ describe("owner overrides", () => {
   it("appends custom lines without removing the defaults", () => {
     const messages = resolveStatusMessages("CHAT_THINKING", { CHAT_THINKING: ["Booting my little brain..."] });
     expect(messages).toContain("Booting my little brain...");
-    expect(messages).toContain("Cabi is thinking...");
+    expect(messages).toContain("Cabi is thinking…");
     expect(messages.length).toBe(cabiStatusDefaults.CHAT_THINKING.length + 1);
   });
 

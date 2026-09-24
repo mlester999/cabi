@@ -40,7 +40,7 @@ export function RankUpCelebration({ tier, achievements = [], onDismiss }: {
           role="status"
           aria-live="polite"
         >
-          <div className="pointer-events-auto relative overflow-hidden rounded-2xl border border-violet-200/[0.22] bg-[var(--cabi-surface)]/96 px-5 py-4 shadow-[0_20px_60px_rgba(139,92,246,.25)] backdrop-blur-xl motion-reduce:transition-none">
+          <div className="pointer-events-auto relative overflow-hidden rounded-[24px] border border-violet-200/[0.22] bg-[#0d0b15]/96 px-5 py-4 shadow-[0_20px_60px_rgba(139,92,246,.25)] backdrop-blur-xl motion-reduce:transition-none">
             {/* Lavender glow, animated only for users who have not asked for less motion. */}
             <span
               aria-hidden="true"
@@ -49,24 +49,24 @@ export function RankUpCelebration({ tier, achievements = [], onDismiss }: {
             />
             <div className="flex items-center gap-3.5">
               <span
-                className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl border border-[var(--cabi-border)]"
+                className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl border border-white/[0.12]"
                 style={{ backgroundColor: `${tier.accent}22` }}
                 aria-hidden="true"
               >
                 <Sparkles size={19} style={{ color: tier.accent }} />
               </span>
               <div className="min-w-0">
-                <p className="text-[10px] font-semibold uppercase tracking-[.18em] text-[var(--cabi-primary)]">Rank up</p>
+                <p className="text-[10px] font-semibold uppercase tracking-[.18em] text-violet-300">Rank up</p>
                 <p className="mt-0.5 text-base font-bold tracking-[-0.01em] text-white">{tier.label}</p>
-                <p className="mt-0.5 text-[12px] text-[var(--cabi-text-secondary)]">{rankUpMessage(tier)}</p>
+                <p className="mt-0.5 text-[12px] text-[#c9c4d4]">{rankUpMessage(tier)}</p>
                 {achievements.length > 0 ? (
-                  <p className="mt-1.5 text-[11px] text-[var(--cabi-primary)]">Also earned: {achievements.join(", ")}</p>
+                  <p className="mt-1.5 text-[11px] text-violet-200">Also earned: {achievements.join(", ")}</p>
                 ) : null}
               </div>
               <button
                 type="button"
                 onClick={onDismiss}
-                className="focus-ring ml-1 grid h-8 w-8 shrink-0 place-items-center self-start rounded-lg text-[var(--cabi-text-muted)] hover:bg-[var(--cabi-surface-3)] hover:text-white"
+                className="focus-ring ml-1 grid h-8 w-8 shrink-0 place-items-center self-start rounded-lg text-[#777180] hover:bg-white/[0.06] hover:text-white"
                 aria-label="Dismiss rank up"
               >
                 <span aria-hidden="true" className="text-lg leading-none">&times;</span>

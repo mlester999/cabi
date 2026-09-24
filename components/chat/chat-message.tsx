@@ -68,13 +68,13 @@ export function ChatMessage({ message, onRetry, onDelete, onEdit, onShare, onRea
     <article className={`group/message flex gap-3 ${isCabi ? "items-start" : "justify-end"}`} aria-label={`${isCabi ? "Cabi" : "You"} said`}>
       {isCabi ? <MiniCabi className="mt-1 h-8 w-8 rounded-lg" /> : null}
 
-      <div className={`min-w-0 ${isCabi ? "max-w-[min(92%,46rem)]" : "max-w-[min(85%,40rem)]"}`}>
+      <div className={`min-w-0 ${isCabi ? "max-w-[min(82%,46rem)]" : "max-w-[min(72%,36rem)]"}`}>
         {showBubble ? (
           <div
             className={`relative rounded-xl px-4 py-3 text-[15px] leading-7 ${
               isCabi
-                ? "rounded-tl-sm border border-[var(--cabi-border)] bg-[rgba(196,181,253,0.055)] text-white"
-                : "rounded-tr-sm border border-[var(--cabi-hairline)] bg-[var(--cabi-surface)] text-white"
+                ? "rounded-tl-sm bg-violet-300/[0.06] text-[#ece9f3]"
+                : "rounded-tr-sm border border-white/[0.055] bg-[#17141f] text-white"
             }`}
           >
             {isCabi ? (
@@ -85,10 +85,10 @@ export function ChatMessage({ message, onRetry, onDelete, onEdit, onShare, onRea
                       remarkPlugins={[remarkGfm]}
                       rehypePlugins={[rehypeSanitize]}
                       components={{
-                        a: ({ href, children }) => <a href={href} target="_blank" rel="noreferrer noopener" className="cabi-focus rounded text-[var(--cabi-primary)] underline decoration-[var(--cabi-border-hover)] underline-offset-4 hover:text-[var(--cabi-primary-strong)]">{children}</a>,
+                        a: ({ href, children }) => <a href={href} target="_blank" rel="noreferrer noopener" className="cabi-focus rounded text-violet-300 underline decoration-violet-300/35 underline-offset-4 hover:text-violet-200">{children}</a>,
                         code: ({ children, className }) => className
-                          ? <code className={`${className} block overflow-x-auto rounded-lg bg-black/35 p-3 font-mono text-[13px] leading-6 text-[var(--cabi-text-secondary)]`}>{children}</code>
-                          : <code className="rounded-sm bg-[var(--cabi-surface-3)] px-1.5 py-0.5 font-mono text-[13px] text-[var(--cabi-primary)]">{children}</code>,
+                          ? <code className={`${className} block overflow-x-auto rounded-lg bg-black/35 p-3 font-mono text-[13px] leading-6 text-violet-100`}>{children}</code>
+                          : <code className="rounded-sm bg-white/[0.07] px-1.5 py-0.5 font-mono text-[13px] text-violet-200">{children}</code>,
                         pre: ({ children }) => <pre className="my-3 max-w-full overflow-hidden">{children}</pre>,
                         ul: ({ children }) => <ul className="my-2 list-disc space-y-1 pl-5">{children}</ul>,
                         ol: ({ children }) => <ol className="my-2 list-decimal space-y-1 pl-5">{children}</ol>,
@@ -98,7 +98,7 @@ export function ChatMessage({ message, onRetry, onDelete, onEdit, onShare, onRea
                       {message.content}
                     </ReactMarkdown>
                     {message.status === "streaming" ? (
-                      <span className="ml-1 inline-block h-4 w-1.5 animate-pulse rounded-full bg-[var(--cabi-primary)] align-middle" aria-label="Cabi is typing" />
+                      <span className="ml-1 inline-block h-4 w-1.5 animate-pulse rounded-full bg-violet-300 align-middle" aria-label="Cabi is typing" />
                     ) : null}
                   </>
                 ) : message.status === "streaming" ? (
@@ -115,18 +115,18 @@ export function ChatMessage({ message, onRetry, onDelete, onEdit, onShare, onRea
 
         {/* The single error surface for a failed reply. No provider text. */}
         {message.status === "failed" && message.content.trim() ? (
-          <div className="cabi-inset cabi-surface-danger mt-2 flex flex-wrap items-center gap-2 px-3 py-2.5">
-            <span className="cabi-body-sm flex-1 !text-[var(--cabi-danger)]">{cabiFailureMessages.CHAT}</span>
-            <button onClick={onRetry} className="cabi-btn cabi-btn-sm cabi-btn-secondary cabi-focus">{cabiRetryLabel}</button>
+          <div className="mt-2 flex flex-wrap items-center gap-2 rounded-lg bg-rose-300/[0.05] px-3 py-2.5">
+            <span className="flex-1 text-xs text-rose-200">{cabiFailureMessages.CHAT}</span>
+            <button onClick={onRetry} className="cabi-focus rounded-lg px-2.5 py-1.5 text-xs font-semibold text-violet-200 hover:bg-white/[0.05]">{cabiRetryLabel}</button>
           </div>
         ) : null}
 
         {message.sources?.length ? (
-          <div className="cabi-inset mt-2 p-2.5">
-            <p className="cabi-overline mb-1.5 flex items-center gap-1.5"><BadgeCheck size={12} aria-hidden="true" /> Sources</p>
+          <div className="mt-2 rounded-lg border border-white/[0.05] bg-white/[0.02] p-2.5">
+            <p className="mb-1.5 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[.12em] text-[#706a7d]"><BadgeCheck size={12} aria-hidden="true" /> Sources</p>
             <div className="flex flex-wrap gap-1.5">
               {message.sources.map((source) => (
-                <a key={source.url} href={source.url} target="_blank" rel="noreferrer noopener" className="cabi-focus max-w-full truncate rounded-lg bg-[var(--cabi-surface-2)] px-2 py-1 text-[11px] text-[var(--cabi-primary)] transition-colors hover:bg-[var(--cabi-surface-3)]">
+                <a key={source.url} href={source.url} target="_blank" rel="noreferrer noopener" className="cabi-focus max-w-full truncate rounded-lg bg-white/[0.035] px-2 py-1 text-[11px] text-violet-300 transition-colors hover:bg-violet-300/[0.08]">
                   {source.title || new URL(source.url).hostname}
                 </a>
               ))}
@@ -142,7 +142,7 @@ export function ChatMessage({ message, onRetry, onDelete, onEdit, onShare, onRea
               <MessageAction label={copied ? "Copied" : "Copy"} onClick={copy}>{copied ? <Check size={13} /> : <Copy size={13} />}</MessageAction>
               <MessageAction label="Regenerate" onClick={onRetry}><RotateCcw size={13} /></MessageAction>
               <MessageAction label="Share card" onClick={onShare}><Share2 size={13} /></MessageAction>
-              <span aria-hidden="true" className="mx-1 h-3 w-px bg-[var(--cabi-hairline)]" />
+              <span aria-hidden="true" className="mx-1 h-3 w-px bg-white/[0.08]" />
               <MessageAction label="Heart" active={message.reaction === "heart"} onClick={() => onReact?.("heart")}><Heart size={13} fill={message.reaction === "heart" ? "currentColor" : "none"} /></MessageAction>
               <MessageAction label="Funny" active={message.reaction === "laugh"} onClick={() => onReact?.("laugh")}><Laugh size={13} /></MessageAction>
               <MessageAction label="Helpful" active={message.reaction === "helpful"} onClick={() => onReact?.("helpful")}><ThumbsUp size={13} /></MessageAction>
@@ -155,7 +155,7 @@ export function ChatMessage({ message, onRetry, onDelete, onEdit, onShare, onRea
               <MessageAction label="Delete" onClick={onDelete}><Trash2 size={13} /></MessageAction>
             </>
           ) : null}
-          <time className="cabi-caption ml-1 !text-[10px]" dateTime={message.createdAt}>
+          <time className="ml-1 text-[10px] text-[#5f5a67]" dateTime={message.createdAt}>
             {message.createdAt ? new Date(message.createdAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "Now"}
           </time>
         </div>
@@ -171,8 +171,8 @@ function MessageAction({ label, active = false, onClick, children }: { label: st
       type="button"
       className={`cabi-focus grid h-8 min-w-8 place-items-center rounded-lg px-2 transition-colors ${
         active
-          ? "bg-[var(--cabi-surface-3)] text-[var(--cabi-primary)]"
-          : "text-[var(--cabi-text-muted)] hover:bg-[var(--cabi-surface-2)] hover:text-white"
+          ? "bg-violet-300/[0.1] text-violet-300"
+          : "text-[#706a7d] hover:bg-white/[0.05] hover:text-white"
       }`}
       onClick={onClick}
       aria-label={label}
@@ -188,8 +188,7 @@ function MessageAction({ label, active = false, onClick, children }: { label: st
  * Kept as a named export for callers that render the thinking line on its own.
  *
  * It now delegates to the shared `CabiActivityStatus`, so there is ONE thinking
- * implementation across the app instead of this file carrying its own rotation
- * with a different interval.
+ * implementation across the app instead of this file carrying its own loader copy.
  */
 export function CabiThinking({ overrides }: { overrides?: CabiStatusOverrides | null } = {}) {
   return <CabiActivityStatus type="CHAT_THINKING" overrides={overrides} />;

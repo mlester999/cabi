@@ -8,10 +8,10 @@ export function MiniCabi({ className = "", decorative = false, priority = false 
     <span
       aria-label={decorative ? undefined : "Cabi — Cat Partner Unit"}
       aria-hidden={decorative}
-      className={`relative grid shrink-0 place-items-center overflow-hidden rounded-lg border border-violet-300/20 bg-violet-400/10 ${className}`}
+      className={`relative grid shrink-0 place-items-center overflow-hidden rounded-[14px] border border-violet-300/20 bg-violet-400/10 ${className}`}
     >
       {/* The monogram stays underneath the official mark as a resilient fallback. */}
-      <span aria-hidden="true" className="relative z-0 text-[12px] font-black tracking-[-0.08em] text-[var(--cabi-primary)]">CA</span>
+      <span aria-hidden="true" className="relative z-0 text-[12px] font-black tracking-[-0.08em] text-violet-200">CA</span>
       {/* The supplied official close-up mark is shared across chat, preview, and admin surfaces. */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img

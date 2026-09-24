@@ -52,13 +52,13 @@ export function SystemStatus({
   const dots = reduced ? preparingText[2] : preparingText[tick];
 
   return (
-    <section className={`glass rounded-2xl p-4 sm:p-5 ${className}`} aria-label={`${statusLabel} status`}>
+    <section className={`glass rounded-[26px] p-4 sm:p-5 ${className}`} aria-label={`${statusLabel} status`}>
       <div className="flex items-center justify-between gap-3">
-        <p className="text-[10px] font-semibold uppercase tracking-[.22em] text-[var(--cabi-primary)]">{statusLabel}</p>
-        <p role="status" aria-live="polite" className="min-w-0 truncate text-[11px] text-[var(--cabi-text-muted)]">{rotationLine}</p>
+        <p className="text-[10px] font-semibold uppercase tracking-[.22em] text-violet-300">{statusLabel}</p>
+        <p role="status" aria-live="polite" className="min-w-0 truncate text-[11px] text-[#8e889b]">{rotationLine}</p>
       </div>
 
-      <div className="cabi-indeterminate mt-4 h-px w-full rounded-full bg-[var(--cabi-surface-3)]" aria-hidden="true" />
+      <div className="cabi-indeterminate mt-4 h-px w-full rounded-full bg-white/[0.07]" aria-hidden="true" />
 
       <ul className="mt-4 space-y-2.5">
         {bootChecks.map((check) => (
@@ -68,9 +68,9 @@ export function SystemStatus({
                 aria-hidden="true"
                 className={`h-1.5 w-1.5 shrink-0 rounded-full ${check.state === "Preparing" ? "cabi-dot-pulse bg-violet-300" : "bg-emerald-300"}`}
               />
-              <span className="truncate text-[var(--cabi-text-secondary)]">{check.label}</span>
+              <span className="truncate text-[#cfc9da]">{check.label}</span>
             </span>
-            <span className={`shrink-0 font-mono text-[11px] ${check.state === "Preparing" ? "text-[var(--cabi-primary)]/80" : "text-emerald-300/90"}`}>
+            <span className={`shrink-0 font-mono text-[11px] ${check.state === "Preparing" ? "text-violet-200/80" : "text-emerald-300/90"}`}>
               {check.state === "Preparing" ? dots : idleText}
             </span>
           </li>
@@ -127,13 +127,13 @@ export function CabiTerminal({ className = "" }: { className?: string }) {
   }, [reduced]);
 
   return (
-    <div data-cabi-terminal className={`rounded-2xl border border-[var(--cabi-hairline)] bg-[var(--cabi-bg-deep)]/70 p-4 ${className}`} aria-hidden="true">
-      <p className="font-mono text-[10px] leading-5 text-[var(--cabi-text-faint)]">
-        <span className="text-[var(--cabi-primary)]/70">cabi@unit</span>:<span className="text-[var(--cabi-text-faint)]">~</span>$ boot --prelaunch
+    <div data-cabi-terminal className={`rounded-[22px] border border-white/[0.055] bg-[#0a0810]/70 p-4 ${className}`} aria-hidden="true">
+      <p className="font-mono text-[10px] leading-5 text-[#5f5a6c]">
+        <span className="text-violet-300/70">cabi@unit</span>:<span className="text-[#4b4657]">~</span>$ boot --prelaunch
       </p>
       <div className="mt-1.5 space-y-0.5 font-mono text-[11px] leading-5">
         {terminalLines.slice(0, visible).map((line, index) => (
-          <p key={line} className={index === visible - 1 && visible <= terminalLines.length ? "cabi-caret text-[var(--cabi-text-secondary)]" : "text-[var(--cabi-text-muted)]"}>
+          <p key={line} className={index === visible - 1 && visible <= terminalLines.length ? "cabi-caret text-[#a8a3b3]" : "text-[#6f6a7d]"}>
             <span className="text-violet-400/60">&gt; </span>
             {line}
           </p>
@@ -170,22 +170,22 @@ export function CabiMascotSpot({ className = "", checks = bootChecks.length }: {
         type="button"
         onClick={() => setIndex((value) => (value + 1) % easterEggs.length)}
         aria-label={spoken ? `Cabi says: ${spoken}. Activate for another line.` : "Cabi, your Cat Partner Unit. Activate to hear from her."}
-        className="focus-ring group relative grid h-[74px] w-[74px] shrink-0 place-items-center rounded-2xl border border-violet-200/[0.13] bg-[var(--cabi-bg-deep)]/80 transition hover:border-violet-200/25 hover:bg-violet-300/[0.06] sm:h-[86px] sm:w-[86px]"
+        className="focus-ring group relative grid h-[74px] w-[74px] shrink-0 place-items-center rounded-[24px] border border-violet-200/[0.13] bg-[#0d0a18]/80 transition hover:border-violet-200/25 hover:bg-violet-300/[0.06] sm:h-[86px] sm:w-[86px]"
       >
-        <span aria-hidden="true" className="absolute inset-0 rounded-2xl bg-violet-400/[0.10] blur-xl" />
+        <span aria-hidden="true" className="absolute inset-0 rounded-[24px] bg-violet-400/[0.10] blur-xl" />
         <CabiMascot className="relative h-[58px] w-[58px] sm:h-[68px] sm:w-[68px]" />
       </button>
 
       <div className="min-w-0 flex-1 pb-1">
-        <p className="text-[11px] uppercase tracking-[.2em] text-[var(--cabi-text-faint)]">Cat Mode</p>
+        <p className="text-[11px] uppercase tracking-[.2em] text-[#625d6d]">Cat Mode</p>
         <div
           className="mt-1.5 min-h-[42px] rounded-2xl rounded-bl-md border border-violet-200/[0.12] bg-violet-300/[0.05] px-3.5 py-2.5"
           role={spoken ? "status" : undefined}
           aria-live="polite"
         >
           {spoken
-            ? <p className="text-[13px] leading-5 text-[var(--cabi-text-secondary)]">{spoken}</p>
-            : <p className="text-[13px] leading-5 text-[var(--cabi-text-muted)]">{checks} systems preparing. Poke me if you like.</p>}
+            ? <p className="text-[13px] leading-5 text-violet-100">{spoken}</p>
+            : <p className="text-[13px] leading-5 text-[#8e889b]">{checks} systems preparing. Poke me if you like.</p>}
         </div>
       </div>
     </div>

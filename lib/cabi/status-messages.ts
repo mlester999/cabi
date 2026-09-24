@@ -13,8 +13,9 @@
  * - A category never runs out. Every bank has built-in defaults, and an owner
  *   adding custom lines ADDS to them rather than replacing them, so no
  *   configuration can leave the UI with nothing to say.
- * - The escalation lines are separate from the rotation, so "this is taking a
- *   while" is a statement about elapsed time and never a fabricated percentage.
+ * - The long-wait helpers remain separate from the visible activity copy, so
+ *   "this is taking a while" is a statement about elapsed time and never a
+ *   fabricated percentage.
  */
 
 export const cabiStatusTypes = [
@@ -30,29 +31,10 @@ export type CabiStatusType = (typeof cabiStatusTypes)[number];
 
 export const cabiStatusDefaults: Record<CabiStatusType, readonly string[]> = {
   CHAT_THINKING: [
-    "Cabi is thinking...",
-    "Give me a sec...",
-    "Hmm...",
-    "Let me think.",
-    "Processing that...",
-    "Okayyy, one second.",
-    "Thinking with my tiny CPU...",
-    "Connecting the dots...",
-    "Hold on, I got this.",
-    "Let me figure that out.",
+    "Cabi is thinking…",
   ],
   IMAGE_GENERATING: [
-    "Cabi is getting ready...",
-    "Picking an outfit...",
-    "Fixing my hair...",
-    "Setting up the scene...",
-    "Finding the right pose...",
-    "Making this look cute...",
-    "Almost picture time...",
-    "Working on it...",
-    "Rendering Cabi...",
-    "Adding the final touches...",
-    "Okayyy, almost done.",
+    "Cabi is generating your image…",
   ],
   MEMORY_LOADING: [
     "Let me remember...",
@@ -81,7 +63,7 @@ export const cabiStatusDefaults: Record<CabiStatusType, readonly string[]> = {
 /**
  * The single stable sentence a screen reader hears.
  *
- * Rotating visible text is decoration; announcing a new line every three seconds
+ * Visible activity text is decoration; announcing a new line every three seconds
  * is hostile. Assistive technology gets one calm statement per activity, in an
  * `aria-live` region that only changes when the *activity* changes.
  */
@@ -127,8 +109,10 @@ export const cabiRetryLabel = "Try Again";
 export type CabiStatusOverrides = Partial<Record<CabiStatusType, readonly string[]>>;
 
 /**
- * The lines that will actually rotate: built-in defaults, with any owner-added
- * lines appended. Defaults are never removed, so a category always has content.
+ * The activity catalogue: built-in defaults, with any owner-added lines appended.
+ * Defaults are never removed, so a category always has content. The core chat
+ * renders one line from this catalogue; the timing helpers below remain exported
+ * for compatibility with the admin settings and existing integrations.
  */
 export function resolveStatusMessages(type: CabiStatusType, overrides?: CabiStatusOverrides | null): string[] {
   const defaults = cabiStatusDefaults[type];

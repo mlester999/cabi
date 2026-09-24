@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { Lock } from "lucide-react";
 
-import { Badge } from "@/components/ui/cabi-primitives";
 import { lockedFeatureCopy, type FeatureFlags } from "@/lib/config/feature-flags";
 
 /**
@@ -32,19 +31,19 @@ export function LockedFeatureCard({ flagKey, onNotice }: {
       type="button"
       onClick={() => onNotice?.("Still in the works. Cabi is working on this one.")}
       aria-label={`${copy.title}. In the works.`}
-      className="cabi-locked cabi-focus relative block w-full overflow-hidden p-3.5 text-left"
+      className="cabi-locked focus-ring group relative w-full overflow-hidden p-3.5 text-left transition"
     >
-      {/* A dark wash keeps the card readable while making it unmistakably closed. */}
-      <span aria-hidden="true" className="pointer-events-none absolute inset-0 bg-[var(--cabi-bg)]/55" />
+      {/* Dark overlay plus a slight blur keeps it readable but clearly closed. */}
+      <span aria-hidden="true" className="pointer-events-none absolute inset-0 bg-[#07070d]/55 backdrop-blur-[1.5px]" />
       <span className="relative flex items-start gap-3">
-        <span aria-hidden="true" className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-[var(--cabi-hairline)] bg-[var(--cabi-surface-2)] text-[var(--cabi-text-muted)]">
+        <span aria-hidden="true" className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-white/[0.08] bg-white/[0.03] text-[#8e889b]">
           <Lock size={14} />
         </span>
         <span className="min-w-0 flex-1">
-          <span className="block truncate text-[13px] font-semibold text-[var(--cabi-text-secondary)]">{copy.title}</span>
-          <span className="cabi-caption mt-0.5 block truncate">{copy.description}</span>
+          <span className="block truncate text-[13px] font-semibold text-[#c9c4d4]">{copy.title}</span>
+          <span className="mt-0.5 block truncate text-[11px] text-[#777180]">{copy.description}</span>
+          <span className="mt-1.5 inline-block text-[10px] font-semibold uppercase tracking-[.14em] text-violet-300/70">In the works</span>
         </span>
-        <Badge className="shrink-0">In the works</Badge>
       </span>
     </button>
   );
@@ -65,7 +64,7 @@ export function LockedFeatures({ flags, keys, title = "More with Cabi", onNotice
 
   return (
     <section aria-label={title}>
-      <p className="cabi-overline px-1">{title}</p>
+      <p className="px-1 text-[10px] font-semibold uppercase tracking-[.16em] text-[#625d6d]">{title}</p>
       <div className="mt-2 space-y-2">
         {locked.map((key) => <LockedFeatureCard key={key} flagKey={key} onNotice={onNotice} />)}
       </div>

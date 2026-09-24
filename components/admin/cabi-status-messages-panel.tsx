@@ -121,22 +121,22 @@ export function CabiStatusMessagesPanel() {
     });
   };
 
-  const field = "focus-ring h-11 w-full rounded-xl border border-[var(--cabi-border)] bg-[var(--cabi-surface-2)] px-3 text-sm text-white";
-  const label = "block text-[10px] font-semibold uppercase tracking-[.14em] text-[var(--cabi-text-muted)]";
+  const field = "focus-ring h-11 w-full rounded-xl border border-white/[0.09] bg-white/[0.03] px-3 text-sm text-white";
+  const label = "block text-[10px] font-semibold uppercase tracking-[.14em] text-[#777180]";
   const categories = payload?.categories ?? (Object.keys(categoryLabels) as Category[]);
 
   return (
-    <section className="mt-7 rounded-2xl border border-[var(--cabi-hairline)] bg-[var(--cabi-surface)] p-5">
+    <section className="mt-7 rounded-[24px] border border-white/[0.065] bg-[#0e0c15] p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="text-sm font-semibold">Cabi Activity Messages</h2>
-          <p className="mt-1 max-w-2xl text-xs leading-5 text-[var(--cabi-text-muted)]">
+          <p className="mt-1 max-w-2xl text-xs leading-5 text-[#777180]">
             What Cabi says while she is working. The built-in lines are always used; anything added here is appended to
             them, so a category can never end up with nothing to say. The rotation timing and the escalation for long
             waits are fixed in code and are not configurable.
           </p>
         </div>
-        <label className="flex items-center gap-2 rounded-xl border border-[var(--cabi-hairline)] bg-[var(--cabi-surface-2)] px-3 py-2 text-xs text-[var(--cabi-text-secondary)]">
+        <label className="flex items-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-xs text-[#d5d0de]">
           <input type="checkbox" checked={enabled} onChange={(event) => setEnabled(event.target.checked)} className="accent-violet-300" />
           Use custom messages
         </label>
@@ -147,28 +147,28 @@ export function CabiStatusMessagesPanel() {
 
       <div className="mt-5 grid gap-4 lg:grid-cols-2">
         {categories.map((category) => (
-          <div key={category} className="rounded-2xl border border-[var(--cabi-hairline)] bg-[var(--cabi-surface-1)] p-4">
+          <div key={category} className="rounded-2xl border border-white/[0.07] bg-white/[0.02] p-4">
             <div className="flex items-center justify-between gap-2">
               <h3 className="text-[12px] font-semibold text-white">{categoryLabels[category]}</h3>
-              <span className="text-[10px] text-[var(--cabi-text-faint)]">{(custom[category] ?? []).length} custom</span>
+              <span className="text-[10px] text-[#625d6d]">{(custom[category] ?? []).length} custom</span>
             </div>
 
             <ul className="mt-3 space-y-1.5">
               {(payload?.defaults[category] ?? []).map((line) => (
-                <li key={line} className="flex items-start gap-2 rounded-lg border border-[var(--cabi-hairline)] bg-[var(--cabi-surface-1)] px-2.5 py-1.5 text-[11px] text-[var(--cabi-text-muted)]">
-                  <span className="mt-[3px] h-1 w-1 shrink-0 rounded-full bg-[var(--cabi-text-faint)]" aria-hidden="true" />
+                <li key={line} className="flex items-start gap-2 rounded-lg border border-white/[0.05] bg-white/[0.015] px-2.5 py-1.5 text-[11px] text-[#8e889b]">
+                  <span className="mt-[3px] h-1 w-1 shrink-0 rounded-full bg-[#4d4859]" aria-hidden="true" />
                   <span className="min-w-0 flex-1">{line}</span>
-                  <span className="shrink-0 text-[9px] uppercase tracking-[.1em] text-[var(--cabi-text-faint)]">built-in</span>
+                  <span className="shrink-0 text-[9px] uppercase tracking-[.1em] text-[#4d4859]">built-in</span>
                 </li>
               ))}
               {(custom[category] ?? []).map((line, index) => (
-                <li key={`${line}-${index}`} className="flex items-start gap-2 rounded-lg border border-violet-200/[0.14] bg-violet-300/[0.05] px-2.5 py-1.5 text-[11px] text-[var(--cabi-text-secondary)]">
+                <li key={`${line}-${index}`} className="flex items-start gap-2 rounded-lg border border-violet-200/[0.14] bg-violet-300/[0.05] px-2.5 py-1.5 text-[11px] text-violet-100">
                   <span className="mt-[3px] h-1 w-1 shrink-0 rounded-full bg-violet-300" aria-hidden="true" />
                   <span className="min-w-0 flex-1">{line}</span>
                   <button
                     type="button"
                     onClick={() => removeLine(category, index)}
-                    className="focus-ring grid h-6 w-6 shrink-0 place-items-center rounded-md text-[var(--cabi-text-muted)] hover:bg-[var(--cabi-surface-3)] hover:text-rose-200"
+                    className="focus-ring grid h-6 w-6 shrink-0 place-items-center rounded-md text-[#8e889b] hover:bg-white/[0.06] hover:text-rose-200"
                     aria-label={`Remove custom message: ${line}`}
                   >
                     <Trash2 size={11} aria-hidden="true" />
@@ -190,7 +190,7 @@ export function CabiStatusMessagesPanel() {
               <button
                 type="button"
                 onClick={() => addLine(category)}
-                className="focus-ring inline-flex h-11 shrink-0 items-center gap-1.5 rounded-xl border border-[var(--cabi-hairline)] bg-[var(--cabi-surface-2)] px-3 text-xs font-semibold text-[var(--cabi-text-secondary)]"
+                className="focus-ring inline-flex h-11 shrink-0 items-center gap-1.5 rounded-xl border border-white/[0.08] bg-white/[0.03] px-3 text-xs font-semibold text-[#d5d0de]"
               >
                 <Plus size={13} aria-hidden="true" /> Add
               </button>
@@ -204,7 +204,7 @@ export function CabiStatusMessagesPanel() {
           type="button"
           disabled={busy}
           onClick={() => void save()}
-          className="focus-ring flex h-11 items-center gap-2 rounded-xl bg-[var(--cabi-primary)] px-4 text-sm font-semibold text-[var(--cabi-on-primary)] disabled:opacity-40"
+          className="focus-ring flex h-11 items-center gap-2 rounded-xl bg-violet-200 px-4 text-sm font-semibold text-[#160f27] disabled:opacity-40"
         >
           <Save size={15} aria-hidden="true" /> {busy ? "Saving…" : "Save messages"}
         </button>
@@ -212,11 +212,11 @@ export function CabiStatusMessagesPanel() {
           type="button"
           disabled={busy}
           onClick={() => void reset()}
-          className="focus-ring flex h-11 items-center gap-2 rounded-xl border border-[var(--cabi-hairline)] bg-[var(--cabi-surface-2)] px-4 text-sm disabled:opacity-40"
+          className="focus-ring flex h-11 items-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.03] px-4 text-sm disabled:opacity-40"
         >
           <RotateCcw size={15} aria-hidden="true" /> Reset to defaults
         </button>
-        <p className="text-[11px] text-[var(--cabi-text-faint)]">
+        <p className="text-[11px] text-[#625d6d]">
           With custom messages off, or with nothing added, Cabi uses the built-in lines exactly as shipped.
         </p>
       </div>

@@ -60,7 +60,7 @@ describe("guest transcript consent", () => {
 
   it("keeps a transcript started during session discovery temporary after a session is restored", async () => {
     const view = render(<CabiExperience />);
-    fireEvent.click(screen.getByRole("button", { name: /Talk to Cabi/iu }));
+    fireEvent.click(screen.getByRole("button", { name: /Start chatting/iu }));
     // The greeting is the shell's own copy; what this test protects is that the
     // transcript exists and stays temporary after a session is restored.
     expect(screen.getByText(/What should I call you\?/u)).toBeInTheDocument();
@@ -74,7 +74,7 @@ describe("guest transcript consent", () => {
     expect(await screen.findByRole("dialog", { name: "Save this conversation?" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Keep Temporary" }));
     await waitFor(() => expect(screen.queryByRole("dialog", { name: "Save this conversation?" })).not.toBeInTheDocument());
-    expect(screen.getByText(/Temporary in this tab/iu)).toBeInTheDocument();
+    expect(screen.queryByText(/Saved with your Cabi profile/iu)).not.toBeInTheDocument();
   });
 
   it("enables normal persistence after an authenticated session loads with no guest transcript", async () => {
@@ -82,7 +82,7 @@ describe("guest transcript consent", () => {
     state.wallet.authenticated = true;
     state.wallet.address = "0x00000000000000000000000000000000000000A1";
     render(<CabiExperience />);
-    expect(await screen.findByText(/Saved to your wallet profile/iu)).toBeInTheDocument();
+    expect(await screen.findByText(/Saved with your Cabi profile/iu)).toBeInTheDocument();
     expect(screen.queryByRole("dialog", { name: "Save this conversation?" })).not.toBeInTheDocument();
   });
 });

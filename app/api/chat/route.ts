@@ -162,7 +162,7 @@ export async function POST(request: Request) {
       usedProvider: true,
       reply: "",
       card: noticeCard({
-        title: "I could not draw that one",
+        title: "Couldn't make that image",
         message: "I couldn't make that image right now. You can try again when you're ready.",
         tone: "error",
         retry: { label: "Try Again", prompt: parsed.data.message },

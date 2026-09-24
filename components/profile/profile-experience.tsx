@@ -50,12 +50,12 @@ export function ProfileExperience() {
     return () => window.clearTimeout(timer);
   }, [load]);
 
-  if (phase === "loading") return <p className="mt-10 text-center text-sm text-[var(--cabi-text-secondary)]" role="status">Loading your profile...</p>;
+  if (phase === "loading") return <p className="mt-10 text-center text-sm text-[#a8a3b3]" role="status">Loading your profile...</p>;
   if (phase === "error" || !data) {
     return (
-      <div className="glass mt-10 rounded-2xl p-8 text-center">
-        <p className="text-sm text-[var(--cabi-text-secondary)]">I could not load your profile just now.</p>
-        <button type="button" onClick={() => void load()} className="focus-ring mt-5 inline-flex h-9 items-center rounded-xl border border-[var(--cabi-hairline)] bg-[var(--cabi-surface-2)] px-4 text-xs font-semibold">Try again</button>
+      <div className="glass mt-10 rounded-[26px] p-8 text-center">
+        <p className="text-sm text-[#d5d0de]">I could not load your profile just now.</p>
+        <button type="button" onClick={() => void load()} className="focus-ring mt-5 inline-flex h-10 items-center rounded-xl border border-white/[0.08] bg-white/[0.03] px-4 text-xs font-semibold">Try again</button>
       </div>
     );
   }
@@ -64,7 +64,7 @@ export function ProfileExperience() {
 
   return (
     <div className="mt-8 space-y-5">
-      <section className="glass rounded-2xl p-5 sm:p-6">
+      <section className="glass rounded-[26px] p-5 sm:p-6">
         <div className="flex flex-wrap items-center gap-4">
           <InitialsAvatar initials={identity.initials ?? "?"} size={64} label={`${identity.username ?? "You"} avatar`} />
           <div className="min-w-0 flex-1">
@@ -72,7 +72,7 @@ export function ProfileExperience() {
             <div className="mt-1.5 flex flex-wrap items-center gap-2">
               <RankBadge tier={progress.current} />
               {identity.joinedAt ? (
-                <span className="inline-flex items-center gap-1.5 text-[11px] text-[var(--cabi-text-muted)]">
+                <span className="inline-flex items-center gap-1.5 text-[11px] text-[#777180]">
                   <Calendar size={11} aria-hidden="true" />
                   Joined {new Date(identity.joinedAt).toLocaleDateString(undefined, { month: "short", year: "numeric" })}
                 </span>
@@ -89,7 +89,7 @@ export function ProfileExperience() {
                 weeklyPlacement: weekly?.placement ?? null,
               }} />
             ) : null}
-            <Link href="/settings" className="focus-ring inline-flex h-9 items-center rounded-xl border border-[var(--cabi-hairline)] bg-[var(--cabi-surface-2)] px-4 text-xs font-semibold text-[var(--cabi-text-secondary)] hover:bg-[var(--cabi-surface-3)]">
+            <Link href="/settings" className="focus-ring inline-flex h-10 items-center rounded-xl border border-white/[0.08] bg-white/[0.03] px-4 text-xs font-semibold text-[#d5d0de] hover:bg-white/[0.06]">
               Edit profile
             </Link>
           </div>
@@ -98,11 +98,11 @@ export function ProfileExperience() {
         <div className="mt-6">
           <div className="flex items-end justify-between gap-3">
             <div>
-              <p className="text-[10px] font-semibold uppercase tracking-[.16em] text-[var(--cabi-primary)]">This month</p>
+              <p className="text-[10px] font-semibold uppercase tracking-[.16em] text-violet-300">This month</p>
               <p className="mt-1 font-mono text-2xl font-bold text-white">{(monthly?.xp ?? 0).toLocaleString()} XP</p>
             </div>
             {progress.next ? (
-              <p className="text-right text-[11px] leading-5 text-[var(--cabi-text-secondary)]">
+              <p className="text-right text-[11px] leading-5 text-[#a8a3b3]">
                 Next: <span className="font-semibold text-white">{progress.next.label}</span>
                 <br />
                 {progress.toNext.toLocaleString()} XP to go
@@ -116,64 +116,64 @@ export function ProfileExperience() {
       </section>
 
       <section className="grid gap-3 sm:grid-cols-2">
-        <div className="glass rounded-2xl p-5">
-          <p className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[.16em] text-[var(--cabi-text-muted)]"><Trophy size={12} aria-hidden="true" /> Weekly</p>
+        <div className="glass rounded-[22px] p-5">
+          <p className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[.16em] text-[#777180]"><Trophy size={12} aria-hidden="true" /> Weekly</p>
           <p className="mt-2 font-mono text-xl font-bold text-white">{(weekly?.xp ?? 0).toLocaleString()} XP</p>
-          <p className="mt-1 text-[11px] text-[var(--cabi-text-secondary)]">
+          <p className="mt-1 text-[11px] text-[#a8a3b3]">
             {weekly?.placement ? `#${weekly.placement} of ${weekly.participants}` : "Not placed yet this week"}
           </p>
-          <Link href="/leaderboard" className="focus-ring mt-3 inline-block text-[11px] font-semibold text-[var(--cabi-primary)] hover:text-white">View leaderboard</Link>
+          <Link href="/leaderboard" className="focus-ring mt-3 inline-block text-[11px] font-semibold text-violet-200 hover:text-white">View leaderboard</Link>
         </div>
-        <div className="glass rounded-2xl p-5">
-          <p className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[.16em] text-[var(--cabi-text-muted)]"><Sparkles size={12} aria-hidden="true" /> Lifetime</p>
+        <div className="glass rounded-[22px] p-5">
+          <p className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[.16em] text-[#777180]"><Sparkles size={12} aria-hidden="true" /> Lifetime</p>
           <p className="mt-2 font-mono text-xl font-bold text-white">{lifetime.xp.toLocaleString()} XP</p>
-          <p className="mt-1 text-[11px] text-[var(--cabi-text-secondary)]">
+          <p className="mt-1 text-[11px] text-[#a8a3b3]">
             {lifetime.messages.toLocaleString()} messages - {lifetime.seasons} season{lifetime.seasons === 1 ? "" : "s"}
           </p>
           {lifetime.bestPlacement ? (
-            <p className="mt-1 text-[11px] text-[var(--cabi-text-muted)]">Best placement #{lifetime.bestPlacement}</p>
+            <p className="mt-1 text-[11px] text-[#777180]">Best placement #{lifetime.bestPlacement}</p>
           ) : null}
         </div>
       </section>
 
-      <section className="glass rounded-2xl p-5">
-        <p className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[.16em] text-[var(--cabi-text-muted)]"><Flame size={12} aria-hidden="true" /> Bond with Cabi</p>
+      <section className="glass rounded-[22px] p-5">
+        <p className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[.16em] text-[#777180]"><Flame size={12} aria-hidden="true" /> Bond with Cabi</p>
         <p className="mt-2 text-base font-bold text-white">{bond.label}</p>
         <div className="mt-3"><RankProgressBar percent={bond.progress} accent="#c4b5fd" label={`Bond progress, level ${bond.level}`} /></div>
-        <p className="mt-2 text-[11px] text-[var(--cabi-text-secondary)]">
+        <p className="mt-2 text-[11px] text-[#a8a3b3]">
           {bond.conversationDays} day{bond.conversationDays === 1 ? "" : "s"} together - {bond.memoryCount} memories
         </p>
-        <p className="mt-2 text-[11px] leading-5 text-[var(--cabi-text-faint)]">Bond is separate from rank and never resets.</p>
+        <p className="mt-2 text-[11px] leading-5 text-[#625d6d]">Bond is separate from rank and never resets.</p>
       </section>
 
       {achievements.length > 0 ? (
-        <section className="glass rounded-2xl p-5">
-          <h3 className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[.16em] text-[var(--cabi-text-muted)]">
+        <section className="glass rounded-[22px] p-5">
+          <h3 className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[.16em] text-[#777180]">
             <Award size={12} aria-hidden="true" /> Achievements
           </h3>
           <ul className="mt-3 grid gap-2 sm:grid-cols-2">
             {achievements.map((achievement) => (
-              <li key={achievement.code} className="rounded-2xl border border-[var(--cabi-hairline)] bg-[var(--cabi-surface-1)] px-3.5 py-3">
+              <li key={achievement.code} className="rounded-2xl border border-white/[0.06] bg-white/[0.02] px-3.5 py-3">
                 <p className="text-[12px] font-semibold text-white">{achievement.label}</p>
-                <p className="mt-0.5 text-[11px] leading-5 text-[var(--cabi-text-muted)]">{achievement.description}</p>
+                <p className="mt-0.5 text-[11px] leading-5 text-[#8e889b]">{achievement.description}</p>
               </li>
             ))}
           </ul>
           {/* Permanent, unlike rank. */}
-          <p className="mt-3 text-[11px] text-[var(--cabi-text-faint)]">Achievements are kept forever. Rank resets each season.</p>
+          <p className="mt-3 text-[11px] text-[#625d6d]">Achievements are kept forever. Rank resets each season.</p>
         </section>
       ) : null}
 
       {history.length > 0 ? (
-        <section className="glass overflow-hidden rounded-2xl">
-          <h3 className="border-b border-[var(--cabi-hairline)] px-5 py-3.5 text-[10px] font-semibold uppercase tracking-[.16em] text-[var(--cabi-text-muted)]">Season history</h3>
+        <section className="glass overflow-hidden rounded-[22px]">
+          <h3 className="border-b border-white/[0.05] px-5 py-3.5 text-[10px] font-semibold uppercase tracking-[.16em] text-[#777180]">Season history</h3>
           <ul className="divide-y divide-white/[0.05]">
             {history.map((season, index) => (
               <li key={`${season.label}-${index}`} className="flex items-center gap-3 px-5 py-3">
                 <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-white">{season.label}</span>
                 <RankBadge tier={season.tier} size="sm" />
-                <span className="w-16 shrink-0 text-right font-mono text-[12px] text-[var(--cabi-primary)]">{season.xp.toLocaleString()}</span>
-                <span className="w-12 shrink-0 text-right font-mono text-[11px] text-[var(--cabi-text-muted)]">{season.placement ? `#${season.placement}` : "-"}</span>
+                <span className="w-16 shrink-0 text-right font-mono text-[12px] text-violet-200">{season.xp.toLocaleString()}</span>
+                <span className="w-12 shrink-0 text-right font-mono text-[11px] text-[#777180]">{season.placement ? `#${season.placement}` : "-"}</span>
               </li>
             ))}
           </ul>
@@ -181,15 +181,15 @@ export function ProfileExperience() {
       ) : null}
 
       {/* My Cabi Images: a small authenticated list, not a gallery. */}
-      <section className="glass rounded-2xl p-5">
-        <h3 className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[.16em] text-[var(--cabi-text-muted)]">
+      <section className="glass rounded-[22px] p-5">
+        <h3 className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[.16em] text-[#777180]">
           <Images size={12} aria-hidden="true" /> My Cabi images
         </h3>
         <MyCabiImages />
       </section>
 
       <div className="flex flex-wrap justify-center gap-3 pt-2">
-        <Link href="/settings/memory" className="focus-ring inline-flex h-11 items-center rounded-xl border border-[var(--cabi-hairline)] bg-[var(--cabi-surface-2)] px-4 text-xs font-semibold text-[var(--cabi-text-secondary)] hover:bg-[var(--cabi-surface-3)]">
+        <Link href="/settings/memory" className="focus-ring inline-flex h-11 items-center rounded-xl border border-white/[0.08] bg-white/[0.03] px-4 text-xs font-semibold text-[#d5d0de] hover:bg-white/[0.06]">
           Memory
         </Link>
       </div>

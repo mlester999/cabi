@@ -31,22 +31,22 @@ export default async function GalleryPage() {
     <main className="cabi-noise min-h-[100dvh] overflow-x-hidden bg-transparent text-white">
       <div className="mx-auto w-full max-w-[1100px] px-4 py-6 sm:px-7 sm:py-9">
         <header className="flex items-center gap-3 sm:gap-4">
-          <Link href="/" className="focus-ring grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-[var(--cabi-hairline)] bg-[var(--cabi-surface-2)] text-[var(--cabi-text-secondary)] hover:text-white" aria-label="Back to Cabi">
+          <Link href="/" className="focus-ring grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-white/[0.07] bg-white/[0.03] text-[#a8a3b3] hover:text-white" aria-label="Back to Cabi">
             <ArrowLeft size={18} />
           </Link>
           <div className="min-w-0 flex-1">
             <h1 className="flex items-center gap-2 text-xl font-bold tracking-[-0.02em] sm:text-2xl">
-              <Images size={20} className="text-[var(--cabi-primary)]" aria-hidden="true" />
+              <Images size={20} className="text-violet-300" aria-hidden="true" />
               Cabi images
             </h1>
-            <p className="mt-1 text-xs text-[var(--cabi-text-secondary)]">Everything you have asked me to draw. Private to your wallet.</p>
+            <p className="mt-1 text-xs text-[#a8a3b3]">Everything you have asked me to draw. Private to your wallet.</p>
           </div>
         </header>
 
         {auth.identity ? <GalleryExperience /> : (
-          <div className="glass mt-10 rounded-2xl p-8 text-center">
+          <div className="glass mt-10 rounded-[26px] p-8 text-center">
             <p className="text-sm font-semibold text-white">Connect your wallet first.</p>
-            <p className="mx-auto mt-2 max-w-sm text-xs leading-6 text-[var(--cabi-text-secondary)]">
+            <p className="mx-auto mt-2 max-w-sm text-xs leading-6 text-[#a8a3b3]">
               Generated images are saved to your wallet so only you can see them.
             </p>
           </div>

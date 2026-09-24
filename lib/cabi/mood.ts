@@ -33,7 +33,7 @@ export const moodPresentation: Record<CabiMood, MoodPresentation> = {
   focused: { mood: "focused", label: "Focused", status: "Reading your wallet.", accent: "#8b5cf6", energy: "low" },
   sleepy: { mood: "sleepy", label: "Sleepy", status: "It is late. I am still here though.", accent: "#8b5cf6", energy: "low" },
   excited: { mood: "excited", label: "Excited", status: "That is a good one.", accent: "#ddd6fe", energy: "high" },
-  calm: { mood: "calm", label: "Calm", status: "Right here with you.", accent: "#c4b5fd", energy: "low" },
+  calm: { mood: "calm", label: "Calm", status: "Ready when you are.", accent: "#c4b5fd", energy: "low" },
 };
 
 export type MoodSignals = {

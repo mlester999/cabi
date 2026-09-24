@@ -55,40 +55,40 @@ export function OwnerWalletsPanel() {
   };
 
   return (
-    <section className="mt-12 border-t border-[var(--cabi-hairline)] pt-10">
-      <p className="text-xs font-semibold uppercase tracking-[.16em] text-[var(--cabi-primary)]">Owner wallets</p>
+    <section className="mt-12 border-t border-white/[0.07] pt-10">
+      <p className="text-xs font-semibold uppercase tracking-[.16em] text-violet-300">Owner wallets</p>
       <h2 className="mt-2 text-2xl font-semibold text-white">Authorized Preview Wallets</h2>
-      <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--cabi-text-muted)]">Only wallets added here or configured for bootstrap can enter the private Cabi preview after signing in. Removing one takes effect on its next request.</p>
+      <p className="mt-2 max-w-2xl text-sm leading-6 text-[#8e889b]">Only wallets added here or configured for bootstrap can enter the private Cabi preview after signing in. Removing one takes effect on its next request.</p>
 
       <div className="mt-5 space-y-2">
-        {wallets.length === 0 && <p className="rounded-2xl border border-[var(--cabi-hairline)] p-4 text-sm text-[var(--cabi-text-muted)]">No owner wallets are authorized yet.</p>}
+        {wallets.length === 0 && <p className="rounded-2xl border border-white/[0.07] p-4 text-sm text-[#8e889b]">No owner wallets are authorized yet.</p>}
         {wallets.map((wallet) => (
-          <div key={wallet.walletAddress} className="flex flex-wrap items-center gap-3 rounded-2xl border border-[var(--cabi-hairline)] bg-[var(--cabi-surface-1)] p-4">
+          <div key={wallet.walletAddress} className="flex flex-wrap items-center gap-3 rounded-2xl border border-white/[0.07] bg-white/[0.025] p-4">
             <div className="min-w-0 flex-1">
               <p className="break-all font-mono text-sm text-white">{wallet.walletAddress}</p>
-              <p className="mt-1 text-xs text-[var(--cabi-text-muted)]">{wallet.label || "Owner wallet"} · {wallet.source === "environment" ? "Bootstrap" : "Saved"} · {wallet.enabled ? "Active" : "Removed"}</p>
-              {wallet.lastUsedAt && <p className="mt-1 text-[11px] text-[var(--cabi-text-faint)]">Last used {new Date(wallet.lastUsedAt).toLocaleString()}</p>}
+              <p className="mt-1 text-xs text-[#8e889b]">{wallet.label || "Owner wallet"} · {wallet.source === "environment" ? "Bootstrap" : "Saved"} · {wallet.enabled ? "Active" : "Removed"}</p>
+              {wallet.lastUsedAt && <p className="mt-1 text-[11px] text-[#625d6d]">Last used {new Date(wallet.lastUsedAt).toLocaleString()}</p>}
             </div>
             {wallet.enabled ? (
               <button type="button" disabled={busy} onClick={() => void change("DELETE", wallet.walletAddress)} className="focus-ring rounded-xl border border-rose-300/20 px-4 py-2 text-xs font-semibold text-rose-200 disabled:opacity-50">Remove</button>
             ) : (
-              <button type="button" disabled={busy} onClick={() => void change("POST", wallet.walletAddress, wallet.label)} className="focus-ring rounded-xl border border-violet-300/20 px-4 py-2 text-xs font-semibold text-[var(--cabi-primary)] disabled:opacity-50">Restore</button>
+              <button type="button" disabled={busy} onClick={() => void change("POST", wallet.walletAddress, wallet.label)} className="focus-ring rounded-xl border border-violet-300/20 px-4 py-2 text-xs font-semibold text-violet-200 disabled:opacity-50">Restore</button>
             )}
           </div>
         ))}
       </div>
 
-      <div className="mt-5 grid gap-3 rounded-2xl border border-[var(--cabi-hairline)] bg-[var(--cabi-surface)] p-5 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end">
-        <label className="text-xs text-[var(--cabi-text-secondary)]">EVM wallet address
-          <input value={address} onChange={(event) => setAddress(event.target.value)} placeholder="0x…" className="mt-2 w-full rounded-xl border border-[var(--cabi-border)] bg-[var(--cabi-bg)] px-3 py-2.5 font-mono text-sm text-white" />
+      <div className="mt-5 grid gap-3 rounded-2xl border border-white/[0.07] bg-[#0e0c15] p-5 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end">
+        <label className="text-xs text-[#a8a3b3]">EVM wallet address
+          <input value={address} onChange={(event) => setAddress(event.target.value)} placeholder="0x…" className="mt-2 w-full rounded-xl border border-white/[0.1] bg-[#08070d] px-3 py-2.5 font-mono text-sm text-white" />
         </label>
-        <label className="text-xs text-[var(--cabi-text-secondary)]">Label
-          <input value={label} onChange={(event) => setLabel(event.target.value)} placeholder="Owner wallet" maxLength={100} className="mt-2 w-full rounded-xl border border-[var(--cabi-border)] bg-[var(--cabi-bg)] px-3 py-2.5 text-sm text-white" />
+        <label className="text-xs text-[#a8a3b3]">Label
+          <input value={label} onChange={(event) => setLabel(event.target.value)} placeholder="Owner wallet" maxLength={100} className="mt-2 w-full rounded-xl border border-white/[0.1] bg-[#08070d] px-3 py-2.5 text-sm text-white" />
         </label>
-        <button type="button" disabled={busy || !address.trim()} onClick={() => void change("POST", address, label)} className="focus-ring h-9 rounded-xl bg-[var(--cabi-primary)] px-4 text-sm font-semibold text-[var(--cabi-on-primary)] disabled:opacity-50">Add Wallet</button>
+        <button type="button" disabled={busy || !address.trim()} onClick={() => void change("POST", address, label)} className="focus-ring h-10 rounded-xl bg-violet-200 px-4 text-sm font-semibold text-[#160f27] disabled:opacity-50">Add Wallet</button>
       </div>
       {error && <p role="alert" className="mt-3 text-sm text-rose-200">{error}</p>}
-      {notice && <p role="status" className="mt-3 text-sm text-[var(--cabi-primary)]">{notice}</p>}
+      {notice && <p role="status" className="mt-3 text-sm text-violet-200">{notice}</p>}
     </section>
   );
 }

@@ -32,7 +32,7 @@ export function drawRankCard(input: RankCardInput): string | null {
 
   const gradient = context.createLinearGradient(0, 0, size, size);
   gradient.addColorStop(0, "#07070d");
-  gradient.addColorStop(0.6, "#0f0c18");
+  gradient.addColorStop(0.6, "#120d20");
   gradient.addColorStop(1, "#251442");
   context.fillStyle = gradient;
   context.fillRect(0, 0, size, size);
@@ -70,7 +70,7 @@ export function drawRankCard(input: RankCardInput): string | null {
   context.fillText(`${input.seasonXp.toLocaleString()} XP`, 100, 600);
 
   if (input.seasonLabel) {
-    context.fillStyle = "#b7b2c2";
+    context.fillStyle = "#a8a3b3";
     context.font = "500 32px system-ui";
     context.fillText(input.seasonLabel, 100, 655);
   }
@@ -81,7 +81,7 @@ export function drawRankCard(input: RankCardInput): string | null {
     context.fillText(`#${input.weeklyPlacement} this week`, 100, 760);
   }
 
-  context.fillStyle = "#777181";
+  context.fillStyle = "#777180";
   context.font = "500 28px system-ui";
   context.fillText("Rank is earned by real conversation", 100, size - 150);
   context.fillText("never by holding tokens", 100, size - 108);
@@ -112,7 +112,7 @@ export function ShareRankCard({ input, className = "" }: { input: RankCardInput;
       type="button"
       onClick={download}
       disabled={busy}
-      className={`focus-ring inline-flex h-11 items-center gap-2 rounded-xl border border-[var(--cabi-hairline)] bg-[var(--cabi-surface-2)] px-4 text-xs font-semibold text-[var(--cabi-text-secondary)] hover:bg-[var(--cabi-surface-3)] disabled:opacity-40 ${className}`}
+      className={`focus-ring inline-flex h-11 items-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.03] px-4 text-xs font-semibold text-[#d5d0de] hover:bg-white/[0.06] disabled:opacity-40 ${className}`}
     >
       <Download size={14} aria-hidden="true" /> Share rank card
     </button>

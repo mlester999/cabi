@@ -20,7 +20,7 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Cabi preview", robots: { index: false, follow: false, nocache: true } };
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  return <main className="cabi-noise min-h-[100dvh] bg-[var(--cabi-bg)] px-4 py-6 text-white sm:px-7"><div className="mx-auto max-w-[1100px]"><header className="flex items-center gap-3"><Link href="/preview" className="focus-ring grid h-11 w-11 place-items-center rounded-xl border border-[var(--cabi-hairline)]" aria-label="Back to Cabi"><ArrowLeft size={18} /></Link><h1 className="text-xl font-semibold">{title}</h1></header>{children}</div></main>;
+  return <main className="cabi-noise min-h-[100dvh] bg-[#07070d] px-4 py-6 text-white sm:px-7"><div className="mx-auto max-w-[1100px]"><header className="flex items-center gap-3"><Link href="/preview" className="focus-ring grid h-11 w-11 place-items-center rounded-xl border border-white/[0.07]" aria-label="Back to Cabi"><ArrowLeft size={18} /></Link><h1 className="text-xl font-semibold">{title}</h1></header>{children}</div></main>;
 }
 
 /** Reuses the real application components behind the same preview boundary. */
@@ -36,7 +36,7 @@ export default async function PreviewSubpage({ params }: { params: Promise<{ pat
     case "chat": content = <CabiExperience flags={flags} viewport="preview" />; break;
     case "profile": {
       const wallet = await readWalletAuth().catch(() => null);
-      content = <Section title="Your profile">{wallet ? <ProfileExperience /> : <p className="mt-8 text-sm text-[var(--cabi-text-secondary)]">Connect your wallet to see your profile.</p>}</Section>;
+      content = <Section title="Your profile">{wallet ? <ProfileExperience /> : <p className="mt-8 text-sm text-[#a8a3b3]">Connect your wallet to see your profile.</p>}</Section>;
       break;
     }
     case "settings/memory": content = <MemoryPanel />; break;

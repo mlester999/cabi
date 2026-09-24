@@ -215,10 +215,13 @@ describe("the app passes resolved flags to the chat shell", () => {
     expect(home).toContain("readActiveStatusOverrides");
   });
 
-  it("presents locked features in the presence panel", () => {
+  it("keeps unfinished features out of chat and gives them a lab destination", () => {
     const shell = read("components/cabi/cabi-experience.tsx");
-    expect(shell).toContain("lockedFeatureOrder");
-    expect(shell).toContain("LockedFeatures");
+    expect(shell).not.toContain("lockedFeatureOrder");
+    expect(shell).not.toContain("LockedFeatures");
+    const lab = read("app/lab/page.tsx");
+    expect(lab).toContain("lockedFeatureOrder");
+    expect(lab).toContain("In the works");
   });
 
   it("keeps the primary navigation minimal", () => {

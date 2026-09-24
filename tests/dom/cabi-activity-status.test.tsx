@@ -8,9 +8,9 @@ import { cabiStatusAnnouncements, cabiStatusDefaults } from "@/lib/cabi/status-m
  * The rendered activity indicator.
  *
  * What is checked here is what a person and a screen reader actually experience:
- * the text rotates, it does not flicker, the escalation appears only after real
- * elapsed time, motion is removed when the user asks for that, and the live region
- * announces one stable sentence instead of every rotation.
+ * the activity has one calm line, it does not flicker or escalate into a second
+ * loader, motion is removed when the user asks for that, and the live region
+ * announces one stable sentence.
  */
 
 function mockReducedMotion(matches: boolean) {
@@ -48,14 +48,12 @@ describe("activity status", () => {
     expect(shown).toBe(true);
   });
 
-  it("rotates the visible line over time", async () => {
+  it("keeps one visible line over time", async () => {
     render(<CabiActivityStatus type="IMAGE_GENERATING" />);
     const first = document.querySelector("[data-cabi-status]")?.textContent ?? "";
-    // Advancing beyond the maximum first delay guarantees exactly one
-    // rotation without allowing a random sequence to wrap back to the first line.
     await act(async () => { await vi.advanceTimersByTimeAsync(5_000); });
     const later = document.querySelector("[data-cabi-status]")?.textContent ?? "";
-    expect(later).not.toBe(first);
+    expect(later).toBe(first);
   });
 
   it("does not change the line on a fast interval", async () => {
@@ -67,12 +65,12 @@ describe("activity status", () => {
     expect(after).toBe(before);
   });
 
-  it("escalates to the longer-wait line only after real elapsed time", async () => {
+  it("does not add a second line during a long wait", async () => {
     render(<CabiActivityStatus type="IMAGE_GENERATING" />);
     await act(async () => { await vi.advanceTimersByTimeAsync(16_000); });
-    expect(screen.getByText("Still working on it...")).toBeInTheDocument();
+    expect(screen.queryByText("Still working on it...")).not.toBeInTheDocument();
     await act(async () => { await vi.advanceTimersByTimeAsync(15_000); });
-    expect(screen.getByText("This one's taking a little longer.")).toBeInTheDocument();
+    expect(screen.queryByText("This one's taking a little longer.")).not.toBeInTheDocument();
   });
 
   it("shows no percentage anywhere", () => {
@@ -91,11 +89,11 @@ describe("activity status", () => {
     }
   });
 
-  it("does not spam the live region while the text rotates", async () => {
+  it("does not change the live region while the activity continues", async () => {
     render(<CabiActivityStatus type="CHAT_THINKING" />);
     const before = screen.getByRole("status").textContent;
     await act(async () => { await vi.advanceTimersByTimeAsync(20_000); });
-    // Rotating visible text must not change what is announced.
+    // Decorative activity copy must not change what is announced.
     expect(screen.getByRole("status").textContent).toBe(before);
   });
 
@@ -114,7 +112,7 @@ describe("activity status", () => {
     const first = document.querySelector("[data-cabi-status]")?.textContent ?? "";
     await act(async () => { await vi.advanceTimersByTimeAsync(5_000); });
     const later = document.querySelector("[data-cabi-status]")?.textContent ?? "";
-    expect(later).not.toBe(first);
+    expect(later).toBe(first);
   });
 
   it("renders the mascot image by default and can omit it", () => {
@@ -128,8 +126,8 @@ describe("activity status", () => {
   it("accepts owner-added lines", () => {
     render(<CabiActivityStatus type="CHAT_THINKING" overrides={{ CHAT_THINKING: ["Booting my little CPU..."] }} />);
     expect(document.querySelector("[data-cabi-status]")).not.toBeNull();
-    // The default set is still present, so rotation never runs short.
-    expect(cabiStatusDefaults.CHAT_THINKING.length).toBeGreaterThan(1);
+    expect(document.querySelector("[data-cabi-status]")).toHaveTextContent("Booting my little CPU...");
+    expect(cabiStatusDefaults.CHAT_THINKING).toEqual(["Cabi is thinking…"]);
   });
 
   it("keeps a fixed row so nothing below it moves", () => {

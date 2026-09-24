@@ -34,7 +34,7 @@ export function ImageQuotaHint({ className = "" }: { className?: string }) {
 
   return (
     <p
-      className={`flex items-center gap-1.5 text-[10px] text-[var(--cabi-text-muted)] ${className}`}
+      className={`flex items-center gap-1.5 text-[10px] text-[#777180] ${className}`}
       // One labelled value rather than a live region, so a screen reader is not
       // re-announced on every render.
       aria-label={`Cabi images: ${quota.used} of ${quota.dailyLimit} used today`}
@@ -42,7 +42,7 @@ export function ImageQuotaHint({ className = "" }: { className?: string }) {
       <ImagePlus size={11} aria-hidden="true" />
       <span aria-hidden="true">
         Cabi Images{" "}
-        <span className={quota.remaining === 0 ? "text-amber-200" : "text-[var(--cabi-text-secondary)]"}>
+        <span className={quota.remaining === 0 ? "text-amber-200" : "text-[#a8a3b3]"}>
           {quota.used} / {quota.dailyLimit} used today
         </span>
       </span>

@@ -107,7 +107,7 @@ describe("action card rendering", () => {
     expect(onRetry).toHaveBeenCalledWith("Generate a picture of Cabi", undefined);
   });
 
-  it("shows the shared Cabi thinking status while streaming, and rotates it slowly", () => {
+  it("shows the shared Cabi thinking status with one stable line", () => {
     vi.useFakeTimers();
     try {
       // Rendered inside act: the status component starts timers on mount, and an
@@ -118,8 +118,8 @@ describe("action card rendering", () => {
 
       /*
        * The transcript no longer carries its own thinking indicator: it renders the
-       * shared `CabiActivityStatus`, which has ONE stable announcement and a slow,
-       * varied rotation. This test pins both properties, so a future change cannot
+       * shared `CabiActivityStatus`, which has ONE stable announcement and one
+       * visible line. This test pins both properties, so a future change cannot
        * quietly reintroduce a second, faster-moving implementation.
        */
       const live = screen.getByRole("status");
@@ -134,10 +134,10 @@ describe("action card rendering", () => {
       act(() => { vi.advanceTimersByTime(600); });
       expect(document.querySelector("[data-cabi-status]")?.textContent ?? "").toBe(first);
 
-      // Past the slowest documented delay it has moved on, and the announcement
-      // has not.
+      // Waiting does not create another visible loader message, and the
+      // announcement remains stable.
       act(() => { vi.advanceTimersByTime(12_000); });
-      expect(document.querySelector("[data-cabi-status]")?.textContent ?? "").not.toBe(first);
+      expect(document.querySelector("[data-cabi-status]")?.textContent ?? "").toBe(first);
       expect(screen.getByRole("status")).toHaveTextContent(cabiStatusAnnouncements.CHAT_THINKING);
     } finally {
       vi.useRealTimers();
