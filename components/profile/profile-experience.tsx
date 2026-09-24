@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Award, Calendar, Flame, Images, Sparkles, Trophy } from "lucide-react";
 
 import { InitialsAvatar, RankBadge, RankProgressBar } from "@/components/ranking/rank-badge";
+import { MyCabiImages } from "@/components/profile/my-cabi-images";
 import { ShareRankCard } from "@/components/ranking/share-rank-card";
 import type { RankTier } from "@/lib/ranking/tiers";
 
@@ -179,10 +180,15 @@ export function ProfileExperience() {
         </section>
       ) : null}
 
+      {/* My Cabi Images: a small authenticated list, not a gallery. */}
+      <section className="glass rounded-[22px] p-5">
+        <h3 className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[.16em] text-[#777180]">
+          <Images size={12} aria-hidden="true" /> My Cabi images
+        </h3>
+        <MyCabiImages />
+      </section>
+
       <div className="flex flex-wrap justify-center gap-3 pt-2">
-        <Link href="/gallery" className="focus-ring inline-flex h-11 items-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.03] px-4 text-xs font-semibold text-[#d5d0de] hover:bg-white/[0.06]">
-          <Images size={14} aria-hidden="true" /> Generated images
-        </Link>
         <Link href="/settings/memory" className="focus-ring inline-flex h-11 items-center rounded-xl border border-white/[0.08] bg-white/[0.03] px-4 text-xs font-semibold text-[#d5d0de] hover:bg-white/[0.06]">
           Memory
         </Link>

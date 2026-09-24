@@ -24,5 +24,7 @@ export const metadata: Metadata = {
  * rendered, and the gated application APIs repeat the same check themselves.
  */
 export default async function PreviewPage() {
+  // Preview is an explicit admin opt-in, so the $CPU holder requirement does not
+  // apply here: this is the one place the owner exercises the full application.
   return <PreviewApplication><CabiExperience flags={await readFeatureFlags()} viewport="preview" /></PreviewApplication>;
 }

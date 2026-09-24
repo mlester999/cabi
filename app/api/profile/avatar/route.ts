@@ -5,7 +5,7 @@ import { avatarBucket, stripJpegMetadata, uploadAvatar, validateAvatarBytes } fr
 import { generationBucket } from "@/lib/image-generation/storage";
 import { setAvatar as persistAvatar } from "@/lib/profiles/service";
 import { assertSameOrigin, jsonError } from "@/lib/security/request";
-import { guardAppApi } from "@/lib/site/guard";
+import { guardAppApiCpu } from "@/lib/site/guard";
 import { walletAuthOrResponse } from "@/lib/wallet/session";
 
 export const dynamic = "force-dynamic";
@@ -34,7 +34,7 @@ const bodySchema = z.object({
  * The wallet always comes from the signed session cookie.
  */
 export async function POST(request: Request) {
-  const blocked = await guardAppApi();
+  const blocked = await guardAppApiCpu();
   if (blocked) return blocked;
   try { assertSameOrigin(request); } catch { return jsonError("Invalid request.", 403, "INVALID_ORIGIN"); }
   const auth = await walletAuthOrResponse();

@@ -7,7 +7,7 @@ import { countWalletMessages } from "@/lib/ranking/message-count";
 import { readSeason, readSeasonHistory, readStanding } from "@/lib/ranking/service";
 import { tierByNumber } from "@/lib/ranking/tiers";
 import { assertSameOrigin, jsonError } from "@/lib/security/request";
-import { guardAppApi } from "@/lib/site/guard";
+import { guardAppApiCpu } from "@/lib/site/guard";
 import { z } from "zod";
 
 export const dynamic = "force-dynamic";
@@ -26,7 +26,7 @@ type Params = { params: Promise<{ id: string }> };
  * reward, and this surface is admin-only.
  */
 export async function GET(request: Request, { params }: Params) {
-  const blocked = await guardAppApi();
+  const blocked = await guardAppApiCpu();
   if (blocked) return blocked;
   const auth = await adminOrResponse();
   if (auth.response) return auth.response;
@@ -109,7 +109,7 @@ const patchSchema = z.object({ rankingStatus: z.enum(["NORMAL", "REVIEW", "INELI
 
 /** Eligibility flag. A flagged account keeps chatting; it only leaves the board. */
 export async function PATCH(request: Request, { params }: Params) {
-  const blocked = await guardAppApi();
+  const blocked = await guardAppApiCpu();
   if (blocked) return blocked;
   try { assertSameOrigin(request); } catch { return jsonError("Invalid request.", 403, "INVALID_ORIGIN"); }
   const auth = await adminOrResponse();

@@ -2,6 +2,8 @@
 
 import { Download, RefreshCw, Share2, Sparkles, Trash2, UserRound } from "lucide-react";
 import { MiniCabi } from "@/components/cabi/mini-cabi";
+import { CabiActivityStatus } from "@/components/cabi/cabi-activity-status";
+import { cabiFailureMessages, cabiRetryLabel } from "@/lib/cabi/status-messages";
 import { useState } from "react";
 
 import type { ImageCard } from "@/lib/actions/types";
@@ -50,29 +52,26 @@ export function ImageCardView({ card, onRegenerate, onUseAsAvatar, status, onRet
       className="mt-3 overflow-hidden rounded-[22px] border border-violet-200/[0.14] bg-white/[0.02]"
     >
       {status === "QUEUED" || status === "GENERATING" ? (
-        /* An intentional loading state: the animated mascot, not a spinner. */
-        <div
-          className="grid aspect-square w-full place-items-center bg-gradient-to-br from-violet-500/[0.08] to-transparent p-6 text-center"
-          role="status"
-          aria-live="polite"
-        >
-          <div>
+        /* An intentional loading state: Cabi's own rotating lines rather than a
+           spinner, escalated on elapsed time by the shared component. */
+        <div className="grid aspect-square w-full place-items-center bg-gradient-to-br from-violet-500/[0.08] to-transparent p-6 text-center">
+          <div className="w-full max-w-[16rem]">
             <MiniCabi className="cabi-breathe mx-auto h-20 w-20 rounded-[26px]" decorative />
-            <p className="mt-4 text-[13px] font-semibold text-violet-100">Cabi is making it...</p>
+            <CabiActivityStatus type="IMAGE_GENERATING" className="mt-4 justify-center" mascot={false} />
             <p className="mt-1 text-[11px] text-[#777180]">This usually takes a few seconds.</p>
           </div>
         </div>
       ) : status === "FAILED" ? (
         <div className="grid aspect-square w-full place-items-center bg-black/40 p-6 text-center">
           <div>
-            <p className="text-[13px] font-semibold text-[#d5d0de]">Couldn&apos;t make that one.</p>
+            <p className="text-[13px] font-semibold text-[#d5d0de]">{cabiFailureMessages.IMAGE}</p>
             {onRetry ? (
               <button
                 type="button"
                 onClick={() => onRetry(card.prompt)}
                 className="focus-ring mt-4 inline-flex h-10 items-center gap-1.5 rounded-xl border border-white/[0.08] bg-white/[0.03] px-4 text-[11px] font-semibold text-[#d5d0de] hover:bg-white/[0.06]"
               >
-                <RefreshCw size={12} aria-hidden="true" /> Try Again
+                <RefreshCw size={12} aria-hidden="true" /> {cabiRetryLabel}
               </button>
             ) : null}
           </div>

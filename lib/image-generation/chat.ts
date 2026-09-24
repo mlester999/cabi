@@ -2,7 +2,9 @@ import "server-only";
 
 import { getServiceClient } from "@/lib/db/supabase";
 import { classifyCabiRelevance, checkImageScope, extractScene, looksLikeImageRequest, offTopicReply, uncertainReply } from "@/lib/image-generation/scope";
-import { createImageProvider } from "@/lib/image-generation/provider";
+import { createImageProvider, imageCapabilitiesFor } from "@/lib/image-generation/provider";
+import { buildCabiGenerationPlan } from "@/lib/image-generation/plan.server";
+import { parseCabiSceneRequest } from "@/lib/image-generation/parse-scene";
 import { readImageProviderConfig, readImageSettings } from "@/lib/image-generation/settings";
 import { generationBucket, signedImageUrl, uploadGenerationImage } from "@/lib/image-generation/storage";
 import { awardImageXp, countImageXpToday } from "@/lib/ranking/service";
@@ -37,6 +39,12 @@ export type ChatImageOptions = {
    * row points at the original, so regenerating never destroys the old image.
    */
   parentGenerationId?: string | null;
+  /**
+   * The previous image in this conversation, so a follow-up such as "now put
+   * yourself in a hoodie" carries its scene forward. Read server-side from the
+   * wallet's own generations; never supplied by a client.
+   */
+  previousImageContext?: { scene?: string | null; expression?: string | null; outfit?: string | null } | null;
   walletAccountId: string | null;
   conversationId: string | null;
   messageId: string | null;
@@ -178,12 +186,44 @@ export async function generateChatImage(message: string, options: ChatImageOptio
   }
 
   /*
+   * Capability decides whether the official reference may be attached. It is read
+   * from the selected MODEL: an unsupported parameter is never sent, and the admin
+   * console states which case applies rather than implying consistency the model
+   * cannot deliver.
+   */
+  const capabilities = imageCapabilitiesFor({ provider: providerConfig.settings.provider, model: providerConfig.settings.model });
+  const aspectRatio = providerConfig.settings.defaultAspectRatio;
+
+  // Expression, outfit, and the scene to carry forward. The scene comes from this
+  // message; the identity layers are added by the plan and cannot be influenced
+  // from here.
+  const sceneRequest = parseCabiSceneRequest(message, options.previousImageContext ?? null);
+  const planned = await buildCabiGenerationPlan({
+    scene: sceneRequest.scene,
+    aspectRatio,
+    expression: sceneRequest.expression,
+    outfit: sceneRequest.outfit,
+    outfitNote: sceneRequest.outfitNote,
+    sceneNote: sceneRequest.sceneNote,
+    modelSupportsReferenceImages: capabilities.supportsReferenceImages,
+  });
+  if (!planned.ok) {
+    // No usable reference: fail clearly rather than draw an unrelated character.
+    return {
+      handled: true,
+      usedProvider: false,
+      reply: planned.message,
+      card: noticeCard({ title: "Cabi's reference image is unavailable", message: planned.message, tone: "caution" }),
+    };
+  }
+  const plan = planned.plan;
+
+  /*
    * The row is created as QUEUED before the provider is called, so an in-flight
    * generation is visible to a refresh rather than existing only inside this
    * request. The same row is then transitioned forward, which is what gives the
    * UI three honest, recoverable states instead of one.
    */
-  const aspectRatio = providerConfig.settings.defaultAspectRatio;
   const queuedAt = new Date().toISOString();
   const generationId = crypto.randomUUID();
   /*
@@ -198,33 +238,46 @@ export async function generateChatImage(message: string, options: ChatImageOptio
       wallet_account_id: walletAccountId,
       conversation_id: options.conversationId ?? null,
       message_id: options.messageId ?? null,
-      user_prompt: scene,
+      user_prompt: plan.scene,
       aspect_ratio: aspectRatio,
       provider: providerConfig.settings.provider,
       model: providerConfig.settings.model,
       status: "QUEUED",
       queued_at: queuedAt,
       parent_generation_id: options.parentGenerationId ?? null,
+      // The safe metadata only: what varied, and which reference version produced
+      // it. The identity and prompt layers stay out of the row.
+      scene: plan.scene,
+      expression: plan.expression,
+      outfit: plan.outfit,
+      reference_version: plan.reference.version,
+      seed: plan.seed,
+      reference_conditioned: plan.capabilities.referenceConditioning,
     });
   } catch {
     // Generation continues; the row simply will not exist to transition.
   }
+
 
   const provider = createImageProvider({
     provider: providerConfig.settings.provider,
     apiKey: providerConfig.apiKey,
     baseUrl: providerConfig.settings.baseUrl,
     model: providerConfig.settings.model,
-    supportsReferenceImage: true,
+    supportsReferenceImage: capabilities.supportsReferenceImages,
+    capabilities,
   });
 
   // QUEUED -> GENERATING, recorded before the request leaves the process so a
   // refresh mid-flight recovers to "still working" rather than to a placeholder.
   await markGenerating(generationId);
   const generated = await provider.generateCabiImage({
-    scene: scene,
+    scene: plan.scene,
     aspectRatio,
     quality: providerConfig.settings.defaultQuality,
+    seed: plan.seed ?? undefined,
+    referenceImages: plan.referenceImages,
+    preparedPrompt: plan.prompt,
   });
 
   if (!generated.ok) {
@@ -281,7 +334,9 @@ export async function generateChatImage(message: string, options: ChatImageOptio
     : null;
   const profile = options.walletAccountId ? await readProfile(walletAccountId) : null;
 
-  const prompt = scene;
+  // The scene is echoed because the user wrote it; the identity layers and the
+  // reference path are never returned.
+  const prompt = plan.scene;
   const reply = "Okayyy, give me a second. Here you go.";
 
   return {

@@ -5,7 +5,7 @@ import { readProfile } from "@/lib/profiles/service";
 import { readAchievements } from "@/lib/ranking/achievements";
 import { countWalletMessages } from "@/lib/ranking/message-count";
 import { initialsFor } from "@/lib/profiles/username";
-import { guardAppApi } from "@/lib/site/guard";
+import { guardAppApiCpu } from "@/lib/site/guard";
 import { walletAuthOrResponse } from "@/lib/wallet/session";
 
 export const dynamic = "force-dynamic";
@@ -19,7 +19,7 @@ export const dynamic = "force-dynamic";
  * badge. It is read-only; nothing a browser sends can change a score.
  */
 export async function GET() {
-  const blocked = await guardAppApi();
+  const blocked = await guardAppApiCpu();
   if (blocked) return blocked;
   const auth = await walletAuthOrResponse();
   if (!auth.identity) return auth.response;

@@ -1,10 +1,10 @@
 import { getServiceClient } from "@/lib/db/supabase";
 import { jsonError } from "@/lib/security/request";
-import { guardAppApi } from "@/lib/site/guard";
+import { guardAppApiCpu } from "@/lib/site/guard";
 import { walletAuthOrResponse } from "@/lib/wallet/session";
 
 export async function GET() {
-  const blocked = await guardAppApi(); if (blocked) return blocked;
+  const blocked = await guardAppApiCpu(); if (blocked) return blocked;
   const auth = await walletAuthOrResponse(); if (!auth.identity) return auth.response;
   const db = getServiceClient(); if (!db) return jsonError("Persistence isn't configured.", 503, "DATABASE_NOT_CONFIGURED");
   const [profileResult, conversationsResult, memoriesResult, settingsResult] = await Promise.all([

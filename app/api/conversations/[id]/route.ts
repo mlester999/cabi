@@ -2,7 +2,7 @@ import { getServiceClient } from "@/lib/db/supabase";
 import { assertSameOrigin, jsonError } from "@/lib/security/request";
 import { parseActionCard } from "@/lib/actions/guards";
 import { refreshStoredCards } from "@/lib/image-generation/lifecycle";
-import { guardAppApi } from "@/lib/site/guard";
+import { guardAppApiCpu } from "@/lib/site/guard";
 import { conversationPatchSchema } from "@/lib/validation/api";
 import { walletAuthOrResponse } from "@/lib/wallet/session";
 
@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 type Context = { params: Promise<{ id: string }> };
 
 export async function GET(_request: Request, context: Context) {
-  const blocked = await guardAppApi();
+  const blocked = await guardAppApiCpu();
   if (blocked) return blocked;
   const auth = await walletAuthOrResponse();
   if (!auth.identity) return auth.response;
@@ -43,7 +43,7 @@ export async function GET(_request: Request, context: Context) {
 }
 
 export async function PATCH(request: Request, context: Context) {
-  const blocked = await guardAppApi();
+  const blocked = await guardAppApiCpu();
   if (blocked) return blocked;
   try { assertSameOrigin(request); } catch { return jsonError("Invalid request.", 403, "INVALID_ORIGIN"); }
   const auth = await walletAuthOrResponse();
@@ -59,7 +59,7 @@ export async function PATCH(request: Request, context: Context) {
 }
 
 export async function DELETE(request: Request, context: Context) {
-  const blocked = await guardAppApi();
+  const blocked = await guardAppApiCpu();
   if (blocked) return blocked;
   try { assertSameOrigin(request); } catch { return jsonError("Invalid request.", 403, "INVALID_ORIGIN"); }
   const auth = await walletAuthOrResponse();

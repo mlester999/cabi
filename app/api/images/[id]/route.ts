@@ -5,7 +5,7 @@ import { generationBucket, signedImageUrl } from "@/lib/image-generation/storage
 import { cardUrlTtlSeconds, deleteGeneration, readGeneration, readQuota } from "@/lib/image-generation/lifecycle";
 import { readImageSettings } from "@/lib/image-generation/settings";
 import { assertSameOrigin, jsonError } from "@/lib/security/request";
-import { guardAppApi } from "@/lib/site/guard";
+import { guardAppApiCpu } from "@/lib/site/guard";
 import { walletAuthOrResponse } from "@/lib/wallet/session";
 
 export const dynamic = "force-dynamic";
@@ -26,7 +26,7 @@ const idSchema = z.string().uuid();
  * read or delete wallet B's image: the ownership predicate is in every query.
  */
 export async function GET(_request: Request, { params }: Params) {
-  const blocked = await guardAppApi();
+  const blocked = await guardAppApiCpu();
   if (blocked) return blocked;
   const auth = await walletAuthOrResponse();
   if (!auth.identity) return auth.response;
@@ -70,7 +70,7 @@ export async function GET(_request: Request, { params }: Params) {
 }
 
 export async function DELETE(request: Request, { params }: Params) {
-  const blocked = await guardAppApi();
+  const blocked = await guardAppApiCpu();
   if (blocked) return blocked;
   try { assertSameOrigin(request); } catch { return jsonError("Invalid request.", 403, "INVALID_ORIGIN"); }
   const auth = await walletAuthOrResponse();

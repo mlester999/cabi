@@ -1,14 +1,14 @@
 import { conversationTimeGroup, validTimeZone } from "@/lib/conversations/time-group";
 import { getServiceClient } from "@/lib/db/supabase";
 import { jsonError } from "@/lib/security/request";
-import { guardAppApi } from "@/lib/site/guard";
+import { guardAppApiCpu } from "@/lib/site/guard";
 import { walletAuthOrResponse } from "@/lib/wallet/session";
 
 export const dynamic = "force-dynamic";
 type ConversationRow = { id: string; title: string; pinned: boolean; created_at: string; updated_at: string };
 
 export async function GET(request: Request) {
-  const blocked = await guardAppApi();
+  const blocked = await guardAppApiCpu();
   if (blocked) return blocked;
   const auth = await walletAuthOrResponse();
   if (!auth.identity) return auth.response;

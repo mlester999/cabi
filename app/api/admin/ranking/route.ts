@@ -6,7 +6,7 @@ import { getServiceClient } from "@/lib/db/supabase";
 import { adjustXp, readLeaderboard, readSeason } from "@/lib/ranking/service";
 import { tierByNumber } from "@/lib/ranking/tiers";
 import { assertSameOrigin, jsonError } from "@/lib/security/request";
-import { guardAppApi } from "@/lib/site/guard";
+import { guardAppApiCpu } from "@/lib/site/guard";
 
 export const dynamic = "force-dynamic";
 
@@ -19,7 +19,7 @@ export const dynamic = "force-dynamic";
  * period and opens the next one.
  */
 export async function GET() {
-  const blocked = await guardAppApi();
+  const blocked = await guardAppApiCpu();
   if (blocked) return blocked;
   const auth = await adminOrResponse();
   if (auth.response) return auth.response;
@@ -100,7 +100,7 @@ const actionSchema = z.discriminatedUnion("action", [
 ]);
 
 export async function POST(request: Request) {
-  const blocked = await guardAppApi();
+  const blocked = await guardAppApiCpu();
   if (blocked) return blocked;
   try { assertSameOrigin(request); } catch { return jsonError("Invalid request.", 403, "INVALID_ORIGIN"); }
   const auth = await adminOrResponse();

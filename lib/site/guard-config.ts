@@ -38,11 +38,27 @@ export const alwaysPublicApiRoutePrefixes = [
   "/api/wallet/",
   "/api/public/config",
   "/api/session",
+  // Reports the holder-gate status for the signed-in wallet in every site mode,
+  // so the UI can say "not open yet" instead of "you don't hold enough".
+  "/api/cpu/access",
   "/api/admin/",
 ] as const;
 
 /** Public application pages that follow the site mode. */
 export const appPagePaths = ["/", "/settings"] as const;
+
+/**
+ * Server-rendered pages that require the $CPU holder gate while the site is
+ * LIVE. Each one calls `guardAppPage()` and renders the holder gate instead of
+ * the application, so a direct navigation to a protected path is decided on the
+ * server rather than in the browser.
+ */
+export const holderGatedPagePaths = [
+  "/",
+  "/settings",
+  "/settings/memory",
+  "/profile",
+] as const;
 
 /** Admin-only surfaces that must keep working during PRELAUNCH and MAINTENANCE. */
 export const adminOnlyPaths = ["/admin", "/preview"] as const;

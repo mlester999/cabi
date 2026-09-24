@@ -61,7 +61,9 @@ describe("guest transcript consent", () => {
   it("keeps a transcript started during session discovery temporary after a session is restored", async () => {
     const view = render(<CabiExperience />);
     fireEvent.click(screen.getByRole("button", { name: /Talk to Cabi/iu }));
-    expect(screen.getByText("Hey. What should I call you?")).toBeInTheDocument();
+    // The greeting is the shell's own copy; what this test protects is that the
+    // transcript exists and stays temporary after a session is restored.
+    expect(screen.getByText(/What should I call you\?/u)).toBeInTheDocument();
 
     state.wallet.sessionLoaded = true;
     state.wallet.authenticated = true;

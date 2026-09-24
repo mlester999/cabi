@@ -118,7 +118,7 @@ export function ProfileSetupModal({ open, suggestedName, onComplete }: {
               disabled={saving || username.trim().length === 0}
               className="focus-ring mt-5 inline-flex h-12 w-full items-center justify-center rounded-2xl bg-violet-300 text-sm font-bold text-[#160f22] transition hover:bg-violet-200 disabled:cursor-not-allowed disabled:opacity-40"
             >
-              {saving ? "Saving..." : "Continue"}
+              {saving ? "Saving that..." : "Continue"}
             </button>
 
             <p className="mt-3 text-center text-[11px] text-[#625d6d]">

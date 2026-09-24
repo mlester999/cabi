@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   authorized: vi.fn(),
   markUsed: vi.fn(),
   token: vi.fn(),
+  siteMode: vi.fn(async () => ({ mode: "PRELAUNCH", source: "database" as const, override: false })),
 }));
 
 vi.mock("@/lib/security/rate-limit", () => ({ checkRateLimit: mocks.rateLimit }));
@@ -22,6 +23,12 @@ vi.mock("@/lib/site/owner-preview", () => ({
   createOwnerPreviewToken: mocks.token,
   serializeOwnerPreviewCookie: (value: string) => `preview=${value}; HttpOnly`,
   clearOwnerPreviewCookie: () => "preview=; Max-Age=0",
+}));
+// The site mode decides whether the holder gate is even asked. It stays
+// PRELAUNCH here, so the response must say so and touch no chain.
+vi.mock("@/lib/site/mode", () => ({
+  getSiteMode: mocks.siteMode,
+  siteModeAllowsApp: (mode: string) => mode === "LIVE",
 }));
 
 import { POST } from "@/app/api/wallet/verify/route";
@@ -59,6 +66,12 @@ describe("wallet verification preview authorization", () => {
     expect(await response.json()).toMatchObject({ authenticated: true, previewAuthorized: false });
     expect(response.headers.get("set-cookie")).toContain("preview=; Max-Age=0");
     expect(mocks.token).not.toHaveBeenCalled();
+  });
+
+  it("reports the holder-gate answer from the server, not from the request", async () => {
+    const body = await (await POST(request())).json() as { cpuHolder?: { allowed?: boolean; reason?: string } };
+    // PRELAUNCH: the sign-in succeeds, but a $CPU balance never unlocks it.
+    expect(body.cpuHolder).toMatchObject({ allowed: false, reason: "PRELAUNCH" });
   });
 
   it("mints preview only after signature verification and allowlist approval", async () => {

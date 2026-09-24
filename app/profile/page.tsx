@@ -3,8 +3,9 @@ import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 
 import { ProfileExperience } from "@/components/profile/profile-experience";
+import { CpuGateBypassNotice } from "@/components/cpu/cpu-gate-bypass-notice";
 import { renderPrelaunchFallback } from "@/components/prelaunch/render-fallback";
-import { getAppAccess } from "@/lib/site/guard";
+import { cpuGatedPage } from "@/lib/cpu-access/page";
 import { walletAuthOrResponse } from "@/lib/wallet/session";
 
 export const dynamic = "force-dynamic";
@@ -15,10 +16,15 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-/** `/profile` is part of the application, so it follows the site mode. */
+/**
+ * `/profile` is part of the application, so it follows the site mode and the
+ * $CPU holder gate. `cpuGatedPage` renders the holder gate instead of the page
+ * when the wallet does not qualify, so progression data is never sent.
+ */
 export default async function ProfilePage() {
-  const access = await getAppAccess();
-  if (!access.live) return renderPrelaunchFallback();
+  const gated = await cpuGatedPage(() => null);
+  if (!gated.allowed && !gated.gated) return renderPrelaunchFallback();
+  if (gated.gated) return <>{gated.element}</>;
   const auth = await walletAuthOrResponse();
 
   return (
@@ -33,6 +39,7 @@ export default async function ProfilePage() {
             <p className="mt-1 text-xs text-[#a8a3b3]">Rank, lifetime progress, and your bond with Cabi.</p>
           </div>
         </header>
+        {gated.bypassed && <div className="mt-5"><CpuGateBypassNotice /></div>}
 
         {auth.identity ? <ProfileExperience /> : (
           <div className="glass mt-10 rounded-[26px] p-8 text-center">

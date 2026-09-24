@@ -108,6 +108,24 @@ The repository deliberately contains **no** contract address and **no** Clank.tr
 
 Neither path bypasses the `LIVE` gate, so nothing is shown publicly until you explicitly launch the token.
 
+## `$CPU` holder access gate
+
+While the site is `LIVE`, using the Cabi application requires holding at least **1,000,000 $CPU** in the authenticated wallet. Approved owner/admin wallets are exempt.
+
+The gate is a real server-side authorization layer, not a cosmetic paywall:
+
+- **One configuration file.** `lib/cpu-access/config.ts` holds the official contract `0x1a421a5065316d9b4062939e9959ddece6630528`, chain `4663` (Robinhood Chain), the exact buy page `https://clank.trade/coin/0x1a421a5065316d9b4062939e9959ddece6630528`, and `CPU_MIN_ACCESS_BALANCE = 1000000`. Nothing is scattered into components, and an environment override (`CPU_ACCESS_TOKEN_ADDRESS`, `CPU_ACCESS_CHAIN_ID`, `CPU_ACCESS_RPC_URL`) is accepted only when it parses as a valid address, chain, and HTTPS endpoint.
+- **One decision.** `resolveCabiAccess()` in `lib/cpu-access/resolve.ts` answers the question for pages, route handlers, and the status endpoint. Order: site mode → wallet authentication → admin/owner allowlist → `cpu_holder_gate_enabled` → onchain balance.
+- **Trusted read.** `lib/cpu-access/balance.server.ts` calls `balanceOf` and `decimals()` through viem against the owner-configured HTTPS RPC. Decimals are read from the contract on every check and never assumed; a missing or absurd answer fails closed. Comparison is `bigint` against `bigint`; no amount that decides access passes through a JavaScript `number`.
+- **Nothing from the browser.** A forged balance, a forged `isAdmin`, a query parameter, `localStorage`, or hidden UI state cannot change a decision: the wallet identity comes from the signed HttpOnly session cookie and the balance from the server's own RPC read. Every protected API repeats the check for itself, so hiding the modal or calling `/api/chat` directly changes nothing.
+- **Fail closed.** If the chain cannot be read, a normal user is refused with "Cabi couldn't verify your $CPU balance right now." and two actions: **Try Again** and **Open $CPU on Clank.trade**. An admin bypass is evaluated separately and is unaffected.
+- **Short-lived cache, explicit rechecks.** A balance is cached for 30 seconds and gate settings for 15. `Check Again`, chat, and image generation read fresh; an open session re-checks on a slow timer and returns to the server-rendered gate if the wallet drops below the minimum.
+- **Nothing is deleted.** Losing eligibility only locks access. Chats, memories, images, and the profile stay attached to the wallet.
+
+`/admin/cpu` shows the gate's effective state (enabled, minimum, official contract, buy URL, chain, RPC, admin bypass) with the contract, chain, and buy URL read-only. Editing the minimum or the two switches is server-side only, validated, and written to the audit log as `cpu.access_gate_update`. The analytics events are four coarse values (`cpu_gate_viewed`, `cpu_gate_passed`, `cpu_gate_failed`, `cpu_buy_link_opened`) stored against a salted actor hash — never a balance, and never a wallet address.
+
+PRELAUNCH and the holder gate are separate layers: while the site is in `PRELAUNCH`, normal wallets stay on the prelaunch page no matter how much $CPU they hold, and only an approved admin/owner preview may enter `/preview`.
+
 ## Main routes
 
 ### Public
@@ -137,6 +155,7 @@ Neither path bypasses the `LIVE` gate, so nothing is shown publicly until you ex
 - `/api/admin/users/[id]` — per-account progression and the eligibility flag
 - `/api/admin/ranking` — seasons, XP adjustment, rewards, and rank tuning
 - `/api/public/config` — non-secret supported-chain and `$CPU` configuration
+- `/api/cpu/access` — the holder gate's own status for the signed-in wallet, plus the four gate analytics events
 
 `/settings/memory`, `/portfolio`, `/cabi`, `/profile`, and `/gallery` are application
 routes, so outside `LIVE` they render the public prelaunch page instead of exposing an
@@ -281,6 +300,107 @@ the default model.
   short-lived signed URLs. Avatars use a separate private `avatars` bucket.
 - Normal users never see "Together AI", "Qwen", a model name or a provider error. The
   provider's own error text is logged server-side and replaced with a Cabi line.
+
+### Cabi's official character reference
+
+Cabi must stay recognizably Cabi in every image: her clothes, pose, expression, and
+environment change; her identity does not. Two mechanisms keep that true.
+
+**1. The character bible.** `lib/cabi/image-identity.ts` holds the fixed identity —
+face, ash-gray hair, gray-lavender eyes, cat ears, adult presentation — and prompts are
+assembled from six distinct layers:
+
+```
+IDENTITY  →  EXPRESSION  →  OUTFIT  →  SCENE  →  COMPOSITION  →  QUALITY
+```
+
+`IDENTITY` is constant and always first. `EXPRESSION` and `OUTFIT` are values from closed
+sets, and everything a user writes lands in `SCENE`, where the identity-override guard
+strips phrasing such as "make her hair blonde", "give her blue eyes", or "remove her cat
+ears" before the prompt is built. A request can therefore change how Cabi looks in the
+picture, never who she is. Harmless styling ("blonde highlights", "a black hoodie") passes
+through.
+
+**2. The official reference image.** One admin-managed image is Cabi's visual anchor,
+resolved by `lib/cabi/reference/resolve.server.ts` in a fixed priority:
+
+1. the active admin-uploaded reference, in the private **`cabi-system-assets`** bucket at
+   `official/cabi-reference.png`;
+2. the bundled `public/assets/cabi-cpu-model.png`;
+3. otherwise a visible failure — never a different character.
+
+It is a **system** asset, not a user asset: it lives in its own bucket, never inside a
+wallet's generation folder, and a browser session cannot supply or replace it.
+
+`/admin/images` → **CABI REFERENCE** shows the current image, its status, version, upload
+date, dimensions, and storage path, with **Replace Reference**, **View History**, and
+**Restore** for any previous version. Replacing archives the old bytes to an immutable
+`official/versions/...` path first, and exactly one row is active — enforced by a partial
+unique index in the database, not only by application code. Uploads are validated on their
+magic bytes (PNG, JPEG, or WebP; 8 MB cap) and audited as `cabi.reference_upload`.
+
+**Reference conditioning depends on the model.** `imageCapabilitiesFor()` derives the
+capability from the selected *model*, and the reference is attached automatically whenever
+the model supports it — the user never uploads Cabi. The shipped `Qwen/Qwen-Image` is
+text-to-image, so:
+
+```
+Reference Conditioning: NOT SUPPORTED BY CURRENT MODEL
+```
+
+The admin console says exactly that, and no `image_url` parameter is ever sent to a model
+that cannot use it. Switching the model to a reference-capable one (for example
+`Qwen/Qwen-Image-Edit`) makes the active reference apply on the next generation with no
+other change.
+
+Generation metadata recorded per row is safe by construction: `reference_version`,
+`expression`, `outfit`, `scene`, `seed`, `reference_conditioned`, provider, model, and
+aspect ratio. The prompt layers and the reference path are never stored and never returned
+to a client.
+
+### Follow-up image requests
+
+`lib/image-generation/parse-scene.ts` turns a follow-up into the parts the pipeline can
+vary, carrying the previous image's scene forward from the wallet's own generations:
+
+| Request | Result |
+| --- | --- |
+| "Make another one but smiling." | same scene and outfit, expression `smiling` |
+| "Now put yourself in a hoodie." | same scene, outfit `hoodie` |
+| "Same scene but at night." | same scene plus an "at night" note |
+| "Make the outfit black." | same scene and outfit, colour note `black colourway` |
+
+An unknown expression or outfit arriving from a damaged row is dropped rather than passed
+through.
+
+## Cabi activity messages
+
+Cabi never shows a generic spinner. `lib/cabi/status-messages.ts` holds one catalogue per
+activity — `CHAT_THINKING`, `IMAGE_GENERATING`, `MEMORY_LOADING`, `WALLET_VERIFYING`,
+`PROFILE_SAVING`, `IMAGE_SAVING` — and `components/cabi/cabi-activity-status.tsx` is the
+single component that renders it, in the chat header and transcript, the wallet connect
+dialog, and anywhere else a wait is visible.
+
+- The first line appears immediately; the next follows after 2.5–4 s and every line after
+  that lands in a 3–5 s window, varied so the rotation does not read as a metronome.
+- **No fake progress.** The bar is an indeterminate sliver; there is no percentage
+  anywhere, because no provider reports one.
+- Long generations escalate on elapsed time: "Still working on it..." after 15 s, and
+  "This one's taking a little longer." after 30 s. Nothing implies failure before a real
+  timeout.
+- `prefers-reduced-motion` removes the mascot animation and the sliding bar and leaves the
+  messages rotating.
+- The rotating text is `aria-hidden`; a single stable sentence per activity sits in a
+  polite live region, so a screen reader hears "Cabi is processing your request." once
+  rather than a new line every three seconds.
+- Owner-added lines are **appended** to the built-in defaults, so a category can never end
+  up with nothing to say.
+
+`/admin/personality` → **Cabi Activity Messages** shows the shipped lines read-only, lets
+the owner add or remove extra ones per category, switch them off entirely, and reset to
+defaults. Nothing has to be configured: with no settings row at all, the built-in lines are
+what Cabi says. The rotation timing and the long-wait escalation are fixed in code and are
+not configurable.
 
 ### Cabi-only relevance
 
@@ -543,6 +663,12 @@ The automated suite covers, among other cases:
 - safe `$CPU` prelaunch/live rendering and exact-host Clank.trade validation
 - AI stream cancellation, split SSE frames, and premature EOF rejection
 - site-mode/preview authorization and responsive prelaunch rendering
+- Cabi's identity layers: an outfit, expression, or scene change leaves IDENTITY byte-identical; identity-override attempts are stripped; expressions and outfits are closed sets; every follow-up carries its scene forward
+- the official reference: bundled fallback, admin override, version history with a single active row, an invalid image rejected on its magic bytes, and the reference attached automatically only when the model supports conditioning
+- the activity messages: rotation cadence floors, escalation thresholds, no percentage anywhere, one stable announcement per activity, and reduced motion
+- the `$CPU` holder gate: unauthenticated, zero, 999,999.999, exactly 1,000,000, and above; contract-supplied decimals; bigint boundary comparison; forged balance and forged `isAdmin` ignored; valid/invalid/disabled admin wallets; RPC failure, malformed contract responses, and a missing chain all failing closed; fresh rechecks after a wallet switch and after dropping below the threshold; existing data untouched; every protected API and page enforcing the gate; PRELAUNCH before the gate with no holder bypass; and the exact Clank.trade buy link with `target="_blank"`
+
+With `CABI_CPU_ONCHAIN=1`, `tests/cpu-access-onchain.test.ts` additionally performs a real read-only `balanceOf`/`decimals` call against the official contract on Robinhood Chain, for a real holder and for an empty wallet. It sends no transaction and needs no key.
 
 ## Deployment
 

@@ -50,8 +50,10 @@ vi.mock("@/lib/image-generation/settings", () => ({
 }));
 
 vi.mock("@/lib/image-generation/provider", () => ({
+  imageCapabilitiesFor: () => ({ supportsReferenceImages: false, supportsImageToImage: false, supportsSeed: true }),
   createImageProvider: () => ({
     id: "together", label: "Together AI", supportsReferenceImage: false,
+    capabilities: { supportsReferenceImages: false, supportsImageToImage: false, supportsSeed: true },
     generateCabiImage: async () => {
       providerCalls += 1;
       return { ok: true, image: { bytes: new Uint8Array(256).fill(7), contentType: "image/png", provider: "together", model: "Qwen/Qwen-Image", width: 1024, height: 1024 } };

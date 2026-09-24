@@ -3,7 +3,7 @@ import { adminOrResponse } from "@/lib/admin/auth";
 import { defaultFeatureFlags, featureFlagKeys, parseFeatureFlags } from "@/lib/config/feature-flags";
 import { readFeatureFlags, writeFeatureFlags } from "@/lib/config/feature-flags.server";
 import { assertSameOrigin, jsonError } from "@/lib/security/request";
-import { guardAppApi } from "@/lib/site/guard";
+import { guardAppApiCpu } from "@/lib/site/guard";
 import { z } from "zod";
 
 export const dynamic = "force-dynamic";
@@ -16,7 +16,7 @@ export const dynamic = "force-dynamic";
  * endpoint that accepts a flag from a client context.
  */
 export async function GET() {
-  const blocked = await guardAppApi();
+  const blocked = await guardAppApiCpu();
   if (blocked) return blocked;
   const auth = await adminOrResponse();
   if (auth.response) return auth.response;
@@ -31,7 +31,7 @@ const schema = z.object({
 });
 
 export async function POST(request: Request) {
-  const blocked = await guardAppApi();
+  const blocked = await guardAppApiCpu();
   if (blocked) return blocked;
   try { assertSameOrigin(request); } catch { return jsonError("Invalid request.", 403, "INVALID_ORIGIN"); }
   const auth = await adminOrResponse();

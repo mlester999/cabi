@@ -15,12 +15,36 @@ import {
 } from "@/lib/wallet/client";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { WalletLogo } from "@/components/wallet/wallet-logo";
+import { CabiActivityStatus } from "@/components/cabi/cabi-activity-status";
+import { announceWalletAuthenticated, announceWalletDisconnected } from "@/lib/wallet/events";
 import { Check, ChevronRight, LoaderCircle, ShieldCheck, WalletCards } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 
 type WalletIdentity = { address: string; walletAccountId: string; profileId: string };
-type WalletSession = { authenticated: true; wallet: WalletIdentity; expiresAt: string; previewAuthorized?: boolean };
+
+/**
+ * The server's holder-gate answer for this wallet, used only so the UI can pick
+ * the right surface. It is display state: no component may turn it into access,
+ * and the protected APIs re-decide for themselves.
+ */
+type CpuHolderStatus = {
+  allowed: boolean;
+  reason: string;
+  live?: boolean;
+  cpuGateBypassed?: boolean;
+  message?: string | null;
+};
+
+type WalletSession = {
+  authenticated: true;
+  wallet: WalletIdentity;
+  expiresAt: string;
+  previewAuthorized?: boolean;
+  cpuHolder?: CpuHolderStatus | null;
+  minimumBalance?: number;
+};
+
 type WalletPhase = "idle" | "connecting" | "signing" | "verifying";
 
 type WalletContextValue = {
@@ -145,6 +169,9 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     setChainId(null);
     setAuthenticatedAt(null);
     setPhase("idle");
+    // Tells an open holder gate to re-resolve: with no wallet session the server
+    // answers NOT_AUTHENTICATED rather than a balance.
+    announceWalletDisconnected();
   }, []);
 
   const disconnect = useCallback(async () => {
@@ -228,6 +255,9 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       setAuthenticatedAt(Date.now());
       setPhase("idle");
       setConnectOpen(false);
+      // The gate is listening for this. It only triggers a re-read of the
+      // server's decision - this event grants nothing on its own.
+      announceWalletAuthenticated({ address: nextSession.wallet.address, authenticated: true });
       if (nextSession.previewAuthorized && pathname === "/") {
         setOpeningPreview(true);
         window.setTimeout(() => { router.replace("/preview"); router.refresh(); setOpeningPreview(false); }, 700);
@@ -309,6 +339,10 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
               <div className="mt-6 rounded-2xl border border-violet-200/10 bg-violet-300/[0.04] p-5 text-center">
                 <LoaderCircle className="mx-auto animate-spin text-violet-200" size={24} />
                 <p className="mt-3 text-sm font-medium">{phase === "connecting" ? "Opening your wallet…" : phase === "signing" ? "Check your wallet to sign in" : "Verifying your sign-in…"}</p>
+                {/* Cabi's own wording for the verification step, so sign-in reads
+                    as her checking rather than as a bare spinner. It never implies
+                    key access: only a signature is ever involved. */}
+                {phase === "verifying" && <CabiActivityStatus type="WALLET_VERIFYING" className="mt-2 justify-center" />}
                 <p className="mt-2 text-xs leading-5 text-[#8e889b]">This signature is only for sign-in. It costs no gas and sends no transaction.</p>
               </div>
             ) : (

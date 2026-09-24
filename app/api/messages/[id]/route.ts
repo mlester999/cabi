@@ -1,6 +1,6 @@
 import { getServiceClient } from "@/lib/db/supabase";
 import { assertSameOrigin, jsonError } from "@/lib/security/request";
-import { guardAppApi } from "@/lib/site/guard";
+import { guardAppApiCpu } from "@/lib/site/guard";
 import { walletAuthOrResponse } from "@/lib/wallet/session";
 import { z } from "zod";
 
@@ -15,7 +15,7 @@ async function ownedMessage(id: string, walletAccountId: string) {
 }
 
 export async function PATCH(request: Request, context: Context) {
-  const blocked = await guardAppApi();
+  const blocked = await guardAppApiCpu();
   if (blocked) return blocked;
   try { assertSameOrigin(request); } catch { return jsonError("Invalid request.", 403, "INVALID_ORIGIN"); }
   const auth = await walletAuthOrResponse(); if (!auth.identity) return auth.response; const { id } = await context.params; const message = await ownedMessage(id, auth.identity.walletAccountId);
@@ -24,7 +24,7 @@ export async function PATCH(request: Request, context: Context) {
 }
 
 export async function DELETE(request: Request, context: Context) {
-  const blocked = await guardAppApi();
+  const blocked = await guardAppApiCpu();
   if (blocked) return blocked;
   try { assertSameOrigin(request); } catch { return jsonError("Invalid request.", 403, "INVALID_ORIGIN"); }
   const auth = await walletAuthOrResponse(); if (!auth.identity) return auth.response; const { id } = await context.params; const message = await ownedMessage(id, auth.identity.walletAccountId); if (!message) return jsonError("Message not found.", 404, "NOT_FOUND");

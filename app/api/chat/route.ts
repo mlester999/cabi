@@ -16,11 +16,11 @@ import { checkRateLimit } from "@/lib/security/rate-limit";
 import { chatRequestSchema } from "@/lib/validation/api";
 import { readWalletAuth } from "@/lib/wallet/session";
 import { shouldPersistChat } from "@/lib/wallet/persistence";
-import { guardAppApi } from "@/lib/site/guard";
+import { guardAppApiCpu } from "@/lib/site/guard";
 import { recordChatTurnSocial } from "@/lib/chat/social";
 import { achievementCopy } from "@/lib/ranking/achievements";
 import { generateChatImage } from "@/lib/image-generation/chat";
-import { linkGenerationToMessage } from "@/lib/image-generation/lifecycle";
+import { linkGenerationToMessage, readLatestGenerationContext } from "@/lib/image-generation/lifecycle";
 
 export const dynamic = "force-dynamic";
 
@@ -38,10 +38,12 @@ function hourInTimeZone(timeZone: string | undefined): number | undefined {
 }
 
 export async function POST(request: Request) {
-  // Site mode is checked before anything else: while the site is in PRELAUNCH
-  // or MAINTENANCE, this endpoint does not exist for a normal visitor. Admins
-  // reach it through the explicit /preview opt-in.
-  const blocked = await guardAppApi();
+  // Site mode first, then the $CPU holder gate. While the site is in PRELAUNCH
+  // or MAINTENANCE this endpoint does not exist for a normal visitor; admins
+  // reach it through the explicit /preview opt-in. While LIVE the wallet must
+  // meet the holding requirement, and the balance is re-read rather than
+  // trusted from an earlier cached check.
+  const blocked = await guardAppApiCpu({ fresh: true });
   if (blocked) return blocked;
   try { assertSameOrigin(request); } catch { return jsonError("That request couldn't be verified.", 403, "INVALID_ORIGIN"); }
   let wallet;
@@ -148,6 +150,12 @@ export async function POST(request: Request) {
       conversationContext: (persistent ? context.recent : (parsed.data.guestHistory ?? [])).map((turn) => turn.content),
       // Lineage only: a regenerate inserts a new row and keeps the original.
       parentGenerationId: parsed.data.parentGenerationId ?? null,
+      // The previous image in this conversation, so a follow-up changes only what
+      // was asked for. Read from the wallet's own generations, never from the
+      // request.
+      previousImageContext: walletAccountId
+        ? await readLatestGenerationContext(walletAccountId, conversationId).catch(() => null)
+        : null,
     }).catch(() => ({ handled: false }) as const),
   ]);
   const mood: CabiMood = inferMood({

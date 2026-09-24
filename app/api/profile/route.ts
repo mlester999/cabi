@@ -3,7 +3,7 @@ import { z } from "zod";
 import { assertSameOrigin, jsonError } from "@/lib/security/request";
 import { completeProfile, readProfile } from "@/lib/profiles/service";
 import { initialsFor, usernameRules } from "@/lib/profiles/username";
-import { guardAppApi } from "@/lib/site/guard";
+import { guardAppApiCpu } from "@/lib/site/guard";
 import { walletAuthOrResponse } from "@/lib/wallet/session";
 
 export const dynamic = "force-dynamic";
@@ -22,7 +22,7 @@ const setupSchema = z.object({
  * social and ranked features. Guest chat is unaffected.
  */
 export async function GET() {
-  const blocked = await guardAppApi();
+  const blocked = await guardAppApiCpu();
   if (blocked) return blocked;
   const auth = await walletAuthOrResponse();
   if (!auth.identity) return auth.response;
@@ -57,7 +57,7 @@ export async function GET() {
  * database index rather than a read-then-write check.
  */
 export async function POST(request: Request) {
-  const blocked = await guardAppApi();
+  const blocked = await guardAppApiCpu();
   if (blocked) return blocked;
   try { assertSameOrigin(request); } catch { return jsonError("Invalid request.", 403, "INVALID_ORIGIN"); }
   const auth = await walletAuthOrResponse();

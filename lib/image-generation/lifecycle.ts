@@ -381,3 +381,62 @@ export async function readRegenerateScene(walletAccountId: string, generationId:
   const record = await readGeneration(walletAccountId, generationId);
   return record?.prompt ?? null;
 }
+
+/**
+ * The scene, expression, and outfit behind a stored generation.
+ *
+ * Used by a follow-up ("make another one but smiling") so the new image carries
+ * the previous scene forward and changes only what was asked for. Owner-scoped in
+ * the query itself, so it can never read another wallet's image context.
+ */
+export type GenerationContext = {
+  scene: string | null;
+  expression: string | null;
+  outfit: string | null;
+  referenceVersion: number | null;
+};
+
+const contextColumns = "scene,user_prompt,expression,outfit,reference_version";
+
+function toContext(row: Record<string, unknown>): GenerationContext {
+  return {
+    scene: (row.scene as string | null) ?? (row.user_prompt as string | null) ?? null,
+    expression: (row.expression as string | null) ?? null,
+    outfit: (row.outfit as string | null) ?? null,
+    referenceVersion: row.reference_version == null ? null : Number(row.reference_version),
+  };
+}
+
+export async function readGenerationContext(walletAccountId: string, generationId: string): Promise<GenerationContext | null> {
+  const db = getServiceClient();
+  if (!db) return null;
+  const { data } = await db
+    .from("image_generations")
+    .select(contextColumns)
+    .eq("id", generationId)
+    .eq("wallet_account_id", walletAccountId)
+    .maybeSingle();
+  return data ? toContext(data as Record<string, unknown>) : null;
+}
+
+/**
+ * The most recent image the wallet generated in a conversation.
+ *
+ * This is what makes "now put yourself in a hoodie" work with no back-reference
+ * typed by the user: the previous image in the same conversation supplies the
+ * scene to carry forward.
+ */
+export async function readLatestGenerationContext(walletAccountId: string, conversationId: string | null): Promise<GenerationContext | null> {
+  const db = getServiceClient();
+  if (!db) return null;
+  let query = db
+    .from("image_generations")
+    .select(contextColumns)
+    .eq("wallet_account_id", walletAccountId)
+    .eq("status", "COMPLETED");
+  // With no conversation, the wallet's own most recent image is still the right
+  // context: it is the picture they are looking at.
+  if (conversationId) query = query.eq("conversation_id", conversationId);
+  const { data } = await query.order("created_at", { ascending: false }).limit(1).maybeSingle();
+  return data ? toContext(data as Record<string, unknown>) : null;
+}

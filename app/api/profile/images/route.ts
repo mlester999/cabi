@@ -2,7 +2,7 @@ import { listGenerations, readQuota } from "@/lib/image-generation/lifecycle";
 import { deleteGeneration } from "@/lib/image-generation/lifecycle";
 import { readImageSettings } from "@/lib/image-generation/settings";
 import { assertSameOrigin, jsonError } from "@/lib/security/request";
-import { guardAppApi } from "@/lib/site/guard";
+import { guardAppApiCpu } from "@/lib/site/guard";
 import { walletAuthOrResponse } from "@/lib/wallet/session";
 import { z } from "zod";
 
@@ -19,7 +19,7 @@ export const dynamic = "force-dynamic";
  * rather than exposing someone's images later.
  */
 export async function GET() {
-  const blocked = await guardAppApi();
+  const blocked = await guardAppApiCpu();
   if (blocked) return blocked;
   const auth = await walletAuthOrResponse();
   if (!auth.identity) return auth.response;
@@ -40,7 +40,7 @@ const deleteSchema = z.object({ id: z.string().uuid() });
 
 /** Deletes one image. Ownership is verified as part of the operation. */
 export async function DELETE(request: Request) {
-  const blocked = await guardAppApi();
+  const blocked = await guardAppApiCpu();
   if (blocked) return blocked;
   try { assertSameOrigin(request); } catch { return jsonError("Invalid request.", 403, "INVALID_ORIGIN"); }
   const auth = await walletAuthOrResponse();

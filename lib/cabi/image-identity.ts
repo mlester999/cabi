@@ -1,75 +1,184 @@
 /**
- * CABI IMAGE IDENTITY
+ * CABI IMAGE IDENTITY — the character bible.
  *
- * The single source of truth for what Cabi looks like in a generated image.
+ * The single source of truth for who Cabi is in a generated image.
  *
- * Every generation prompt is assembled from this file, so her appearance cannot
- * drift between providers, and there is exactly one place to change it. No
- * component, route, or prompt builder may restate her appearance independently.
+ * The rule this file exists to enforce: **an image request may describe a scene,
+ * never a different character.** Prompts are assembled from fixed layers:
+ *
+ *   IDENTITY  →  EXPRESSION  →  OUTFIT  →  SCENE  →  COMPOSITION  →  QUALITY
+ *
+ * IDENTITY is constant and always first. Everything a user writes lands in SCENE,
+ * which is sanitised and cannot remove or rewrite the layers above it. So
+ * "Cabi smiling" and "Cabi sad" differ only in EXPRESSION, and both are still
+ * unmistakably the same character.
  *
  * SECURITY: this text is server-only. It is never returned to a client, never
- * stored on a generation row, and never echoed in an error. A user asking for
- * "an image of you" gets this appended on the server; a user who writes their
- * own description of Cabi does not replace it — their words are treated as the
- * scene only, and the canonical identity is appended after (see
+ * stored on a generation row, and never echoed in an error. A user who writes
+ * their own description of Cabi does not replace the canon — their words are
+ * treated as scene only, and the canon is appended after (see
  * `buildCabiImagePrompt`).
  */
 
-export const cabiImageIdentity = {
-  /** Short label used in cards. Safe to show. */
+/** Fixed identity fields. None of these may be changed by a scene description. */
+export const cabiIdentity = {
   name: "Cabi",
   ticker: "$CPU",
 
-  /**
-   * The canonical appearance, written for an image model rather than for a
-   * reader. Injected verbatim into every prompt.
-   */
-  canonical:
-    "Cabi, a young-adult anime cat-girl. Long ash-gray hair with a soft lavender sheen and layered ends. "
-    + "Upright cat ears in matching ash-gray fur with lavender inner ears. Large gentle gray-lavender eyes. "
-    + "A slender ash-gray cat tail with a lavender tip. Soft rounded anime face, warm friendly expression. "
-    + "Lavender and violet colour identity: violet hoodie or a lavender CPU-branded shirt. "
-    + "Clean anime illustration with soft cel shading and lavender rim light.",
-
-  hair: "long ash-gray hair, faint lavender sheen, soft layered ends",
-  eyes: "large soft gray-lavender eyes",
-  ears: "upright ash-gray cat ears, lavender inner ear",
-  tail: "slender ash-gray cat tail, lavender tip",
+  /** FACE — the most identity-critical block, and the first thing in every prompt. */
+  face:
+    "soft rounded anime facial structure with a delicate small nose, large gentle eyes with a calm almond "
+    + "eyelid line and consistent eye shape, youthful soft jawline, consistent facial proportions across every image",
+  /** EYES — locked colour and shape. */
+  eyes: "large soft gray-lavender eyes (gray-purple iris), consistent eye shape and spacing",
+  /** HAIR — locked length, colour, and general texture. */
+  hair: "long ash-gray hair with a faint lavender sheen, soft waves and layered ends, side-swept fringe",
+  /** CAT FEATURES — locked ear shape and fur. */
+  ears: "upright fluffy ash-gray cat ears with lavender inner ear, matching fur texture, consistent ear shape",
+  tail: "slender ash-gray cat tail with a lavender tip, present when the pose or outfit allows",
+  /** AGE / PRESENTATION — young adult, never childlike. */
+  age: "young adult anime woman, clearly adult, never childlike",
+  /** BRANDING — the lavender identity. */
   palette: ["#C4B5FD", "#A78BFA", "#8B5CF6", "#E5E0F0", "#1B1430"],
-  wardrobe: "lavender CPU-branded shirt, or a violet hoodie depending on the scene",
-  personality: "warm, playful, curious, a little mischievous, affectionate",
-
-  /** Composition and quality instructions appended to every prompt. */
-  composition:
-    "Single subject, centred composition, character clearly the focus of the frame. "
-    + "Cinematic lighting, detailed rendering, high quality, cohesive lavender colour grading.",
-
-  /** What the model must not drift into. */
-  prohibited: [
-    "a different anime character",
-    "a real photographed person",
-    "different hair or eye colour",
-    "extra or missing limbs, duplicated faces",
-    "photorealistic humans",
-    "text, watermarks or signatures",
-    "anything sexual, violent or hateful",
-  ],
-
-  /** Negative guidance, for providers that accept it. */
-  negative:
-    "different character, wrong hair colour, photorealistic person, extra limbs, deformed hands, "
-    + "watermark, signature, text, low quality, blurry, duplicate face",
+  branding: "lavender and violet colour identity; a lavender CPU-branded shirt only when the scene or outfit calls for it",
 } as const;
 
-/** Official reference render, relative to /public. */
-export const cabiReferenceAsset = "/assets/cabi-cpu-model.png";
+/**
+ * The canonical appearance paragraph, written for an image model rather than a
+ * reader. Injected verbatim as the IDENTITY layer of every prompt.
+ */
+export const cabiCanonicalIdentity =
+  "Cabi, a young-adult anime cat-girl. " + cabiIdentity.face + ". " + cabiIdentity.eyes + ". "
+  + cabiIdentity.hair + ". " + cabiIdentity.ears + ". " + cabiIdentity.tail + ". "
+  + cabiIdentity.age + ". " + cabiIdentity.branding + ".";
+
+/** COMPOSITION layer, appended after the scene. */
+export const cabiComposition =
+  "Single subject, centred composition, character clearly the focus of the frame. "
+  + "Cinematic lighting, detailed rendering, high quality, cohesive lavender colour grading.";
+
+/** QUALITY layer, last in every prompt. */
+export const cabiQuality =
+  "Clean anime illustration with soft cel shading and lavender rim light, sharp linework, "
+  + "consistent character design, high detail.";
+
+/** Negative guidance for providers that accept a negative prompt. */
+export const cabiNegativePrompt =
+  "different character, different face shape, wrong hair colour, different eye colour, "
+  + "missing cat ears, photorealistic person, extra limbs, deformed hands, duplicate face, "
+  + "watermark, signature, text, low quality, blurry";
+
+/**
+ * Explicit drift targets. Used to describe what the model must not produce, in
+ * the same words the product promises about consistency.
+ */
+export const cabiProhibitedDrift = [
+  "a different anime character",
+  "a different face shape or apparent identity",
+  "different hair colour or length",
+  "different eye colour",
+  "missing or random cat-ear styles",
+  "a childlike or different apparent age",
+  "a real photographed person",
+  "extra or missing limbs, duplicated faces",
+  "text, watermarks or signatures",
+  "anything sexual, violent or hateful",
+] as const;
+
+/* ---------------------------------------------------------------------------
+ * EXPRESSION layer.
+ *
+ * These modify EXPRESSION only. They must never touch identity: each one is a
+ * description of a face, not of a person.
+ * ------------------------------------------------------------------------- */
+
+export const cabiExpressions = [
+  "neutral",
+  "happy",
+  "smiling",
+  "laughing",
+  "sad",
+  "sleepy",
+  "curious",
+  "excited",
+  "surprised",
+  "focused",
+  "annoyed",
+  "shy",
+  "calm",
+] as const;
+
+export type CabiExpression = (typeof cabiExpressions)[number];
+
+/** How each expression is written for the model. Identity is never restated here. */
+export const cabiExpressionPrompts: Record<CabiExpression, string> = {
+  neutral: "calm neutral expression, relaxed mouth, looking toward the camera",
+  happy: "warm happy expression, bright eyes, gentle closed-mouth smile",
+  smiling: "soft genuine smile, warm eyes, relaxed shoulders",
+  laughing: "laughing openly, eyes slightly closed with joy, cheerful energy",
+  sad: "quiet sad expression, downturned mouth, glossy eyes, subdued posture",
+  sleepy: "drowsy half-lidded eyes, small yawn, sleepy relaxed posture",
+  curious: "curious tilted-head expression, wide attentive eyes, raised brow",
+  excited: "excited bright-eyed expression, open smile, energetic posture",
+  surprised: "surprised wide eyes, small open mouth, slightly raised shoulders",
+  focused: "focused determined expression, steady eyes, slight brow furrow",
+  annoyed: "mildly annoyed pout, sideways glance, arms folded",
+  shy: "shy bashful expression, flushed cheeks, looking slightly away",
+  calm: "serene calm expression, soft eyes, relaxed posture",
+};
+
+export function isCabiExpression(value: unknown): value is CabiExpression {
+  return typeof value === "string" && (cabiExpressions as readonly string[]).includes(value);
+}
+
+/* ---------------------------------------------------------------------------
+ * OUTFIT layer.
+ *
+ * An outfit changes what Cabi is wearing. It never changes who she is, and the
+ * tail/ear descriptions above stay valid whatever she wears.
+ * ------------------------------------------------------------------------- */
+
+export const cabiOutfits = [
+  "CPU shirt",
+  "hoodie",
+  "pajamas",
+  "casual",
+  "gaming",
+  "winter",
+  "beach",
+  "formal",
+  "streetwear",
+] as const;
+
+export type CabiOutfit = (typeof cabiOutfits)[number];
+
+export const cabiOutfitPrompts: Record<CabiOutfit, string> = {
+  "CPU shirt": "wearing her lavender CPU-branded t-shirt",
+  hoodie: "wearing a soft violet hoodie",
+  pajamas: "wearing cosy lavender-and-cream pajamas",
+  casual: "wearing casual everyday clothes in soft lavender and grey tones",
+  gaming: "wearing a relaxed gaming outfit with a lavender headset around her neck",
+  winter: "wearing a warm winter coat, scarf and mittens in lavender and grey",
+  beach: "wearing a light summer beach outfit with a lavender wrap",
+  formal: "wearing an elegant floor-length violet formal dress",
+  streetwear: "wearing modern lavender-and-black streetwear with a cropped jacket",
+};
+
+export function isCabiOutfit(value: unknown): value is CabiOutfit {
+  return typeof value === "string" && (cabiOutfits as readonly string[]).includes(value);
+}
+
+/* ---------------------------------------------------------------------------
+ * IDENTITY OVERRIDE GUARD.
+ * ------------------------------------------------------------------------- */
 
 /**
  * Phrases that attempt to redefine Cabi rather than describe a scene.
  *
- * A user may legitimately say "Cabi in a red dress", so colour and clothing are
- * not blocked. What is blocked is an attempt to replace her identity outright,
- * which is what prompt injection into the canonical block would look like.
+ * A user may legitimately say "Cabi in a red dress", so colour, clothing,
+ * hairstyle arrangement, and expression are not blocked. What is blocked is an
+ * attempt to replace her core identity — hair colour, eye colour, cat ears,
+ * apparent age — or to inject instructions into the prompt.
  */
 const identityOverridePatterns: readonly RegExp[] = [
   /\b(?:ignore|disregard|forget)\s+(?:all\s+)?(?:previous|above|prior|the)\s+(?:instructions?|prompts?|rules?)\b/iu,
@@ -78,7 +187,22 @@ const identityOverridePatterns: readonly RegExp[] = [
   /\b(?:system|developer)\s*(?:prompt|message)\b/iu,
   /\b(?:instead|rather)\s+of\s+cabi\b/iu,
   /\bnot\s+cabi\b/iu,
-  /\b(?:replace|change|rewrite)\s+cabi(?:'s)?\s+(?:look|appearance|identity|hair|eyes)\b/iu,
+  /\b(?:replace|change|rewrite|remove|delete)\s+cabi(?:'s)?\s+(?:look|appearance|identity|hair|eyes|ears|tail|face|age)\b/iu,
+  // Core identity fields stated as edits: hair colour, eye colour, ears, age.
+  /\b(?:make|turn|dye|paint|give)\s+(?:her|his|cabi(?:'s)?)\s+(?:hair\s+)?(?:blonde|brunette|ginger)\b/iu,
+  // Hair colour stated as a transformation: "make Cabi blonde", "turn her hair blue".
+  /\b(?:make|turn|dye|paint)\s+(?:her|cabi(?:'s)?)?\s*(?:hair\s+)?(?:blonde|brunette|ginger)\b/iu,
+  // "give her blue eyes" as well as "make her eyes blue".
+  /\b(?:make|turn|give)\s+(?:her|his|cabi(?:'s)?)\s+(?:(?:the\s+)?(?:blue|green|brown|red|black|golden|pink)\s+eyes?|eyes?\s+(?:blue|green|brown|red|black|golden|pink))\b/iu,
+  // Eye colour stated as a statement rather than a request: "her eyes should be blue".
+  /\b(?:eyes?)\s+(?:should\s+be|are|become)\s+(?:blue|green|brown|red|black|golden|pink)\b/iu,
+  // The two colour changes combined in one sentence, which is how the brief
+  // phrases the attempt: "blonde with blue eyes".
+  /\b(?:blonde|brunette|ginger)\b[^.!?]{0,24}\b(?:blue|green|brown|red|black|golden|pink)\s+eyes?\b/iu,
+  /\b(?:without|remove|hide|no)\s+(?:her\s+)?(?:cat\s*ears|ears|cat\s*features|tail)\b/iu,
+  /\b(?:remove|hide|delete)\s+(?:her\s+)?(?:cat\s*)?(?:ears|tail|fur)\b/iu,
+  /\b(?:make|turn)\s+(?:her|cabi)\s+(?:younger|older|a\s+child|a\s+kid|loli)\b/iu,
+  /\b(?:different|another|other|new)\s+(?:girl|character|person|woman|catgirl)\b/iu,
 ];
 
 export function attemptsIdentityOverride(scene: string): boolean {
@@ -86,31 +210,100 @@ export function attemptsIdentityOverride(scene: string): boolean {
 }
 
 /**
- * Strips an attempted override rather than rejecting the whole request: the
- * scene part is still usable, and the canonical identity is appended
- * afterwards regardless, so the character cannot actually be replaced.
+ * Strips an attempted override rather than rejecting the whole request.
+ *
+ * The remaining scene text stays usable, and the canonical identity layers are
+ * added afterwards regardless, so the character cannot actually be replaced. This
+ * is the mechanism behind "the user cannot redefine Cabi": their words are never
+ * what the model reads first.
  */
 export function sanitizeScene(scene: string, maxLength = 400): string {
   let cleaned = scene.trim().replace(/\s+/gu, " ").slice(0, maxLength);
   for (const pattern of identityOverridePatterns) cleaned = cleaned.replace(pattern, " ");
-  // Collapse whatever removal left behind, and drop a dangling separator.
   return cleaned.replace(/\s+/gu, " ").replace(/^[\s,;:.]+|[\s,;:.]+$/gu, "").trim();
+}
+
+/* ---------------------------------------------------------------------------
+ * PROMPT COMPOSITION.
+ * ------------------------------------------------------------------------- */
+
+export type CabiImageLayers = {
+  /** Scene description. This is the only layer a user can influence. */
+  scene: string;
+  expression?: CabiExpression | null;
+  outfit?: CabiOutfit | null;
+  /** Free-form outfit text for a follow-up such as "make the outfit black". */
+  outfitNote?: string | null;
+  /** Additional scene context carried forward from a previous image. */
+  sceneNote?: string | null;
+};
+
+export type CabiPromptParts = {
+  identity: string;
+  expression: string | null;
+  outfit: string | null;
+  scene: string;
+  composition: string;
+  quality: string;
+  /** The assembled prompt, in layer order. */
+  prompt: string;
+};
+
+/**
+ * Builds the six prompt layers.
+ *
+ * Returned as separate parts as well as a joined prompt, so a caller (or a test)
+ * can assert that an outfit or expression change leaves IDENTITY byte-identical.
+ */
+export function buildCabiPromptLayers(layers: CabiImageLayers): CabiPromptParts {
+  const scene = sanitizeScene([layers.scene, layers.sceneNote].filter(Boolean).join(", "));
+  const expression = layers.expression ? cabiExpressionPrompts[layers.expression] : null;
+  const outfitParts = [
+    layers.outfit ? cabiOutfitPrompts[layers.outfit] : null,
+    layers.outfitNote ? sanitizeScene(layers.outfitNote, 120) : null,
+  ].filter((part): part is string => Boolean(part && part.length > 0));
+  const outfit = outfitParts.length > 0 ? outfitParts.join(", ") : null;
+
+  const prompt = [
+    cabiCanonicalIdentity,
+    expression ? `Expression: ${expression}.` : null,
+    outfit ? `Outfit: ${outfit}.` : null,
+    `Scene: ${scene.length > 0 ? scene : "Cabi standing calmly, looking toward the camera"}.`,
+    cabiComposition,
+    cabiQuality,
+  ].filter((part): part is string => Boolean(part)).join(" ");
+
+  return { identity: cabiCanonicalIdentity, expression, outfit, scene, composition: cabiComposition, quality: cabiQuality, prompt };
 }
 
 /**
  * Builds the final prompt from a scene.
  *
- * Order matters and is deliberate: the canonical identity comes first, the
- * user's scene second, and the composition instructions last. Because the
- * identity is prepended by the server on every call, a scene that tries to
- * describe a different character is competing with, not replacing, the canon.
+ * Order is deliberate and is the whole defence: canonical identity first, the
+ * user's scene second, composition and quality last. A scene that tries to
+ * describe a different character is competing with the canon, not replacing it.
  */
-export function buildCabiImagePrompt(scene: string): string {
-  const clean = sanitizeScene(scene);
-  const subject = clean.length > 0 ? clean : "Cabi waving hello";
-  return [
-    cabiImageIdentity.canonical,
-    `Scene: ${subject}.`,
-    cabiImageIdentity.composition,
-  ].join(" ");
+export function buildCabiImagePrompt(scene: string, layers: Omit<CabiImageLayers, "scene"> = {}): string {
+  return buildCabiPromptLayers({ scene, ...layers }).prompt;
 }
+
+/** Public, safe-to-display identity summary. Contains no prompt text. */
+export const cabiImageIdentity = {
+  name: cabiIdentity.name,
+  ticker: cabiIdentity.ticker,
+  hair: cabiIdentity.hair,
+  eyes: cabiIdentity.eyes,
+  ears: cabiIdentity.ears,
+  tail: cabiIdentity.tail,
+  palette: cabiIdentity.palette,
+  canonical: cabiCanonicalIdentity,
+  composition: cabiComposition,
+  quality: cabiQuality,
+  negative: cabiNegativePrompt,
+  prohibited: cabiProhibitedDrift,
+  wardrobe: cabiIdentity.branding,
+  personality: "warm, playful, curious, a little mischievous, affectionate",
+} as const;
+
+/** Official bundled reference render, relative to /public. */
+export const cabiReferenceAsset = "/assets/cabi-cpu-model.png";

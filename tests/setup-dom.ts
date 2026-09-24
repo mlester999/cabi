@@ -5,6 +5,7 @@
  * not implement but the prelaunch page's progressive enhancements rely on.
  */
 import "@testing-library/jest-dom/vitest";
+import { cleanup } from "@testing-library/react";
 import { afterEach } from "vitest";
 
 if (typeof window !== "undefined") {
@@ -44,4 +45,7 @@ if (typeof window !== "undefined") {
 
 afterEach(() => {
   if (typeof document !== "undefined") document.documentElement.removeAttribute("data-cabi-veil");
+  // Unmount anything a rendered-component suite left behind. Without this, a
+  // screen query in the next test can match the previous test's markup.
+  cleanup();
 });

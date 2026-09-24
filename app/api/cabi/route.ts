@@ -1,5 +1,5 @@
 import { featureGate } from "@/lib/config/feature-gate";
-import { guardAppApi } from "@/lib/site/guard";
+import { guardAppApiCpu } from "@/lib/site/guard";
 import { readBondProfile } from "@/lib/bond-profile";
 import { inferMood } from "@/lib/cabi/mood";
 import { readWalletAuth } from "@/lib/wallet/session";
@@ -17,7 +17,7 @@ export async function GET(request: Request) {
   // Closed while this feature is unreleased, before anything else runs.
   const locked = await featureGate("leaderboard_enabled");
   if (locked) return locked;
-  const blocked = await guardAppApi();
+  const blocked = await guardAppApiCpu();
   if (blocked) return blocked;
 
   let wallet;

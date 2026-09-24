@@ -130,6 +130,20 @@ button:disabled, [role="button"][aria-disabled="true"] { cursor: not-allowed; }
 .cabi-mascot-tail { transform-box:fill-box; transform-origin:92% 88%; animation:cabi-mascot-tail 6.2s ease-in-out infinite; }
 @keyframes cabi-mascot-tail { 0%,100% { transform:rotate(-3deg); } 50% { transform:rotate(7deg); } }
 
+/* Activity status mascot: a slow breath and an occasional ear twitch. Distinct
+   from the prelaunch hero's bob so the loader reads as "Cabi is here" rather
+   than as another decorative animation. */
+.cabi-mascot-breathe { animation:cabi-mascot-breathe 4.6s ease-in-out infinite; transform-origin:50% 88%; }
+@keyframes cabi-mascot-breathe {
+  0%,100% { transform:scale(1) translateY(0); box-shadow:0 0 0 rgba(167,139,250,0); }
+  50% { transform:scale(1.045) translateY(-1px); box-shadow:0 0 14px rgba(167,139,250,.28); }
+}
+
+/* The indeterminate activity sliver. One third of the track, sliding across —
+   there is no width that could be read as a completion percentage. */
+.cabi-activity-slide { animation:cabi-activity-slide 1.9s cubic-bezier(.4,0,.2,1) infinite; }
+@keyframes cabi-activity-slide { 0% { transform:translateX(-110%); } 100% { transform:translateX(410%); } }
+
 /* Terminal caret. */
 .cabi-caret::after { content:"▍"; margin-left:2px; color:rgba(196,181,253,.75); animation:cabi-caret 1.15s steps(1,end) infinite; }
 @keyframes cabi-caret { 0%,49% { opacity:1; } 50%,100% { opacity:0; } }
@@ -149,8 +163,11 @@ html[data-cabi-veil] .cabi-veil { display:grid; }
   /* Decorative prelaunch motion is removed outright rather than collapsed. */
   .cabi-atmosphere,.cabi-float,.cabi-breathe-slow,.cabi-glow,.cabi-sweep,.cabi-sparkle,
   .cabi-dot-pulse,.cabi-mascot-bob,.cabi-mascot-ear,.cabi-mascot-eyelid,
-  .cabi-mascot-tail,.cabi-hairline-breathe { animation:none !important; }
+  .cabi-mascot-tail,.cabi-hairline-breathe,.cabi-mascot-breathe,.cabi-activity-slide { animation:none !important; }
   .cabi-model-sheen { display:none; }
   .cabi-indeterminate::after,.cabi-caret::after { animation:none !important; transform:none; opacity:.55; }
   .cabi-sparkle { opacity:.26; }
+  /* The activity sliver parks mid-track so the bar still reads as "in progress"
+     without anything moving. */
+  .cabi-activity-slide { transform:translateX(150%) !important; }
 }

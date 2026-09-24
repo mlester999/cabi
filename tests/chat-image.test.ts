@@ -74,10 +74,14 @@ vi.mock("@/lib/image-generation/settings", () => ({
 }));
 
 vi.mock("@/lib/image-generation/provider", () => ({
+  // The capability record decides whether the official reference is attached, so
+  // the mock reports it exactly as the real factory would.
+  imageCapabilitiesFor: () => ({ supportsReferenceImages: false, supportsImageToImage: false, supportsSeed: true }),
   createImageProvider: () => ({
     id: "openai",
     label: "OpenAI-compatible",
-    supportsReferenceImage: true,
+    supportsReferenceImage: false,
+    capabilities: { supportsReferenceImages: false, supportsImageToImage: false, supportsSeed: true },
     generateCabiImage: async (input: Record<string, unknown>) => {
       mocks.generated.push(input);
       if (!mocks.providerOk) return { ok: false, error: "PROVIDER_ERROR", message: "I could not draw that one just now." };

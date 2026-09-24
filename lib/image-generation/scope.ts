@@ -277,6 +277,15 @@ export function classifyCabiRelevance(prompt: string, conversationContext: reado
   // her in a chair" could be about anyone, so we ask rather than guess.
   if (backReferences.test(scene)) return mentionsCabiRecently ? "CABI_RELATED" : "UNCERTAIN";
 
+  /*
+   * A modification of the active image subject. Checked BEFORE the standalone
+   * refusal, because "another one but at sunset" is not its own subject: it
+   * refers back to whatever the conversation was already about.
+   */
+  if (looksLikeImageFollowUp(prompt)) {
+    return conversationHasCabiSubject(conversationContext) ? "CABI_RELATED" : "UNCERTAIN";
+  }
+
   // "make a picture of a Lamborghini" - its own subject, no Cabi anywhere.
   if (standaloneSubjects.some((pattern) => pattern.test(scene))) return "NOT_CABI_RELATED";
 
@@ -322,4 +331,43 @@ export function offTopicReply(prompt: string): string {
 
 export function uncertainReply(prompt: string): string {
   return pickVariant(uncertainReplies, prompt);
+}
+/**
+ * Follow-up modifiers.
+ *
+ * "Make another one but at sunset" contains no Cabi marker at all — it modifies
+ * the image that is already the subject of the conversation. Without this,
+ * exactly the follow-up the brief calls out is refused as unrelated.
+ *
+ * A bare modifier is only meaningful WITH Cabi-image context. Without it the
+ * request is ambiguous ("another one" of what?), so it asks rather than guessing.
+ */
+const followUpModifiers: readonly RegExp[] = [
+  /\banother\s+(?:one|image|picture|photo)\b/iu,
+  /\bone\s+more\s+(?:time|image|picture)?\b/iu,
+  /\bsame\s+(?:one|thing|but|idea)\b/iu,
+  /\b(?:but|now)\s+(?:with|at|in|on|during|wearing|holding|doing)\b/iu,
+  /\b(?:make|do|try)\s+(?:it|that)\s+(?:again|but|with)\b/iu,
+  /\b(?:change|adjust|modify|update)\s+(?:it|that|the\s+(?:image|picture|scene))\b/iu,
+  /\b(?:more|less)\s+(?:of\s+)?(?:that|this)\b/iu,
+];
+
+/** True when the message reads as a modification of the current image subject. */
+export function looksLikeImageFollowUp(prompt: string): boolean {
+  const scene = extractScene(prompt);
+  if (!scene) return false;
+  return followUpModifiers.some((pattern) => pattern.test(scene));
+}
+
+/**
+ * Did the recent conversation establish Cabi as the image subject?
+ *
+ * Used only to resolve a follow-up modifier. A follow-up is attached to whatever
+ * the conversation was about, so this checks the recent turns for Cabi rather
+ * than assuming she is the subject of everything.
+ */
+export function conversationHasCabiSubject(conversationContext: readonly string[]): boolean {
+  return conversationContext
+    .slice(-6)
+    .some((turn) => cabiMarkers.some((pattern) => pattern.test(turn)));
 }

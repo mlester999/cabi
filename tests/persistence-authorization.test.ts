@@ -7,7 +7,9 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("@/lib/db/supabase", () => ({ getServiceClient: mocks.database }));
 vi.mock("@/lib/wallet/session", () => ({ walletAuthOrResponse: mocks.walletGuard }));
-vi.mock("@/lib/site/guard", () => ({ guardAppApi: vi.fn(async () => null) }));
+// Both guards are stubbed here: this suite is about who owns a saved row, and
+// the site-mode and holder-gate rules have their own suites.
+vi.mock("@/lib/site/guard", () => ({ guardAppApi: vi.fn(async () => null), guardAppApiCpu: vi.fn(async () => null) }));
 
 import { GET as listConversations } from "@/app/api/conversations/route";
 import { DELETE as deleteConversation, GET as getConversation } from "@/app/api/conversations/[id]/route";

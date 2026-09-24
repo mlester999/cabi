@@ -7,6 +7,7 @@ import { useCallback, useEffect, useState } from "react";
 import { MiniCabi } from "@/components/cabi/mini-cabi";
 import { Switch } from "@/components/ui/switch";
 import { WalletButton } from "@/components/wallet/wallet-button";
+import { CabiActivityStatus } from "@/components/cabi/cabi-activity-status";
 import { useWallet } from "@/components/wallet/wallet-provider";
 
 type Memory = { id: string; category: string; content: string; created_at: string };
@@ -99,6 +100,9 @@ export function MemoryPanel() {
 
         {view.phase === "loading" && (
           <div className="mt-8 space-y-3" aria-busy="true" aria-label="Loading memories">
+            {/* Cabi's own wording while she looks things up, rather than a bare
+                skeleton. The placeholders stay so the layout does not move. */}
+            <CabiActivityStatus type="MEMORY_LOADING" className="px-1" />
             {[0, 1, 2].map((index) => <div key={index} className="h-20 animate-pulse rounded-[22px] border border-white/[0.06] bg-white/[0.02]" />)}
           </div>
         )}

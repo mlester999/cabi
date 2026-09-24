@@ -63,4 +63,53 @@ describe("site-mode API coverage", () => {
       expect(matchesRoutePrefix(pathname, appApiRoutePrefixes)).toBe(false);
     }
   });
+
+  it("keeps the holder-gate status endpoint reachable so the UI can explain itself", () => {
+    // The gate reports PRELAUNCH, NOT_AUTHENTICATED, or a $CPU shortfall. It has
+    // to answer in every site mode, and it grants nothing by itself: each
+    // protected handler repeats the same decision.
+    expect(matchesRoutePrefix("/api/cpu/access", alwaysPublicApiRoutePrefixes)).toBe(true);
+    expect(matchesRoutePrefix("/api/cpu/access", appApiRoutePrefixes)).toBe(false);
+  });
+});
+
+/**
+ * A gated API that still calls `guardAppApi()` would enforce the site mode but
+ * not the holder requirement, which is exactly the bypass the gate exists to
+ * prevent. This walks the real route files so a new endpoint cannot forget.
+ */
+describe("holder-gate API coverage", () => {
+  it("has every protected route enforce the $CPU holder gate", async () => {
+    const fs = await import("node:fs/promises");
+    const path = await import("node:path");
+    const root = "app/api";
+
+    async function walk(directory: string): Promise<string[]> {
+      const entries = await fs.readdir(directory, { withFileTypes: true });
+      const files: string[] = [];
+      for (const entry of entries) {
+        const full = path.join(directory, entry.name);
+        if (entry.isDirectory()) files.push(...await walk(full));
+        else if (entry.name === "route.ts") files.push(full.replace(/\\/g, "/"));
+      }
+      return files;
+    }
+
+    const routes = await walk(root);
+    const appRoutes = routes.filter((file) => matchesRoutePrefix(`/${file.replace(/^app\//u, "").replace(/\/route\.ts$/u, "")}`, appApiRoutePrefixes));
+    expect(appRoutes.length).toBeGreaterThan(10);
+    for (const file of appRoutes) {
+      const source = await fs.readFile(file, "utf8");
+      expect(source, `${file} must enforce the holder gate`).toContain("guardAppApiCpu(");
+      expect(source, `${file} must not use the site-mode-only guard`).not.toMatch(/\bguardAppApi\(\)/u);
+    }
+  });
+
+  it("re-reads eligibility for the expensive protected actions", async () => {
+    const fs = await import("node:fs/promises");
+    for (const file of ["app/api/chat/route.ts", "app/api/images/generate/route.ts"]) {
+      const source = await fs.readFile(file, "utf8");
+      expect(source, `${file} must not rely on a cached balance`).toContain("guardAppApiCpu({ fresh: true })");
+    }
+  });
 });

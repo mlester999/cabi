@@ -207,7 +207,12 @@ describe("the app passes resolved flags to the chat shell", () => {
   it("reads flags on the server for the main page", () => {
     const home = read("app/page.tsx");
     expect(home).toContain("readFeatureFlags");
-    expect(home).toContain("<CabiExperience flags={flags} />");
+    // The application is rendered through the $CPU holder gate, which resolves
+    // access on the server before this element is produced.
+    expect(home).toContain("<CabiExperience flags={flags} cpuGateBypassed={bypassed} statusMessages={statusMessages ?? undefined} />");
+    expect(home).toContain("cpuGatedPage");
+    // Owner-added activity lines are resolved on the server and passed down.
+    expect(home).toContain("readActiveStatusOverrides");
   });
 
   it("presents locked features in the presence panel", () => {

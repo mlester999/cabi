@@ -27,6 +27,30 @@ export type ImageProviderId = "together" | "openai" | "stability" | "replicate" 
 
 export type ImageQuality = "standard" | "high";
 
+/**
+ * What a provider or model can actually do.
+ *
+ * Deliberately a capability record rather than a boolean: "supports reference
+ * images" and "supports image-to-image" are different features, and a model can
+ * have one without the other. The admin console shows these values verbatim so an
+ * owner is never told consistency is guaranteed by a model that cannot condition
+ * on an image at all.
+ */
+export type ImageProviderCapabilities = {
+  /** Accepts a reference image alongside the prompt. */
+  supportsReferenceImages: boolean;
+  /** Accepts an input image to edit rather than only a text prompt. */
+  supportsImageToImage: boolean;
+  /** Accepts a seed for reproducible output. */
+  supportsSeed: boolean;
+};
+
+export const noImageCapabilities: ImageProviderCapabilities = {
+  supportsReferenceImages: false,
+  supportsImageToImage: false,
+  supportsSeed: false,
+};
+
 export type ImageProviderConfig = {
   provider: ImageProviderId;
   apiKey: string;
@@ -34,6 +58,8 @@ export type ImageProviderConfig = {
   model?: string;
   /** True when the provider accepts a reference image for character consistency. */
   supportsReferenceImage: boolean;
+  /** Full capability record, when the caller knows it. */
+  capabilities?: ImageProviderCapabilities;
 };
 
 export type GeneratedImage = {

@@ -3,9 +3,11 @@
 import { useCallback, useEffect, useState } from "react";
 import { CheckCircle2, ImagePlus, XCircle } from "lucide-react";
 
+import { CabiReferencePanel } from "@/components/admin/cabi-reference-panel";
+
 type Settings = {
   enabled: boolean;
-  provider: "openai" | "stability" | "replicate" | "custom";
+  provider: "together" | "openai" | "stability" | "replicate" | "custom";
   baseUrl: string;
   model: string;
   defaultAspectRatio: string;
@@ -18,9 +20,11 @@ type Settings = {
 
 const emptySettings: Settings = {
   enabled: false,
-  provider: "openai",
+  // Together AI is the shipped provider, so an empty form does not silently
+  // propose a different one.
+  provider: "together",
   baseUrl: "https://api.openai.com/v1",
-  model: "gpt-image-1",
+  model: "Qwen/Qwen-Image",
   defaultAspectRatio: "1:1",
   defaultQuality: "standard",
   dailyLimit: 5,
@@ -96,6 +100,11 @@ export function AdminImagesPanel() {
   return (
     <div className="space-y-5">
       {notice ? <p role="status" className="rounded-xl border border-violet-200/[0.16] bg-violet-300/[0.06] px-3 py-2 text-xs text-violet-100">{notice}</p> : null}
+
+      {/* CABI REFERENCE and CABI IDENTITY live above the provider settings: the
+          reference is what keeps Cabi recognizable, and its capability status
+          depends on the model configured below it. */}
+      <CabiReferencePanel />
 
       <section className="rounded-[22px] border border-white/[0.07] bg-white/[0.02] p-5">
         <h2 className="flex items-center gap-2 text-sm font-bold text-white"><ImagePlus size={15} className="text-violet-300" aria-hidden="true" /> Cabi image generation</h2>
@@ -201,7 +210,13 @@ export function AdminImagesPanel() {
         <ul className="mt-3 space-y-1.5 font-mono text-[12px] text-violet-200">
           <li>cabi-generations</li>
           <li>avatars</li>
+          <li>cabi-system-assets</li>
         </ul>
+        <p className="mt-3 text-[11px] leading-5 text-[#625d6d]">
+          <span className="font-mono text-violet-200">cabi-system-assets</span> holds product-owned artwork. Cabi&apos;s
+          official reference lives there at <span className="font-mono">official/cabi-reference.png</span> — never inside
+          a user&apos;s generation folder.
+        </p>
       </section>
     </div>
   );

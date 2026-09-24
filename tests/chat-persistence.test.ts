@@ -29,7 +29,9 @@ vi.mock("@/lib/memory/context", () => ({ getConversationContext: vi.fn(async () 
 vi.mock("@/lib/memory/store", () => ({ applyMemoryIntent: vi.fn(async () => ({ type: "none" })) }));
 vi.mock("@/lib/memory/summarizer", () => ({ maybeSummarizeConversation: vi.fn(async () => false) }));
 vi.mock("@/lib/security/rate-limit", () => ({ checkRateLimit: vi.fn(async () => ({ allowed: true, retryAfter: 0 })) }));
-vi.mock("@/lib/site/guard", () => ({ guardAppApi: vi.fn(async () => null) }));
+// The route now enforces the site mode and the $CPU holder gate; both are
+// covered by their own suites, so this one focuses on the persistence boundary.
+vi.mock("@/lib/site/guard", () => ({ guardAppApi: vi.fn(async () => null), guardAppApiCpu: vi.fn(async () => null) }));
 vi.mock("@/lib/wallet/session", () => ({ readWalletAuth: mocks.wallet }));
 
 import { POST as chat } from "@/app/api/chat/route";

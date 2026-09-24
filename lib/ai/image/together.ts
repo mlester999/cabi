@@ -43,6 +43,15 @@ export type TogetherRequest = {
    * for models known to support it; see `supportsReferenceImages`.
    */
   referenceImages?: string[];
+  /**
+   * A prompt that already contains the Cabi character layers.
+   *
+   * The image pipeline assembles prompts from `lib/cabi/image-identity.ts` and
+   * must not have them re-wrapped here. When this is absent the plain `prompt` is
+   * wrapped with the identity, so no caller can reach Together with an unwrapped
+   * prompt by accident.
+   */
+  preparedPrompt?: string;
 };
 
 export type TogetherProviderConfig = {
@@ -173,7 +182,7 @@ export async function generateTogetherImage(
   try {
     const body: Record<string, unknown> = {
       model,
-      prompt: buildCabiImagePrompt(request.prompt),
+      prompt: request.preparedPrompt ?? buildCabiImagePrompt(request.prompt),
       n: 1,
       width,
       height,

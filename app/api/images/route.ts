@@ -10,7 +10,7 @@ import { awardImageXp, countImageXpToday } from "@/lib/ranking/service";
 import { assertSameOrigin, clientAddress, jsonError } from "@/lib/security/request";
 import { checkRateLimit } from "@/lib/security/rate-limit";
 import { featureGate } from "@/lib/config/feature-gate";
-import { guardAppApi } from "@/lib/site/guard";
+import { guardAppApiCpu } from "@/lib/site/guard";
 import { readWalletAuth } from "@/lib/wallet/session";
 import { initialsFor } from "@/lib/profiles/username";
 import { readProfile } from "@/lib/profiles/service";
@@ -39,7 +39,7 @@ export async function POST(request: Request) {
   // Closed while this feature is unreleased, before anything else runs.
   const locked = await featureGate("image_generation_enabled");
   if (locked) return locked;
-  const blocked = await guardAppApi();
+  const blocked = await guardAppApiCpu();
   if (blocked) return blocked;
   try { assertSameOrigin(request); } catch { return jsonError("Invalid request.", 403, "INVALID_ORIGIN"); }
 

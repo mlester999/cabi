@@ -1,14 +1,16 @@
 import "server-only";
 
-import { generateTogetherImage } from "@/lib/ai/image/together";
+import { generateTogetherImage, supportsReferenceImages } from "@/lib/ai/image/together";
 import { buildCabiImagePrompt, cabiNegativePrompt, cabiReferenceAsset } from "@/lib/image-generation/cabi-character";
 import {
   aspectRatioSizes,
+  noImageCapabilities,
   type AspectRatio,
   type GeneratedImage,
   type ImageConnectionTest,
   type ImageGenerationError,
   type ImageGenerationResult,
+  type ImageProviderCapabilities,
   type ImageProviderConfig,
   type ImageQuality,
 } from "@/lib/image-generation/types";
@@ -46,6 +48,9 @@ function sizeFor(ratio: AspectRatio) {
  * without changing the call sites, and the reference workflow needs a defined
  * place to arrive. A provider that cannot honour an option ignores it rather
  * than inventing an API parameter it does not support.
+ *
+ * `preparedPrompt` carries a prompt that already contains the Cabi character
+ * layers. It is server-assembled and never built from client input.
  */
 export type ImageGenerationRequest = {
   scene: string;
@@ -58,6 +63,8 @@ export type ImageGenerationRequest = {
    * never populated from client input.
    */
   referenceImages?: string[];
+  /** A fully assembled Cabi prompt. Takes precedence over `scene`. */
+  preparedPrompt?: string;
   signal?: AbortSignal;
 };
 
@@ -65,6 +72,8 @@ export interface ImageGenerationProvider {
   readonly id: ImageProviderConfig["provider"];
   readonly label: string;
   readonly supportsReferenceImage: boolean;
+  /** What this provider/model can actually do, for the admin console. */
+  readonly capabilities: ImageProviderCapabilities;
   generateCabiImage(input: ImageGenerationRequest): Promise<ImageGenerationResult>;
   testConnection(): Promise<ImageConnectionTest>;
 }
@@ -94,12 +103,24 @@ function decodeBase64Image(value: unknown): { bytes: Uint8Array; contentType: Ge
 function createOpenAiCompatibleProvider(config: ImageProviderConfig): ImageGenerationProvider {
   const base = (config.baseUrl || "https://api.openai.com/v1").replace(/\/$/u, "");
   const model = config.model || "gpt-image-1";
+  /*
+   * This adapter calls `/images/generations`, which is a text-to-image endpoint on
+   * every service that implements it. There is no image input on that route, so
+   * the capabilities say exactly that rather than advertising reference
+   * conditioning the request would silently drop.
+   */
+  const capabilities: ImageProviderCapabilities = {
+    supportsReferenceImages: false,
+    supportsImageToImage: false,
+    supportsSeed: false,
+  };
 
   return {
     id: config.provider,
     label: "OpenAI-compatible",
-    supportsReferenceImage: true,
-    async generateCabiImage({ scene, aspectRatio, quality, signal }) {
+    supportsReferenceImage: capabilities.supportsReferenceImages,
+    capabilities,
+    async generateCabiImage({ scene, aspectRatio, quality, preparedPrompt, signal }) {
       const { signal: scoped, clear } = timedSignal(signal);
       try {
         const response = await fetch(`${base}/images/generations`, {
@@ -107,7 +128,7 @@ function createOpenAiCompatibleProvider(config: ImageProviderConfig): ImageGener
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${config.apiKey}` },
           body: JSON.stringify({
             model,
-            prompt: buildCabiImagePrompt(scene),
+            prompt: preparedPrompt ?? buildCabiImagePrompt(scene),
             n: 1,
             size: `${sizeFor(aspectRatio).width}x${sizeFor(aspectRatio).height}`,
             quality: quality === "high" ? "high" : "medium",
@@ -152,16 +173,28 @@ function createStabilityProvider(config: ImageProviderConfig): ImageGenerationPr
   const base = (config.baseUrl || "https://api.stability.ai").replace(/\/$/u, "");
   const model = config.model || "sd3.5-large";
   const size = (ratio: AspectRatio) => aspectRatioSizes[ratio] ?? aspectRatioSizes["1:1"];
+  /*
+   * The text-to-image routes used here accept a prompt and a negative prompt.
+   * Stable Image *does* have image-to-image endpoints, but this adapter does not
+   * call them, so reference images are reported as unsupported rather than being
+   * dropped on the floor.
+   */
+  const capabilities: ImageProviderCapabilities = {
+    supportsReferenceImages: false,
+    supportsImageToImage: false,
+    supportsSeed: false,
+  };
 
   return {
     id: "stability",
     label: "Stability AI",
-    supportsReferenceImage: true,
-    async generateCabiImage({ scene, aspectRatio, signal }) {
+    supportsReferenceImage: capabilities.supportsReferenceImages,
+    capabilities,
+    async generateCabiImage({ scene, aspectRatio, preparedPrompt, signal }) {
       const { signal: scoped, clear } = timedSignal(signal);
       try {
         const form = new FormData();
-        form.append("prompt", buildCabiImagePrompt(scene));
+        form.append("prompt", preparedPrompt ?? buildCabiImagePrompt(scene));
         form.append("negative_prompt", cabiNegativePrompt);
         form.append("output_format", "png");
         form.append("aspect_ratio", aspectRatio);
@@ -217,20 +250,26 @@ function createCustomProvider(config: ImageProviderConfig): ImageGenerationProvi
  * Together AI adapter.
  *
  * Delegates to the dedicated service so there is exactly one implementation of
- * the Together call — the chat path and the endpoint both reach the same code.
+ * the Together call - the chat path and the endpoint both reach the same code.
+ *
+ * Capability comes from the MODEL, not the provider: Together hosts both
+ * text-to-image models and image-editing models, and only the latter can condition
+ * on an uploaded reference. `supportsReferenceImages` is the single allowlist that
+ * decides, so an unsupported parameter is never sent.
  */
 function createTogetherProvider(config: ImageProviderConfig): ImageGenerationProvider {
   const model = config.model || undefined;
+  const capabilities = imageCapabilitiesFor({ provider: "together", model });
   return {
     id: "together",
     label: "Together AI",
-    // Depends on the selected model, not the provider.
-    supportsReferenceImage: false,
-    async generateCabiImage({ scene, aspectRatio, seed, referenceImages }) {
+    supportsReferenceImage: capabilities.supportsReferenceImages,
+    capabilities,
+    async generateCabiImage({ scene, aspectRatio, seed, referenceImages, preparedPrompt }) {
       // seed and referenceImages are forwarded, but the Together service only
       // sends them when the selected model genuinely supports them.
       const result = await generateTogetherImage(
-        { prompt: scene, aspectRatio, seed, referenceImages },
+        { prompt: scene, aspectRatio, seed, referenceImages, preparedPrompt },
         { apiKey: config.apiKey, model },
       );
       if (result.ok) return result;
@@ -251,6 +290,7 @@ export function createImageProvider(config: ImageProviderConfig): ImageGeneratio
       id: config.provider,
       label: "Not configured",
       supportsReferenceImage: false,
+      capabilities: noImageCapabilities,
       async generateCabiImage() { return fail("NOT_CONFIGURED", "Image generation has not been configured yet."); },
       async testConnection() { return { ok: false, error: "NOT_CONFIGURED", message: "Add an API key first." }; },
     };
@@ -266,4 +306,19 @@ export function createImageProvider(config: ImageProviderConfig): ImageGeneratio
   }
 }
 
+/**
+ * The capability record for a provider/model pair, without constructing a client.
+ *
+ * Used by the admin console to state plainly whether reference conditioning is
+ * available, and by the generation path to decide whether the official reference
+ * may be attached at all.
+ */
+export function imageCapabilitiesFor(config: { provider: ImageProviderConfig["provider"]; model?: string }): ImageProviderCapabilities {
+  if (config.provider === "together") {
+    const model = config.model ?? "";
+    const reference = model.length > 0 && supportsReferenceImages(model);
+    return { supportsReferenceImages: reference, supportsImageToImage: reference, supportsSeed: true };
+  }
+  return { ...noImageCapabilities };
+}
 export { cabiReferenceAsset };
