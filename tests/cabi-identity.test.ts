@@ -13,12 +13,12 @@ import {
   cabiOutfits,
   cabiProhibitedDrift,
   cabiQuality,
-  hasCabiProviderPolicyTerms,
   isCabiExpression,
   isCabiOutfit,
   sanitizeScene,
 } from "@/lib/cabi/image-identity";
 import { parseCabiSceneRequest } from "@/lib/image-generation/parse-scene";
+import { checkImageSafety } from "@/lib/image-generation/safety";
 
 /**
  * Character consistency, stated as properties rather than as prose.
@@ -78,17 +78,20 @@ describe("identity layers are fixed", () => {
     }
   });
 
-  it("keeps the exact harmless cuteness request free of policy wording", () => {
+  it("keeps the exact harmless cuteness request visually focused", () => {
     const layers = buildCabiPromptLayers({ scene: "Generate an image of your cuteness" });
     const minimal = buildCabiMinimalPrompt({ scene: "Generate an image of your cuteness" });
 
     expect(layers.scene).toBe("a cute, cheerful portrait of Cabi in a cozy setting");
-    expect(hasCabiProviderPolicyTerms(layers.prompt)).toBe(false);
-    expect(hasCabiProviderPolicyTerms(minimal)).toBe(false);
+    expect(layers.prompt).toContain("Scene: a cute, cheerful portrait of Cabi in a cozy setting.");
+    expect(minimal).toContain("Scene: a cute, cheerful portrait of Cabi in a cozy setting.");
   });
 
-  it("fails closed if policy wording is ever reintroduced into a provider prompt", () => {
-    expect(() => buildCabiImagePrompt("a childlike portrait")).toThrow("PROVIDER_PROMPT_POLICY_TERM");
+  it("uses structured safety decisions instead of rejecting benign policy-adjacent wording", () => {
+    const scene = "Cabi in a non-violent crimson and gold color palette";
+    expect(checkImageSafety(scene)).toEqual({ safe: true });
+    expect(buildCabiImagePrompt(scene)).toContain(scene);
+    expect(checkImageSafety("Cabi in a childlike portrait").safe).toBe(false);
   });
 });
 
