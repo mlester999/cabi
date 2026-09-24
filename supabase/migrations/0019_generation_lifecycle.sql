@@ -12,11 +12,11 @@ begin;
 -- Widen the status set. Existing rows keep their meaning: PENDING becomes
 -- QUEUED and SUCCEEDED becomes COMPLETED.
 alter table public.image_generations drop constraint if exists image_generations_status_check;
-alter table public.image_generations add constraint image_generations_status_check
-  check (status in ('QUEUED', 'GENERATING', 'COMPLETED', 'FAILED'));
-
 update public.image_generations set status = 'QUEUED' where status = 'PENDING';
 update public.image_generations set status = 'COMPLETED' where status = 'SUCCEEDED';
+
+alter table public.image_generations add constraint image_generations_status_check
+  check (status in ('QUEUED', 'GENERATING', 'COMPLETED', 'FAILED'));
 
 alter table public.image_generations alter column status set default 'QUEUED';
 

@@ -9,7 +9,12 @@ begin;
 -- the quota UI and the admin dashboard both need.
 -- ===========================================================================
 
-create or replace function public.image_generation_quota(
+-- The return table gained fields since 0012. PostgreSQL cannot change a
+-- function's OUT/RETURNS TABLE shape with CREATE OR REPLACE, so replace this
+-- service-only function explicitly and restore its grant below.
+drop function if exists public.image_generation_quota(uuid, integer, timestamptz);
+
+create function public.image_generation_quota(
   p_wallet_account_id uuid,
   p_daily_limit integer default 5,
   p_now timestamptz default null
