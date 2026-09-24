@@ -7,7 +7,7 @@ import { z } from "zod";
 
 const allowed = new Set(["personality", "branding", "app_config"]);
 const defaults: Record<string, unknown> = {
-  personality: { systemPrompt: DEFAULT_CABI_PERSONALITY, greeting: "Hey. What should I call you?", traits: "warm, confident, curious, witty, playful", allowedNickname: "Cabi", tone: "casual", catExpressionFrequency: "low", defaultMood: "cozy", memoryBehavior: "Remember only useful details or explicit requests." },
+  personality: { systemPrompt: DEFAULT_CABI_PERSONALITY, greeting: "Hii! What should I call you? 💜", traits: "sweet, feminine, confident, curious, playful, gently witty", allowedNickname: "Cabi", tone: "casual", catExpressionFrequency: "medium", defaultMood: "cozy", memoryBehavior: "Remember only useful details or explicit requests." },
   branding: { projectName: "Cabi", tagline: "Cute, loyal, and always by your side.", primaryColor: "#C4B5FD", secondaryColor: "#8B5CF6", xUrl: "", websiteUrl: "", logoAsset: "/assets/cabi-logo.png", mainAsset: "/assets/cabi-main.png", mascotAsset: "/assets/cabi-mascot.png" },
   app_config: { knowledgeSource: "https://clank.trade/", memoryExtraction: true, summaries: true, adminConversationAccess: false },
 };

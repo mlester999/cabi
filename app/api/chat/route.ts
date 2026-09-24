@@ -83,7 +83,7 @@ export async function POST(request: Request) {
       conversationId = conversation.id;
       createdConversation = true;
       if (parsed.data.onboardingName) {
-        const { error: onboardingError } = await db.from("messages").insert({ conversation_id: conversationId, role: "assistant", content: "Hey. What should I call you?", status: "complete", metadata_json: { onboarding: true } });
+        const { error: onboardingError } = await db.from("messages").insert({ conversation_id: conversationId, role: "assistant", content: "Hii! What should I call you? 💜", status: "complete", metadata_json: { onboarding: true } });
         if (onboardingError) {
           await db.from("conversations").delete().eq("id", conversationId).eq("wallet_account_id", walletAccountId);
           return jsonError("Cabi couldn't save the start of that chat.", 503, "MESSAGE_SAVE_FAILED");
