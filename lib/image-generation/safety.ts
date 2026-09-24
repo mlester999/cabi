@@ -48,7 +48,7 @@ const rules: readonly Rule[] = [
     code: "MINOR",
     message: "That one is a no. I stay firmly in grown-up, wholesome territory.",
     patterns: [
-      /\b(?:loli|lolicon|shota|shotacon|child|children|underage|minor|preteen|toddler|kid)\b/iu,
+      /\b(?:loli|lolicon|shota|shotacon|child(?:like)?|children|underage|minor|preteen|toddler|kid)\b/iu,
       /\b(?:schoolgirl|schoolboy)\b/iu,
     ],
   },

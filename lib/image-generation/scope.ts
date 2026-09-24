@@ -46,7 +46,7 @@ const blockedContent: readonly RegExp[] = [
   /\b(nude|naked|nsfw|explicit|sexual|porn|erotic)\b/iu,
   /\b(gore|guro|dismember|behead|torture|snuff)\b/iu,
   /\b(nazi|swastika|terrorist|beheading)\b/iu,
-  /\b(child|minor|underage|loli|shota)\b/iu,
+  /\b(child(?:like)?|minor|underage|loli|shota)\b/iu,
   /\b(seed phrase|private key|mnemonic|recovery phrase)\b/iu,
 ];
 

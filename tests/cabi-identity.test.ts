@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   attemptsIdentityOverride,
   buildCabiImagePrompt,
+  buildCabiMinimalPrompt,
   buildCabiPromptLayers,
   cabiCanonicalIdentity,
   cabiComposition,
@@ -12,6 +13,7 @@ import {
   cabiOutfits,
   cabiProhibitedDrift,
   cabiQuality,
+  hasCabiProviderPolicyTerms,
   isCabiExpression,
   isCabiOutfit,
   sanitizeScene,
@@ -74,6 +76,19 @@ describe("identity layers are fixed", () => {
     for (const sentinel of identitySentinels) {
       expect(cabiCanonicalIdentity.toLowerCase()).toContain(sentinel);
     }
+  });
+
+  it("keeps the exact harmless cuteness request free of policy wording", () => {
+    const layers = buildCabiPromptLayers({ scene: "Generate an image of your cuteness" });
+    const minimal = buildCabiMinimalPrompt({ scene: "Generate an image of your cuteness" });
+
+    expect(layers.scene).toBe("a cute, cheerful portrait of Cabi in a cozy setting");
+    expect(hasCabiProviderPolicyTerms(layers.prompt)).toBe(false);
+    expect(hasCabiProviderPolicyTerms(minimal)).toBe(false);
+  });
+
+  it("fails closed if policy wording is ever reintroduced into a provider prompt", () => {
+    expect(() => buildCabiImagePrompt("a childlike portrait")).toThrow("PROVIDER_PROMPT_POLICY_TERM");
   });
 });
 

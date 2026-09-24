@@ -67,6 +67,24 @@ export const cabiNegativePrompt =
   + "inconsistent eyes, extra limbs, duplicate face, text artifacts, watermark, signature";
 
 /**
+ * Provider-facing prompt text must contain visual direction only. These terms
+ * belong in the application safety classifier or admin diagnostics, never in a
+ * Together prompt where a provider moderation heuristic can misread them.
+ */
+const cabiProviderPolicyTermPattern =
+  /\b(?:sexual|violent|hateful|nudity|nsfw|minor|child(?:like)?|explicit|unsafe|prohibited)\b/iu;
+
+export function hasCabiProviderPolicyTerms(value: string): boolean {
+  return cabiProviderPolicyTermPattern.test(value);
+}
+
+/** Defense in depth for every server-built prompt sent to an image provider. */
+export function assertCleanCabiProviderText(value: string): string {
+  if (hasCabiProviderPolicyTerms(value)) throw new Error("PROVIDER_PROMPT_POLICY_TERM");
+  return value;
+}
+
+/**
  * Explicit drift targets. Used to describe what the model must not produce, in
  * the same words the product promises about consistency.
  */
@@ -290,7 +308,15 @@ export function buildCabiPromptLayers(layers: CabiImageLayers): CabiPromptParts 
     cabiQuality,
   ].filter((part): part is string => Boolean(part)).join(" ");
 
-  return { identity: cabiCanonicalIdentity, expression, outfit, scene, composition: cabiComposition, quality: cabiQuality, prompt };
+  return {
+    identity: cabiCanonicalIdentity,
+    expression,
+    outfit,
+    scene,
+    composition: cabiComposition,
+    quality: cabiQuality,
+    prompt: assertCleanCabiProviderText(prompt),
+  };
 }
 
 /**
@@ -317,13 +343,13 @@ export function buildCabiMinimalPrompt(layers: CabiImageLayers): string {
     layers.outfitNote ? cleanCabiScene(layers.outfitNote, 80) : null,
   ].filter((part): part is string => Boolean(part && part.length > 0)).join(", ");
 
-  return [
+  return assertCleanCabiProviderText([
     cabiCanonicalIdentity,
     expression ? `Expression: ${expression}.` : "Warm cheerful expression.",
     outfit ? `Outfit: ${outfit}.` : "Wearing soft lavender everyday clothing.",
     `Scene: ${scene}.`,
     "Polished anime illustration with clean anatomy, detailed hair, and soft lavender lighting.",
-  ].join(" ");
+  ].join(" "));
 }
 
 /** Public, safe-to-display identity summary. Contains no prompt text. */

@@ -132,7 +132,7 @@ describe("follow-up image context", () => {
 });
 
 describe("safety rejection costs nothing", () => {
-  it.each(["Cabi nude", "Cabi stabbing someone", "Cabi holding a seed phrase", "Cabi making a bomb"])(
+  it.each(["Cabi nude", "Cabi childlike", "Cabi stabbing someone", "Cabi holding a seed phrase", "Cabi making a bomb"])(
     "%s is refused before any generation",
     (scene) => {
       const verdict = checkImageSafety(scene);

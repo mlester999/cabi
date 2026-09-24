@@ -3,6 +3,7 @@ import "server-only";
 import {
   type CabiExpression,
   type CabiOutfit,
+  assertCleanCabiProviderText,
   buildCabiMinimalPrompt,
   buildCabiPromptLayers,
   cabiNegativePrompt,
@@ -126,14 +127,14 @@ export async function buildCabiGenerationPlan(input: {
 
   // The owner's art direction replaces the shipped composition text only when it
   // is set; identity and quality are never owner-editable.
-  const prompt = [
+  const prompt = assertCleanCabiProviderText([
     parts.identity,
     parts.expression ? `Expression: ${parts.expression}.` : null,
     parts.outfit ? `Outfit: ${parts.outfit}.` : null,
     `Scene: ${parts.scene}.`,
     layers.composition,
     parts.quality,
-  ].filter((part): part is string => Boolean(part)).join(" ");
+  ].filter((part): part is string => Boolean(part)).join(" "));
 
   const minimalPrompt = buildCabiMinimalPrompt({
     scene: parts.scene,
