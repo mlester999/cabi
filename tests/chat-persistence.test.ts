@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   writes: [] as Array<{ table: string; operation: string; value: unknown }>,
   imageCalls: [] as Array<{ message: string; options: unknown }>,
   modelCalls: 0,
+  previewActive: false,
 }));
 
 vi.mock("@/lib/ai/config", () => ({ getProviderConfig: vi.fn(async () => ({
@@ -21,6 +22,7 @@ vi.mock("@/lib/image-generation/chat", () => ({
   generateChatImage: vi.fn(async (message: string, options: unknown) => {
     if (!message.startsWith("Generate an image")) return { handled: false as const };
     mocks.imageCalls.push({ message, options });
+    const ownerPreview = Boolean((options as { ownerPreview?: boolean }).ownerPreview);
     return {
       handled: true as const,
       usedProvider: true,
@@ -34,6 +36,7 @@ vi.mock("@/lib/image-generation/chat", () => ({
         tone: "error",
         message: "I couldn't make that image right now.",
         retry: { label: "Try Again", prompt: message },
+        ...(ownerPreview ? { debugDetails: { requestId: "owner-preview-trace", source: "CHAT_GENERATION", events: [] } } : {}),
       },
     };
   }),
@@ -56,6 +59,8 @@ vi.mock("@/lib/security/rate-limit", () => ({ checkRateLimit: vi.fn(async () => 
 // The route now enforces the site mode and the $CPU holder gate; both are
 // covered by their own suites, so this one focuses on the persistence boundary.
 vi.mock("@/lib/site/guard", () => ({ guardAppApi: vi.fn(async () => null), guardAppApiCpu: vi.fn(async () => null) }));
+vi.mock("@/lib/site/preview", () => ({ isPreviewActive: vi.fn(async () => mocks.previewActive) }));
+vi.mock("@/lib/site/owner-preview", () => ({ readOwnerPreviewAuth: vi.fn(async () => null) }));
 vi.mock("@/lib/wallet/session", () => ({ readWalletAuth: mocks.wallet }));
 
 import { POST as chat } from "@/app/api/chat/route";
@@ -121,6 +126,7 @@ describe("chat persistence boundary", () => {
     mocks.writes.length = 0;
     mocks.imageCalls.length = 0;
     mocks.modelCalls = 0;
+    mocks.previewActive = false;
   });
 
   it("does not create a database client or write messages for a guest", async () => {
@@ -153,9 +159,21 @@ describe("chat persistence boundary", () => {
     expect(mocks.modelCalls).toBe(0);
     expect(body).toContain("event: action");
     expect(body).not.toContain("event: delta");
-    const assistantUpdate = mocks.writes.find((write) => write.table === "messages" && write.operation === "update" && typeof write.value === "object" && write.value !== null && "metadata_json" in write.value) as { value?: { content?: string; metadata_json?: { actionCard?: { retry?: unknown } } } } | undefined;
+    const assistantUpdate = mocks.writes.find((write) => write.table === "messages" && write.operation === "update" && typeof write.value === "object" && write.value !== null && "metadata_json" in write.value) as { value?: { content?: string; metadata_json?: { actionCard?: { retry?: unknown; debugDetails?: unknown } } } } | undefined;
     expect(assistantUpdate?.value?.content).toBe("");
     expect(assistantUpdate?.value?.metadata_json?.actionCard?.retry).toBeDefined();
+    expect(assistantUpdate?.value?.metadata_json?.actionCard?.debugDetails).toBeUndefined();
+  });
+
+  it("streams owner-preview diagnostics but strips them from persisted chat", async () => {
+    mocks.previewActive = true;
+    mocks.wallet.mockResolvedValue({ walletAccountId: "wallet-a", profileId: "profile-a", walletAddress: "0x00000000000000000000000000000000000000A1" });
+    mocks.database.mockReturnValue(databaseDouble());
+    const response = await chat(request(true, "Generate an image of you at the beach"));
+    const body = await response.text();
+    expect(body).toContain("owner-preview-trace");
+    const assistantUpdate = mocks.writes.find((write) => write.table === "messages" && write.operation === "update" && typeof write.value === "object" && write.value !== null && "metadata_json" in write.value) as { value?: { metadata_json?: { actionCard?: Record<string, unknown> } } } | undefined;
+    expect(assistantUpdate?.value?.metadata_json?.actionCard).not.toHaveProperty("debugDetails");
   });
 
   it("returns 503 instead of silently downgrading when wallet authentication storage fails", async () => {

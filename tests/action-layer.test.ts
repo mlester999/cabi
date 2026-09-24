@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import { interpretMessage } from "@/lib/actions/intent";
-import { parseActionCard } from "@/lib/actions/guards";
+import { parseActionCard, stripActionCardDebugDetails } from "@/lib/actions/guards";
 import { matchingSlashCommands, parseSlashCommand, slashCommands } from "@/lib/actions/slash-commands";
 import { clarifyCard, noticeCard, portfolioCard, safeLinks, tokenCard, tradeCard } from "@/lib/actions/cards";
+import type { ActionCard } from "@/lib/actions/types";
 import type { TokenMetadata } from "@/lib/tokens/metadata";
 import type { WalletSnapshot } from "@/lib/wallet-data/types";
 
@@ -263,5 +264,11 @@ describe("stored card validation", () => {
   it("allows an app-relative internal link but not a protocol-relative one", () => {
     expect(parseActionCard({ ...valid, links: [{ label: "p", url: "/portfolio", kind: "INTERNAL" }] })).not.toBeNull();
     expect(parseActionCard({ ...valid, links: [{ label: "p", url: "//evil.test", kind: "INTERNAL" }] })).toBeNull();
+  });
+
+  it("strips owner-preview diagnostics before card persistence", () => {
+    const withDetails = { ...valid, debugDetails: { requestId: "owner-only" } } as ActionCard;
+    const stripped = stripActionCardDebugDetails(withDetails);
+    expect(stripped).not.toHaveProperty("debugDetails");
   });
 });

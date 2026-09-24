@@ -112,3 +112,13 @@ export function parseActionCard(value: unknown): ActionCard | null {
   const parsed = actionCardSchema.safeParse(value);
   return parsed.success ? (parsed.data as ActionCard) : null;
 }
+
+/**
+ * Owner-preview traces are response-only diagnostics. Never persist them in a
+ * message row where a later normal conversation load could render them.
+ */
+export function stripActionCardDebugDetails(card: ActionCard): ActionCard {
+  const safe = { ...card };
+  delete safe.debugDetails;
+  return safe;
+}

@@ -106,6 +106,38 @@ export function ActionCardView({ card, className = "", onRegenerate, onUseAsAvat
 
       {card.message && <p className="mt-3 text-[11px] leading-5 text-[var(--cabi-text-secondary)]">{card.message}</p>}
 
+      {card.debugDetails && (
+        <details className="mt-3 rounded-lg border border-violet-200/[0.12] bg-black/20 px-2.5 py-2 text-[10px] text-[var(--cabi-text-muted)]">
+          <summary className="cabi-focus cursor-pointer text-[10px] font-semibold text-[var(--cabi-text-secondary)]">Owner preview details</summary>
+          <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1">
+            <div><dt className="uppercase tracking-[.08em] text-white/35">Request</dt><dd className="break-all font-mono">{card.debugDetails.requestId}</dd></div>
+            <div><dt className="uppercase tracking-[.08em] text-white/35">Stage</dt><dd>{card.debugDetails.stage ?? card.debugDetails.lastStage ?? "—"}</dd></div>
+            <div><dt className="uppercase tracking-[.08em] text-white/35">Category</dt><dd>{card.debugDetails.providerErrorCategory ?? "—"}</dd></div>
+            <div><dt className="uppercase tracking-[.08em] text-white/35">HTTP</dt><dd>{card.debugDetails.httpStatus ?? "—"}</dd></div>
+            <div><dt className="uppercase tracking-[.08em] text-white/35">Provider</dt><dd>{card.debugDetails.provider ?? "—"}</dd></div>
+            <div><dt className="uppercase tracking-[.08em] text-white/35">Model</dt><dd className="break-all">{card.debugDetails.model ?? "—"}</dd></div>
+            <div><dt className="uppercase tracking-[.08em] text-white/35">Reference</dt><dd>{card.debugDetails.referenceAttached ? `v${card.debugDetails.referenceVersion ?? "?"} attached` : "text only"}</dd></div>
+            <div><dt className="uppercase tracking-[.08em] text-white/35">Size</dt><dd>{card.debugDetails.width && card.debugDetails.height ? `${card.debugDetails.width}×${card.debugDetails.height}` : "—"}</dd></div>
+            <div><dt className="uppercase tracking-[.08em] text-white/35">Fetched</dt><dd>{card.debugDetails.byteLength ? `${card.debugDetails.byteLength} bytes${card.debugDetails.contentType ? ` · ${card.debugDetails.contentType}` : ""}` : "—"}</dd></div>
+            <div><dt className="uppercase tracking-[.08em] text-white/35">Latency</dt><dd>{card.debugDetails.latencyMs} ms</dd></div>
+            <div><dt className="uppercase tracking-[.08em] text-white/35">Prompt hash</dt><dd className="break-all font-mono">{card.debugDetails.promptHash ?? "—"}</dd></div>
+            <div><dt className="uppercase tracking-[.08em] text-white/35">Prompt length</dt><dd>{card.debugDetails.promptLength ?? "—"}</dd></div>
+            <div><dt className="uppercase tracking-[.08em] text-white/35">Retry count</dt><dd>{card.debugDetails.retryCount}</dd></div>
+            <div><dt className="uppercase tracking-[.08em] text-white/35">Scene</dt><dd className="break-words">{card.debugDetails.scene ?? "—"}</dd></div>
+            <div><dt className="uppercase tracking-[.08em] text-white/35">Expression</dt><dd>{card.debugDetails.expression ?? "—"}</dd></div>
+            <div><dt className="uppercase tracking-[.08em] text-white/35">Outfit</dt><dd>{card.debugDetails.outfit ?? "—"}</dd></div>
+          </dl>
+          <ol className="mt-2 space-y-0.5 border-t border-white/[0.06] pt-2">
+            {card.debugDetails.events.map((event, index) => (
+              <li key={`${event.stage}-${index}`} className="flex items-center justify-between gap-2">
+                <span className={event.error ? "text-rose-200" : ""}>{event.stage}{event.error ? ` · ${event.error}` : ""}</span>
+                <span className="shrink-0 tabular-nums text-white/35">{event.latencyMs} ms{event.httpStatus ? ` · ${event.httpStatus}` : ""}</span>
+              </li>
+            ))}
+          </ol>
+        </details>
+      )}
+
       {(card.links.length > 0 || copyableAddress) && (
         <div className="mt-3 flex flex-wrap items-center gap-2">
           {copyableAddress && (

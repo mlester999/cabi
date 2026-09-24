@@ -50,6 +50,8 @@ export type ChatImageOptions = {
   messageId: string | null;
   /** Shared with the chat route so message creation and image stages have one ID. */
   trace?: ImagePipelineTrace;
+  /** True only for an explicitly authorized owner/admin preview request. */
+  ownerPreview?: boolean;
 };
 
 export type ChatImageResult =
@@ -75,20 +77,23 @@ export async function generateChatImage(message: string, options: ChatImageOptio
     const result = await generateChatImageInternal(message, { ...options, trace });
     trace.record("FINAL_RESPONSE_RETURNED");
     logImagePipelineTrace(trace);
-    return result;
+    if (!options.ownerPreview || !result.handled) return result;
+    return { ...result, card: { ...result.card, debugDetails: trace.snapshot() } };
   } catch {
     trace.record("FINAL_RESPONSE_RETURNED", { error: "UNEXPECTED_PIPELINE_ERROR" });
     logImagePipelineTrace(trace);
+    const card = noticeCard({
+      title: "Couldn't make that image",
+      message: "I couldn't make that image right now. You can try again when you're ready.",
+      tone: "error",
+      retry: { label: "Try Again", prompt: message },
+      ...(options.ownerPreview ? { debugDetails: trace.snapshot() } : {}),
+    });
     return {
       handled: true,
       usedProvider: false,
       reply: "",
-      card: noticeCard({
-        title: "Couldn't make that image",
-        message: "I couldn't make that image right now. You can try again when you're ready.",
-        tone: "error",
-        retry: { label: "Try Again", prompt: message },
-      }),
+      card,
     };
   }
 }

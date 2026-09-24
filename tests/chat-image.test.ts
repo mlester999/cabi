@@ -307,6 +307,17 @@ describe("provider failure", () => {
     const queued = mocks.inserted.filter((row) => row.status === "QUEUED");
     expect(queued).toHaveLength(1);
     expect(mocks.inserted.every((row) => row.wallet_account_id === wallet.walletAccountId)).toBe(true);
+    expect((result.card as Record<string, unknown>).debugDetails).toBeUndefined();
+  });
+
+  it("returns safe trace details only to an owner preview", async () => {
+    mocks.providerOk = false;
+    const result = await generateChatImage("Generate a picture of you at the beach", { ...wallet, ownerPreview: true });
+    expect(result.handled).toBe(true);
+    if (!result.handled) return;
+    const details = (result.card as Record<string, unknown>).debugDetails as Record<string, unknown> | undefined;
+    expect(details).toMatchObject({ source: "CHAT_GENERATION", lastStage: "FINAL_RESPONSE_RETURNED" });
+    expect(JSON.stringify(details)).not.toContain("sk-test-not-a-real-key");
   });
 });
 

@@ -2,6 +2,7 @@ import { shortAddress } from "@/lib/wallet-data/types";
 import type { WalletSnapshot } from "@/lib/wallet-data/types";
 import type { TokenMetadata } from "@/lib/tokens/metadata";
 import type { ActionCard, ActionCardLink, ActionCardRow, ImageCard, TradeCard } from "@/lib/actions/types";
+import type { ImagePipelineDebugDetails } from "@/lib/image-generation/pipeline-trace";
 import type { TradeIntent, TradeSummaryRow } from "@/lib/trading/types";
 
 /**
@@ -207,7 +208,7 @@ export function clarifyCard(input: { question: string; options?: Array<{ id: str
   };
 }
 
-export function noticeCard(input: { title: string; message: string; tone?: "neutral" | "caution" | "error"; rows?: ActionCardRow[]; links?: Array<ActionCardLink | null>; retry?: { label: string; prompt: string; parentGenerationId?: string } }): ActionCard {
+export function noticeCard(input: { title: string; message: string; tone?: "neutral" | "caution" | "error"; rows?: ActionCardRow[]; links?: Array<ActionCardLink | null>; retry?: { label: string; prompt: string; parentGenerationId?: string }; debugDetails?: ImagePipelineDebugDetails }): ActionCard {
   return {
     kind: "NOTICE",
     id: nextId("notice"),
@@ -217,6 +218,7 @@ export function noticeCard(input: { title: string; message: string; tone?: "neut
     tone: input.tone ?? "neutral",
     message: input.message,
     retry: input.retry,
+    ...(input.debugDetails ? { debugDetails: input.debugDetails } : {}),
   };
 }
 /**

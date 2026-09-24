@@ -3,6 +3,7 @@ import { getProviderConfig } from "@/lib/ai/config";
 import { buildSystemMessages } from "@/lib/ai/prompts";
 import type { ProviderConfig, TokenUsage } from "@/lib/ai/provider";
 import { runAction, type ActionRunResult } from "@/lib/actions/runtime";
+import { stripActionCardDebugDetails } from "@/lib/actions/guards";
 import { bondFromPoints, recordConversationBond } from "@/lib/bond";
 import { getServiceClient } from "@/lib/db/supabase";
 import { getCabiRuntimeConfig } from "@/lib/config/runtime";
@@ -19,6 +20,8 @@ import { chatRequestSchema } from "@/lib/validation/api";
 import { readWalletAuth } from "@/lib/wallet/session";
 import { shouldPersistChat } from "@/lib/wallet/persistence";
 import { guardAppApiCpu } from "@/lib/site/guard";
+import { isPreviewActive } from "@/lib/site/preview";
+import { readOwnerPreviewAuth } from "@/lib/site/owner-preview";
 import { recordChatTurnSocial } from "@/lib/chat/social";
 import { achievementCopy } from "@/lib/ranking/achievements";
 import { generateChatImage, isImageRequest } from "@/lib/image-generation/chat";
@@ -62,6 +65,15 @@ export async function POST(request: Request) {
   const parsed = chatRequestSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return jsonError("That message doesn't look right.", 400, "INVALID_MESSAGE");
   const imageRequested = isImageRequest(parsed.data.message);
+  // Technical image traces are only returned to the explicitly opened owner
+  // preview. A normal wallet session, even an approved admin wallet on LIVE,
+  // never turns on browser-facing diagnostics.
+  const ownerPreview = imageRequested
+    ? await Promise.all([
+      isPreviewActive().catch(() => false),
+      readOwnerPreviewAuth().catch(() => null),
+    ]).then(([adminPreview, ownerWalletPreview]) => adminPreview || Boolean(ownerWalletPreview))
+    : false;
   const imageTrace = imageRequested
     ? createImagePipelineTrace({ source: "CHAT_GENERATION", conversationId: parsed.data.conversationId ?? null })
     : null;
@@ -171,6 +183,7 @@ export async function POST(request: Request) {
         ? await readLatestGenerationContext(walletAccountId, conversationId).catch(() => null)
         : null,
       trace: imageTrace ?? undefined,
+      ownerPreview,
     }),
   ]);
   const mood: CabiMood = inferMood({
@@ -209,6 +222,7 @@ export async function POST(request: Request) {
   // Deterministic answers (wallet reads, token lookups, slash commands) are
   // produced entirely by trusted code, so the model is not called at all.
   const card = image.handled ? image.card : action.card;
+  const persistedCard = card ? stripActionCardDebugDetails(card) : null;
   // An image request is fully answered by the pipeline: the reply is the short
   // deterministic line that accompanies the picture, so the model is not called.
   const imageReply = image.handled ? image.reply : null;
@@ -256,7 +270,7 @@ export async function POST(request: Request) {
               status: "complete",
               // The card travels with the saved message so a reloaded
               // conversation renders exactly what the user saw.
-              metadata_json: { sources: rag.sources, ...(card ? { actionCard: card } : {}), mood },
+              metadata_json: { sources: rag.sources, ...(persistedCard ? { actionCard: persistedCard } : {}), mood },
               updated_at: new Date().toISOString(),
             }).eq("id", assistantMessageId).eq("conversation_id", conversationId),
             db.from("conversations").update({ updated_at: new Date().toISOString() }).eq("id", conversationId).eq("wallet_account_id", walletAccountId),

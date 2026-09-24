@@ -1,3 +1,5 @@
+import type { ImagePipelineDebugDetails } from "@/lib/image-generation/pipeline-trace";
+
 /**
  * The action layer's card model.
  *
@@ -44,6 +46,12 @@ export type BaseCard = {
     prompt: string;
     parentGenerationId?: string;
   };
+  /**
+   * Safe pipeline metadata for an explicitly authorized owner preview only.
+   * Chat persistence strips this field before writing a message, and normal
+   * requests never receive it.
+   */
+  debugDetails?: ImagePipelineDebugDetails;
 };
 
 export type TradeCard = BaseCard & {
