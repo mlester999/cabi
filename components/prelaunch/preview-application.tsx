@@ -17,7 +17,7 @@ export async function PreviewApplication({ children }: { children: React.ReactNo
   const actor = owner
     ? { kind: "wallet" as const, label: `${owner.walletAddress.slice(0, 6)}…${owner.walletAddress.slice(-4)}` }
     : { kind: "admin" as const, label: admin!.email };
-  return <div className="cabi-preview-frame">
+  return <div className="cabi-preview-frame h-[100dvh]">
     <PreviewBanner mode={chromeMode} actor={actor} />
     <div className="cabi-preview-content">{children}</div>
   </div>;
