@@ -38,6 +38,12 @@ export type BaseCard = {
   tone?: "neutral" | "caution" | "error";
   /** Short reason shown for non-actionable cards. */
   message?: string;
+  /** A safe, user-initiated retry for transient generation failures. */
+  retry?: {
+    label: string;
+    prompt: string;
+    parentGenerationId?: string;
+  };
 };
 
 export type TradeCard = BaseCard & {

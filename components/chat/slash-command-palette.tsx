@@ -51,16 +51,16 @@ export function SlashCommandPalette({
   if (matches.length === 0) return null;
 
   const rowClass = (index: number) =>
-    `flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left transition ${index === activeIndex ? "bg-violet-300/[0.09]" : "hover:bg-white/[0.04]"}`;
+    `flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left transition ${index === activeIndex ? "bg-violet-300/[0.09]" : "hover:bg-[var(--cabi-surface-2)]"}`;
 
   const rowBody = (command: SlashCommand, index: number) => (
     <>
-      <span className="w-[92px] shrink-0 font-mono text-[12px] text-violet-200">{command.id}</span>
+      <span className="w-[92px] shrink-0 font-mono text-[12px] text-[var(--cabi-primary)]">{command.id}</span>
       <span className="min-w-0 flex-1">
         <span className="block truncate text-[13px] font-medium text-white">{command.title}</span>
-        <span className="block truncate text-[11px] text-[#777180]">{command.description}</span>
+        <span className="block truncate text-[11px] text-[var(--cabi-text-muted)]">{command.description}</span>
       </span>
-      {index === activeIndex && <CornerDownLeft size={13} className="shrink-0 text-[#625d6d]" aria-hidden="true" />}
+      {index === activeIndex && <CornerDownLeft size={13} className="shrink-0 text-[var(--cabi-text-faint)]" aria-hidden="true" />}
     </>
   );
 
@@ -68,7 +68,7 @@ export function SlashCommandPalette({
     <div
       role="listbox"
       aria-label="Cabi commands"
-      className="mx-auto mb-2 w-full max-w-[760px] overflow-hidden rounded-[20px] border border-violet-200/[0.14] bg-[#0d0b15]/96 p-1.5 shadow-[0_18px_50px_rgba(0,0,0,.45)] backdrop-blur-xl"
+      className="mx-auto mb-2 w-full max-w-[760px] overflow-hidden rounded-xl border border-violet-200/[0.14] bg-[var(--cabi-surface)]/96 p-1.5 shadow-[0_18px_50px_rgba(0,0,0,.45)] backdrop-blur-xl"
     >
       {matches.map((command, index) => (
         command.href ? (

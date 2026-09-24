@@ -29,41 +29,41 @@ export default async function PreviewStartPage() {
       <div className="cabi-atmosphere" aria-hidden="true" />
       <div className="cabi-grain" aria-hidden="true" />
 
-      <section className="glass relative z-20 w-full max-w-[540px] rounded-[30px] p-7 sm:p-9">
+      <section className="glass relative z-20 w-full max-w-[540px] rounded-2xl p-7 sm:p-9">
         <span className="relative grid h-16 w-16 place-items-center">
           <span className="absolute inset-0 rounded-full bg-violet-400/20 blur-2xl" aria-hidden="true" />
-          <CabiMascot className="relative h-14 w-14" />
+          <CabiMascot className="relative h-12 w-14" />
         </span>
-        <p className="mt-6 text-[10px] font-semibold uppercase tracking-[.26em] text-violet-300">Admin only</p>
+        <p className="mt-6 text-[10px] font-semibold uppercase tracking-[.26em] text-[var(--cabi-primary)]">Admin only</p>
         <h1 className="mt-3 text-3xl font-semibold tracking-[-.04em]">Open the live preview</h1>
-        <p className="mt-3 text-sm leading-7 text-[#a8a3b3]">
+        <p className="mt-3 text-sm leading-7 text-[var(--cabi-text-secondary)]">
           Preview opens the complete Cabi application for your admin session only. Public visitors keep seeing the
           {" "}{mode === "MAINTENANCE" ? "maintenance notice" : "prelaunch page"}.
         </p>
 
-        <dl className="mt-6 space-y-2 rounded-2xl border border-white/[0.06] bg-white/[0.02] p-4 text-xs">
+        <dl className="mt-6 space-y-2 rounded-2xl border border-[var(--cabi-hairline)] bg-[var(--cabi-surface-1)] p-4 text-xs">
           <div className="flex items-center justify-between gap-3">
-            <dt className="text-[#777180]">Website mode</dt>
-            <dd className="font-semibold text-violet-100">{mode}</dd>
+            <dt className="text-[var(--cabi-text-muted)]">Website mode</dt>
+            <dd className="font-semibold text-[var(--cabi-text-secondary)]">{mode}</dd>
           </div>
           <div className="flex items-center justify-between gap-3">
-            <dt className="text-[#777180]">Source</dt>
-            <dd className="text-[#a8a3b3]">{override ? "Environment override" : source === "database" ? "Saved in dashboard" : "Default"}</dd>
+            <dt className="text-[var(--cabi-text-muted)]">Source</dt>
+            <dd className="text-[var(--cabi-text-secondary)]">{override ? "Environment override" : source === "database" ? "Saved in dashboard" : "Default"}</dd>
           </div>
         </dl>
-        <p className="mt-3 text-[11px] leading-5 text-[#777180]">{siteModeDescriptions[mode]}</p>
+        <p className="mt-3 text-[11px] leading-5 text-[var(--cabi-text-muted)]">{siteModeDescriptions[mode]}</p>
 
         <div className="mt-6 flex flex-wrap items-center gap-3">
           <PreviewStartButton />
           <Link
             href="/"
-            className="focus-ring inline-flex h-11 items-center rounded-xl border border-white/[0.08] bg-white/[0.03] px-4 text-sm font-semibold text-[#d5d0de] transition hover:bg-white/[0.06]"
+            className="focus-ring inline-flex h-11 items-center rounded-xl border border-[var(--cabi-hairline)] bg-[var(--cabi-surface-2)] px-4 text-sm font-semibold text-[var(--cabi-text-secondary)] transition hover:bg-[var(--cabi-surface-3)]"
           >
             View public page
           </Link>
         </div>
 
-        <p className="mt-6 text-[11px] leading-5 text-[#625d6d]">
+        <p className="mt-6 text-[11px] leading-5 text-[var(--cabi-text-faint)]">
           Preview lasts 4 hours and can be ended at any time from the banner at the top of the application or from the
           admin console.
         </p>

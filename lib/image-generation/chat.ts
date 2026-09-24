@@ -2,10 +2,11 @@ import "server-only";
 
 import { getServiceClient } from "@/lib/db/supabase";
 import { classifyCabiRelevance, checkImageScope, extractScene, looksLikeImageRequest, offTopicReply, uncertainReply } from "@/lib/image-generation/scope";
-import { createImageProvider, imageCapabilitiesFor } from "@/lib/image-generation/provider";
+import { createImageProvider } from "@/lib/image-generation/provider";
+import { executeImageGeneration } from "@/lib/image-generation/execute";
 import { buildCabiGenerationPlan } from "@/lib/image-generation/plan.server";
 import { parseCabiSceneRequest } from "@/lib/image-generation/parse-scene";
-import { readImageProviderConfig, readImageSettings } from "@/lib/image-generation/settings";
+import { resolveImageGenerationConfig } from "@/lib/image-generation/settings";
 import { generationBucket, signedImageUrl, uploadGenerationImage } from "@/lib/image-generation/storage";
 import { awardImageXp, countImageXpToday } from "@/lib/ranking/service";
 import { readProfile } from "@/lib/profiles/service";
@@ -62,7 +63,11 @@ export function isImageRequest(message: string): boolean {
 export async function generateChatImage(message: string, options: ChatImageOptions): Promise<ChatImageResult> {
   if (!isImageRequest(message)) return { handled: false };
 
-  const settings = await readImageSettings();
+  // This is the same live resolver used by the admin test. It reads the saved
+  // model, endpoint, key source, capabilities, quality and limits together, so
+  // chat cannot silently use a different model or stale provider setting.
+  const imageConfig = await resolveImageGenerationConfig();
+  const settings = imageConfig.settings;
 
   // Scope is decided FIRST, before the enabled check and before the wallet
   // check. Cabi-only enforcement is a product rule, not a feature flag: an
@@ -155,8 +160,8 @@ export async function generateChatImage(message: string, options: ChatImageOptio
     };
   }
 
-  const providerConfig = await readImageProviderConfig();
-  if (!providerConfig) {
+  const apiKey = imageConfig.apiKey;
+  if (!apiKey) {
     return {
       handled: true,
       usedProvider: false,
@@ -191,8 +196,8 @@ export async function generateChatImage(message: string, options: ChatImageOptio
    * console states which case applies rather than implying consistency the model
    * cannot deliver.
    */
-  const capabilities = imageCapabilitiesFor({ provider: providerConfig.settings.provider, model: providerConfig.settings.model });
-  const aspectRatio = providerConfig.settings.defaultAspectRatio;
+  const capabilities = imageConfig.capabilities;
+  const aspectRatio = imageConfig.aspectRatio;
 
   // Expression, outfit, and the scene to carry forward. The scene comes from this
   // message; the identity layers are added by the plan and cannot be influenced
@@ -240,8 +245,8 @@ export async function generateChatImage(message: string, options: ChatImageOptio
       message_id: options.messageId ?? null,
       user_prompt: plan.scene,
       aspect_ratio: aspectRatio,
-      provider: providerConfig.settings.provider,
-      model: providerConfig.settings.model,
+      provider: imageConfig.provider,
+      model: imageConfig.model,
       status: "QUEUED",
       queued_at: queuedAt,
       parent_generation_id: options.parentGenerationId ?? null,
@@ -260,10 +265,10 @@ export async function generateChatImage(message: string, options: ChatImageOptio
 
 
   const provider = createImageProvider({
-    provider: providerConfig.settings.provider,
-    apiKey: providerConfig.apiKey,
-    baseUrl: providerConfig.settings.baseUrl,
-    model: providerConfig.settings.model,
+    provider: imageConfig.provider,
+    apiKey,
+    baseUrl: imageConfig.endpoint,
+    model: imageConfig.model,
     supportsReferenceImage: capabilities.supportsReferenceImages,
     capabilities,
   });
@@ -271,15 +276,31 @@ export async function generateChatImage(message: string, options: ChatImageOptio
   // QUEUED -> GENERATING, recorded before the request leaves the process so a
   // refresh mid-flight recovers to "still working" rather than to a placeholder.
   await markGenerating(generationId);
-  const generated = await provider.generateCabiImage({
-    scene: plan.scene,
-    aspectRatio,
-    quality: providerConfig.settings.defaultQuality,
-    seed: plan.seed ?? undefined,
-    negativePrompt: plan.negative,
-    referenceImages: plan.referenceImages,
-    preparedPrompt: plan.prompt,
+  const generated = await executeImageGeneration({
+    source: "CHAT_GENERATION",
+    config: imageConfig,
+    provider,
+    referenceVersion: plan.reference.version,
+    request: {
+      scene: plan.scene,
+      aspectRatio,
+      quality: imageConfig.quality,
+      seed: plan.seed ?? undefined,
+      negativePrompt: plan.negative,
+      referenceImages: plan.referenceImages,
+      preparedPrompt: plan.prompt,
+    },
   });
+
+  // If the reference-specific retry was used, the stored row must describe the
+  // request that actually succeeded rather than the request that first failed.
+  if (generated.referenceConditioned !== plan.capabilities.referenceConditioning) {
+    try {
+      await db.from("image_generations").update({ reference_conditioned: generated.referenceConditioned }).eq("id", generationId);
+    } catch {
+      // The image itself remains valid; this is best-effort metadata repair.
+    }
+  }
 
   if (!generated.ok) {
     // FAILED does not consume the daily allowance, so a provider outage never
@@ -288,8 +309,13 @@ export async function generateChatImage(message: string, options: ChatImageOptio
     return {
       handled: true,
       usedProvider: true,
-      reply: generated.message,
-      card: noticeCard({ title: "I could not draw that one", message: generated.message, tone: "caution" }),
+      reply: "",
+      card: noticeCard({
+        title: "I could not draw that one",
+        message: "I couldn't make that image right now. You can try again when you're ready.",
+        tone: "error",
+        retry: { label: "Try Again", prompt: message, parentGenerationId: generationId },
+      }),
     };
   }
 

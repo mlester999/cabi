@@ -47,6 +47,22 @@ vi.mock("@/lib/image-generation/settings", () => ({
     },
     apiKey: "fake-key-for-tests-only",
   })),
+  resolveImageGenerationConfig: vi.fn(async () => ({
+    settings: {
+      enabled: mocks.enabled, provider: "together", baseUrl: "https://api.together.xyz/v1/images/generations",
+      model: "Qwen/Qwen-Image-2.0", defaultAspectRatio: "1:1", defaultQuality: "standard",
+      dailyLimit: 5, allowGuestGeneration: false,
+    },
+    provider: "together",
+    model: "Qwen/Qwen-Image-2.0",
+    endpoint: "https://api.together.xyz/v1/images/generations",
+    apiKey: "fake-key-for-tests-only",
+    apiKeySource: "environment",
+    capabilities: { supportsReferenceImages: true, supportsImageToImage: true, supportsSeed: true },
+    aspectRatio: "1:1",
+    quality: "standard",
+    limits: { daily: 5, allowGuestGeneration: false },
+  })),
 }));
 
 vi.mock("@/lib/image-generation/provider", () => ({

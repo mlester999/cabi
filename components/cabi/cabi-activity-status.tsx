@@ -110,7 +110,7 @@ export function CabiActivityStatus({
       {mascot && (
         <span
           aria-hidden="true"
-          className={`relative grid shrink-0 place-items-center overflow-hidden rounded-[10px] border border-violet-300/20 bg-violet-400/10 ${compact ? "h-6 w-6" : "h-7 w-7"} ${reducedMotion ? "" : "cabi-mascot-breathe"}`}
+          className={`relative grid shrink-0 place-items-center overflow-hidden rounded-md border border-violet-300/20 bg-violet-400/10 ${compact ? "h-6 w-6" : "h-[28px] w-7"} ${reducedMotion ? "" : "cabi-mascot-breathe"}`}
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
@@ -128,7 +128,7 @@ export function CabiActivityStatus({
           technology and the stable live region below does the announcing. */}
       <span
         aria-hidden="true"
-        className={`min-w-0 flex-1 truncate text-[#a8a3b3] transition-opacity duration-500 ${reducedMotion ? "" : "ease-out"} ${compact ? "text-[11px]" : "text-xs"} ${escalated ? "text-[#c4b5fd]" : ""}`}
+        className={`min-w-0 flex-1 truncate text-[var(--cabi-text-secondary)] transition-opacity duration-500 ${reducedMotion ? "" : "ease-out"} ${compact ? "text-[11px]" : "text-xs"} ${escalated ? "text-[var(--cabi-primary)]" : ""}`}
       >
         {visible}
         <IndeterminateBar reducedMotion={reducedMotion} />
@@ -151,7 +151,7 @@ function IndeterminateBar({ reducedMotion }: { reducedMotion: boolean }) {
     return <span aria-hidden="true" className="mt-1 block h-[2px] w-full rounded-full bg-violet-300/25" />;
   }
   return (
-    <span aria-hidden="true" className="mt-1 block h-[2px] w-full overflow-hidden rounded-full bg-white/[0.07]">
+    <span aria-hidden="true" className="mt-1 block h-[2px] w-full overflow-hidden rounded-full bg-[var(--cabi-surface-3)]">
       <span className="cabi-activity-slide block h-full w-1/3 rounded-full bg-gradient-to-r from-transparent via-violet-300 to-transparent" />
     </span>
   );

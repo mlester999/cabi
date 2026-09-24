@@ -207,7 +207,7 @@ export function clarifyCard(input: { question: string; options?: Array<{ id: str
   };
 }
 
-export function noticeCard(input: { title: string; message: string; tone?: "neutral" | "caution" | "error"; rows?: ActionCardRow[]; links?: Array<ActionCardLink | null> }): ActionCard {
+export function noticeCard(input: { title: string; message: string; tone?: "neutral" | "caution" | "error"; rows?: ActionCardRow[]; links?: Array<ActionCardLink | null>; retry?: { label: string; prompt: string; parentGenerationId?: string } }): ActionCard {
   return {
     kind: "NOTICE",
     id: nextId("notice"),
@@ -216,6 +216,7 @@ export function noticeCard(input: { title: string; message: string; tone?: "neut
     links: safeLinks(input.links ?? []),
     tone: input.tone ?? "neutral",
     message: input.message,
+    retry: input.retry,
   };
 }
 /**

@@ -67,22 +67,22 @@ export function GalleryExperience() {
     }
   };
 
-  if (phase === "loading") return <p className="mt-10 text-center text-sm text-[#a8a3b3]" role="status">Loading your images...</p>;
+  if (phase === "loading") return <p className="mt-10 text-center text-sm text-[var(--cabi-text-secondary)]" role="status">Loading your images...</p>;
 
   if (phase === "error") {
     return (
-      <div className="glass mt-10 rounded-[26px] p-8 text-center">
-        <p className="text-sm text-[#d5d0de]">I could not load your gallery just now.</p>
-        <button type="button" onClick={() => void load()} className="focus-ring mt-5 inline-flex h-10 items-center rounded-xl border border-white/[0.08] bg-white/[0.03] px-4 text-xs font-semibold">Try again</button>
+      <div className="glass mt-10 rounded-2xl p-8 text-center">
+        <p className="text-sm text-[var(--cabi-text-secondary)]">I could not load your gallery just now.</p>
+        <button type="button" onClick={() => void load()} className="focus-ring mt-5 inline-flex h-9 items-center rounded-xl border border-[var(--cabi-hairline)] bg-[var(--cabi-surface-2)] px-4 text-xs font-semibold">Try again</button>
       </div>
     );
   }
 
   if (images.length === 0) {
     return (
-      <div className="glass mt-10 rounded-[26px] p-8 text-center">
+      <div className="glass mt-10 rounded-2xl p-8 text-center">
         <p className="text-sm font-semibold text-white">No images yet.</p>
-        <p className="mx-auto mt-2 max-w-sm text-xs leading-6 text-[#a8a3b3]">
+        <p className="mx-auto mt-2 max-w-sm text-xs leading-6 text-[var(--cabi-text-secondary)]">
           Ask me for a picture in chat, like &ldquo;make an image of you drinking coffee&rdquo;, and it will appear here.
         </p>
       </div>
@@ -92,19 +92,19 @@ export function GalleryExperience() {
   return (
     <ul className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
       {images.map((image) => (
-        <li key={image.id} className="glass overflow-hidden rounded-[22px]">
+        <li key={image.id} className="glass overflow-hidden rounded-2xl">
           {/* eslint-disable-next-line @next/next/no-img-element -- signed storage URLs are short-lived and not routable through next/image. */}
           <img src={image.url} alt={image.prompt} className="aspect-square w-full bg-black/40 object-cover" loading="lazy" />
           <div className="p-4">
             <p className="line-clamp-2 text-[13px] leading-6 text-white">{image.prompt}</p>
-            <p className="mt-1.5 text-[11px] text-[#625d6d]">
+            <p className="mt-1.5 text-[11px] text-[var(--cabi-text-faint)]">
               {image.aspectRatio} - {new Date(image.createdAt).toLocaleDateString()}
             </p>
             <div className="mt-3 flex items-center gap-2">
               <a
                 href={image.url}
                 download={`cabi-${image.id}.png`}
-                className="focus-ring inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-xl border border-white/[0.08] bg-white/[0.03] text-[11px] font-semibold text-[#d5d0de] hover:bg-white/[0.06]"
+                className="focus-ring inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-xl border border-[var(--cabi-hairline)] bg-[var(--cabi-surface-2)] text-[11px] font-semibold text-[var(--cabi-text-secondary)] hover:bg-[var(--cabi-surface-3)]"
               >
                 <Download size={12} aria-hidden="true" /> Download
               </a>
@@ -112,7 +112,7 @@ export function GalleryExperience() {
                 type="button"
                 onClick={() => void remove(image.id)}
                 disabled={busy === image.id}
-                className="focus-ring grid h-9 w-9 place-items-center rounded-xl border border-white/[0.08] bg-white/[0.03] text-[#8e889b] hover:text-rose-200 disabled:opacity-40"
+                className="focus-ring grid h-9 w-9 place-items-center rounded-xl border border-[var(--cabi-hairline)] bg-[var(--cabi-surface-2)] text-[var(--cabi-text-muted)] hover:text-rose-200 disabled:opacity-40"
                 aria-label={`Delete image: ${image.prompt}`}
               >
                 <Trash2 size={13} />
@@ -125,7 +125,7 @@ export function GalleryExperience() {
               <button
                 type="button"
                 onClick={() => router.push(`${pathname.startsWith("/preview") ? "/preview" : "/"}?regenerate=${encodeURIComponent(image.prompt)}`)}
-                className="focus-ring inline-flex h-9 items-center gap-1.5 rounded-xl border border-white/[0.08] bg-white/[0.03] px-3 text-[11px] font-semibold text-[#d5d0de] hover:bg-white/[0.06]"
+                className="focus-ring inline-flex h-9 items-center gap-1.5 rounded-xl border border-[var(--cabi-hairline)] bg-[var(--cabi-surface-2)] px-3 text-[11px] font-semibold text-[var(--cabi-text-secondary)] hover:bg-[var(--cabi-surface-3)]"
               >
                 <RefreshCw size={12} aria-hidden="true" /> Regenerate
               </button>
@@ -133,7 +133,7 @@ export function GalleryExperience() {
                 type="button"
                 onClick={() => void adoptAsAvatar(image.id)}
                 disabled={busy === `avatar:${image.id}`}
-                className="focus-ring inline-flex h-9 items-center gap-1.5 rounded-xl border border-violet-200/[0.2] bg-violet-300/[0.08] px-3 text-[11px] font-semibold text-violet-100 hover:bg-violet-300/[0.14] disabled:opacity-40"
+                className="focus-ring inline-flex h-9 items-center gap-1.5 rounded-xl border border-violet-200/[0.2] bg-violet-300/[0.08] px-3 text-[11px] font-semibold text-[var(--cabi-text-secondary)] hover:bg-violet-300/[0.14] disabled:opacity-40"
               >
                 <UserRound size={12} aria-hidden="true" /> Use as picture
               </button>

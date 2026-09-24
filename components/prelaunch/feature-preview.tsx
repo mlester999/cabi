@@ -35,11 +35,11 @@ const features = [
  */
 export function FeaturePreview({ chips }: { chips: string[] }) {
   return (
-    <section aria-labelledby="feature-preview-title" className="glass rounded-[28px] p-5 sm:p-7">
+    <section aria-labelledby="feature-preview-title" className="glass rounded-2xl p-5 sm:p-7">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2.5">
-          <Heart size={15} className="text-violet-300" fill="currentColor" aria-hidden="true" />
-          <h2 id="feature-preview-title" className="text-[11px] font-semibold uppercase tracking-[.22em] text-violet-300">
+          <Heart size={15} className="text-[var(--cabi-primary)]" fill="currentColor" aria-hidden="true" />
+          <h2 id="feature-preview-title" className="text-[11px] font-semibold uppercase tracking-[.22em] text-[var(--cabi-primary)]">
             Coming with Cabi
           </h2>
         </div>
@@ -47,12 +47,12 @@ export function FeaturePreview({ chips }: { chips: string[] }) {
           {chips.map((chip) => (
             <li
               key={chip}
-              className="rounded-full border border-white/[0.07] bg-white/[0.025] px-2.5 py-1 text-[11px] font-medium text-[#a8a3b3]"
+              className="rounded-full border border-[var(--cabi-hairline)] bg-[var(--cabi-surface-1)] px-2.5 py-1 text-[11px] font-medium text-[var(--cabi-text-secondary)]"
             >
               {chip}
             </li>
           ))}
-          <li className="rounded-full border border-violet-200/[0.16] bg-violet-300/[0.07] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[.12em] text-violet-100">
+          <li className="rounded-full border border-violet-200/[0.16] bg-violet-300/[0.07] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[.12em] text-[var(--cabi-text-secondary)]">
             Coming soon
           </li>
         </ul>
@@ -63,13 +63,13 @@ export function FeaturePreview({ chips }: { chips: string[] }) {
           <article
             key={key}
             data-feature={key}
-            className="group rounded-[22px] border border-white/[0.06] bg-white/[0.02] p-4 transition hover:border-violet-200/[0.16] hover:bg-violet-300/[0.04]"
+            className="group rounded-2xl border border-[var(--cabi-hairline)] bg-[var(--cabi-surface-1)] p-4 transition hover:border-violet-200/[0.16] hover:bg-violet-300/[0.04]"
           >
-            <span className="grid h-9 w-9 place-items-center rounded-[13px] border border-violet-200/[0.12] bg-violet-300/[0.06] text-violet-200">
+            <span className="grid h-9 w-9 place-items-center rounded-lg border border-violet-200/[0.12] bg-violet-300/[0.06] text-[var(--cabi-primary)]">
               <Icon size={16} aria-hidden="true" />
             </span>
             <h3 className="mt-3.5 text-[13px] font-semibold uppercase tracking-[.09em] text-white">{title}</h3>
-            <p className="mt-2 text-[12px] leading-5 text-[#8e889b]">{body}</p>
+            <p className="mt-2 text-[12px] leading-5 text-[var(--cabi-text-muted)]">{body}</p>
           </article>
         ))}
       </div>

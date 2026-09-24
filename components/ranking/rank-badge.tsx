@@ -27,7 +27,7 @@ export function RankProgressBar({ percent, accent, label }: { percent: number; a
   const clamped = Math.max(0, Math.min(100, Math.round(percent)));
   return (
     <div
-      className="h-1.5 w-full overflow-hidden rounded-full bg-white/[0.07]"
+      className="h-1.5 w-full overflow-hidden rounded-full bg-[var(--cabi-surface-3)]"
       role="progressbar"
       aria-valuenow={clamped}
       aria-valuemin={0}
@@ -72,7 +72,7 @@ export function RankChip({ username, initials, avatarUrl, tier, onClick }: {
       type="button"
       onClick={onClick}
       aria-label={`${username}, rank ${tier.label}. Open your profile.`}
-      className="focus-ring flex max-w-[220px] items-center gap-2 rounded-full border border-white/[0.07] bg-white/[0.03] py-1 pl-1 pr-2.5 text-left transition hover:bg-white/[0.06]"
+      className="focus-ring flex max-w-[220px] items-center gap-2 rounded-full border border-[var(--cabi-hairline)] bg-[var(--cabi-surface-2)] py-1 pl-1 pr-2.5 text-left transition hover:bg-[var(--cabi-surface-3)]"
     >
       <InitialsAvatar initials={initials} src={avatarUrl} size={26} label={`${username} avatar`} />
       <span className="min-w-0 truncate text-[12px] font-semibold text-white">{username}</span>

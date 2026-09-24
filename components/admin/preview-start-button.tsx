@@ -41,7 +41,7 @@ export function PreviewStartButton({ className = "" }: { className?: string }) {
         type="button"
         onClick={() => void start()}
         disabled={busy}
-        className="focus-ring inline-flex h-11 items-center gap-2 rounded-xl bg-violet-200 px-4 text-sm font-semibold text-[#160f27] transition hover:brightness-105 disabled:opacity-50"
+        className="focus-ring inline-flex h-11 items-center gap-2 rounded-xl bg-[var(--cabi-primary)] px-4 text-sm font-semibold text-[var(--cabi-on-primary)] transition hover:brightness-105 disabled:opacity-50"
       >
         {busy ? <LoaderCircle size={15} className="animate-spin" /> : <Play size={15} />} Open live preview
       </button>

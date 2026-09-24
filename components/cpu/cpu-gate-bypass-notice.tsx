@@ -13,9 +13,9 @@ export function CpuGateBypassNotice({ label = "Approved owner wallet" }: { label
       className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-2xl border border-violet-200/[0.14] bg-violet-300/[0.06] px-3.5 py-2.5"
       role="status"
     >
-      <ShieldCheck size={14} className="shrink-0 text-violet-200" aria-hidden="true" />
-      <span className="text-[10px] font-semibold uppercase tracking-[.18em] text-violet-200">Admin access</span>
-      <span className="text-[11px] text-[#a8a3b3]">$CPU gate bypassed · {label}</span>
+      <ShieldCheck size={14} className="shrink-0 text-[var(--cabi-primary)]" aria-hidden="true" />
+      <span className="text-[10px] font-semibold uppercase tracking-[.18em] text-[var(--cabi-primary)]">Admin access</span>
+      <span className="text-[11px] text-[var(--cabi-text-secondary)]">$CPU gate bypassed · {label}</span>
     </div>
   );
 }

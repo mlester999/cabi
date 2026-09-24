@@ -2,7 +2,7 @@ import { z } from "zod";
 
 import { auditAdmin } from "@/lib/admin/audit";
 import { adminOrResponse } from "@/lib/admin/auth";
-import { createImageProvider, imageCapabilitiesFor } from "@/lib/image-generation/provider";
+import { createImageProvider } from "@/lib/image-generation/provider";
 import {
   IMAGE_PROVIDER_OPTIONS,
   imageModelsForProvider,
@@ -14,12 +14,12 @@ import {
   imageSettingsKey,
   isMaskedImageApiKey,
   parseImageSettings,
-  readStoredImageProviderConfig,
   readImageSettings,
-  resolveEnvironmentTogetherApiKey,
+  resolveImageGenerationConfig,
   removeImageApiKey,
   writeImageSettings,
 } from "@/lib/image-generation/settings";
+import { imageDiagnosticErrorCategory, logImageGenerationDiagnostic, safeImageKeySuffix } from "@/lib/image-generation/diagnostics";
 import type { ImageGenerationSettings } from "@/lib/image-generation/types";
 import { assertSameOrigin, jsonError } from "@/lib/security/request";
 
@@ -143,12 +143,30 @@ export async function POST(request: Request) {
 
   if (action === "test") {
     // A saved encrypted key is authoritative. The browser sends only the
-    // current provider/model selection; credentials stay server-side.
-    const stored = await readStoredImageProviderConfig();
-    const candidate = stored?.apiKey ?? resolveEnvironmentTogetherApiKey();
+    // current provider/model selection; credentials stay server-side. This is
+    // the same resolver used by chat, with only the live form selection overlaid.
+    const resolved = await resolveImageGenerationConfig({ provider: parsed.data.provider, model: parsed.data.model });
+    const candidate = resolved.apiKey;
     const selection = selectionDiagnostics(parsed.data);
-    const endpoint = imageProviderFor(parsed.data.provider)?.endpoint ?? "";
+    const endpoint = resolved.endpoint;
     if (!candidate) {
+      logImageGenerationDiagnostic({
+        source: "ADMIN_TEST",
+        provider: resolved.provider,
+        model: resolved.model,
+        endpoint,
+        keyPresent: false,
+        keySuffix: null,
+        referenceAttached: false,
+        referenceVersion: null,
+        referenceInputType: "none",
+        width: 512,
+        height: 512,
+        responseFormat: "url",
+        requestStarted: false,
+        httpStatus: null,
+        providerErrorCategory: "authentication",
+      });
       return Response.json({
         error: "Add a Together AI API key first.",
         code: "NOT_CONFIGURED",
@@ -158,30 +176,50 @@ export async function POST(request: Request) {
           endpoint,
           keyLoaded: false,
           keySuffix: null,
-          storedKeyPresent: Boolean(stored?.apiKey),
+          storedKeyPresent: resolved.apiKeySource === "admin",
           providerRequestStarted: false,
           httpStatus: null,
         },
       }, { status: 400, headers: responseHeaders() });
     }
 
-    const testSettings = parseImageSettings({ provider: parsed.data.provider, model: parsed.data.model });
-    const capabilities = imageCapabilitiesFor({ provider: testSettings.provider, model: testSettings.model });
-
     const provider = createImageProvider({
-      provider: testSettings.provider,
+      provider: resolved.provider,
       apiKey: candidate,
-      baseUrl: testSettings.baseUrl,
-      model: testSettings.model,
-      supportsReferenceImage: capabilities.supportsReferenceImages,
-      capabilities,
+      baseUrl: resolved.endpoint,
+      model: resolved.model,
+      supportsReferenceImage: resolved.capabilities.supportsReferenceImages,
+      capabilities: resolved.capabilities,
     });
     const result = await provider.testConnection();
-    await auditAdmin(request, admin.email, "image_settings.test", "image_settings", "singleton", result.ok ? "success" : "failure", {
-      provider: testSettings.provider,
-      model: testSettings.model,
+    logImageGenerationDiagnostic({
+      source: "ADMIN_TEST",
+      provider: resolved.provider,
+      model: resolved.model,
+      endpoint,
+      keyPresent: true,
+      keySuffix: safeImageKeySuffix(candidate),
+      referenceAttached: false,
+      referenceVersion: null,
+      referenceInputType: "none",
+      width: 512,
+      height: 512,
+      responseFormat: "url",
+      requestStarted: Boolean(result.diagnostics?.providerRequestStarted),
       httpStatus: result.diagnostics?.httpStatus ?? null,
-      keySource: stored ? "admin" : "environment",
+      providerErrorCategory: result.ok
+        ? "none"
+        : imageDiagnosticErrorCategory({
+            httpStatus: result.diagnostics?.httpStatus,
+            error: result.error,
+            referenceAttached: false,
+          }),
+    });
+    await auditAdmin(request, admin.email, "image_settings.test", "image_settings", "singleton", result.ok ? "success" : "failure", {
+      provider: resolved.provider,
+      model: resolved.model,
+      httpStatus: result.diagnostics?.httpStatus ?? null,
+      keySource: resolved.apiKeySource,
     });
     const diagnostics = {
       ...result.diagnostics,
@@ -189,15 +227,15 @@ export async function POST(request: Request) {
       provider: result.diagnostics?.provider ?? "Together AI",
       endpoint: result.diagnostics?.endpoint ?? endpoint,
       keyLoaded: result.diagnostics?.keyLoaded ?? true,
-      keySuffix: result.diagnostics?.keySuffix ?? candidate.slice(-4),
-      storedKeyPresent: Boolean(stored?.apiKey),
+      keySuffix: result.diagnostics?.keySuffix ?? safeImageKeySuffix(candidate),
+      storedKeyPresent: resolved.apiKeySource === "admin",
       providerRequestStarted: result.diagnostics?.providerRequestStarted ?? false,
       httpStatus: result.diagnostics?.httpStatus ?? null,
     };
     const safeResult = { ...result, diagnostics };
     return Response.json(
       safeResult.ok
-        ? { ...safeResult, capabilities, referenceConditioning: capabilities.supportsReferenceImages }
+        ? { ...safeResult, capabilities: resolved.capabilities, referenceConditioning: resolved.capabilities.supportsReferenceImages }
         : safeResult,
       { status: safeResult.ok ? 200 : 400, headers: responseHeaders() },
     );

@@ -32,7 +32,7 @@ export function ParticleField({ className = "" }: { className?: string }) {
       {sparkles.map((sparkle, index) => (
         <span
           key={index}
-          className="cabi-sparkle absolute rounded-full bg-violet-200"
+          className="cabi-sparkle absolute rounded-full bg-[var(--cabi-primary)]"
           style={{
             left: sparkle.left,
             top: sparkle.top,

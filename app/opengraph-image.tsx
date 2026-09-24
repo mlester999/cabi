@@ -43,7 +43,7 @@ export default function OpengraphImage() {
               fontSize: 28,
               fontWeight: 800,
               letterSpacing: "-0.06em",
-              color: "#DDD6FE",
+              color: "#b7b2c2",
             }}
           >
             CA
@@ -58,13 +58,13 @@ export default function OpengraphImage() {
           <span style={{ fontSize: 82, fontWeight: 700, letterSpacing: "-0.045em", lineHeight: 1.04 }}>
             Cabi is getting ready.
           </span>
-          <span style={{ marginTop: 26, fontSize: 30, lineHeight: 1.42, color: "#B9B3C6", maxWidth: 900 }}>
+          <span style={{ marginTop: 26, fontSize: 30, lineHeight: 1.42, color: "#b7b2c2", maxWidth: 900 }}>
             Chat, memories, wallet identity, and verified $CPU information.
           </span>
         </div>
 
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <span style={{ fontSize: 22, color: "#8E889B" }}>Cute, loyal, and always by your side.</span>
+          <span style={{ fontSize: 22, color: "#777181" }}>Cute, loyal, and always by your side.</span>
           <span
             style={{
               fontSize: 20,

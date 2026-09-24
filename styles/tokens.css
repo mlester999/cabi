@@ -1,0 +1,359 @@
+/* ===========================================================================
+   CABI DESIGN TOKENS
+   ===========================================================================
+
+   The single source of truth for the visual system. Nothing in the application
+   should hardcode a colour, radius, shadow, duration, or blur that is not
+   declared here.
+
+   Before this file existed the UI carried 62 distinct hex colours (six of them
+   near-identical greys), 20 background opacities, 15 border opacities, and 15
+   different border-radius values including 13px, 22px, and 26px. The palettes
+   below are the collapsed result: four text levels, four surfaces, three
+   borders, and one radius scale.
+
+   Consumed two ways:
+     1. Tailwind utilities, via the `@theme inline` block in `globals.css`.
+     2. Semantic component classes (`.cabi-card`, `.cabi-input`, ...) which are
+        what pages should actually use.
+   =========================================================================== */
+
+:root {
+  /* --- Background ------------------------------------------------------- */
+  --cabi-bg: #07070d;
+  --cabi-bg-deep: #0b0912;
+  --cabi-bg-raised: #0f0c18;
+
+  /* --- Surface: one ladder, four steps ---------------------------------- */
+  --cabi-surface: #111018;
+  --cabi-surface-elevated: #15131d;
+  /* Translucent steps used for insets and hover fills. */
+  --cabi-surface-1: rgba(255, 255, 255, 0.02);
+  --cabi-surface-2: rgba(255, 255, 255, 0.04);
+  --cabi-surface-3: rgba(255, 255, 255, 0.07);
+  --cabi-surface-4: rgba(255, 255, 255, 0.1);
+
+  /* --- Text: four levels, no more --------------------------------------- */
+  --cabi-text: #ffffff;
+  --cabi-text-secondary: #b7b2c2;
+  --cabi-text-muted: #777181;
+  --cabi-text-faint: #625d6d;
+
+  /* --- Border: three steps ---------------------------------------------- */
+  --cabi-border: rgba(196, 181, 253, 0.12);
+  --cabi-border-hover: rgba(196, 181, 253, 0.25);
+  --cabi-border-strong: rgba(196, 181, 253, 0.38);
+  /* Neutral hairline for insets inside a surface. */
+  --cabi-hairline: rgba(255, 255, 255, 0.07);
+
+  /* --- Brand ------------------------------------------------------------ */
+  --cabi-primary: #c4b5fd;
+  --cabi-primary-strong: #a78bfa;
+  --cabi-accent: #8b5cf6;
+  /* Text colour that sits on a lavender fill. */
+  --cabi-on-primary: #160f27;
+
+  /* --- Feedback: restrained, never neon --------------------------------- */
+  --cabi-success: #6ee7b7;
+  --cabi-success-surface: rgba(110, 231, 183, 0.08);
+  --cabi-success-border: rgba(110, 231, 183, 0.2);
+  --cabi-warning: #fcd34d;
+  --cabi-warning-surface: rgba(252, 211, 77, 0.08);
+  --cabi-warning-border: rgba(252, 211, 77, 0.2);
+  --cabi-danger: #fda4af;
+  --cabi-danger-surface: rgba(253, 164, 175, 0.08);
+  --cabi-danger-border: rgba(253, 164, 175, 0.2);
+
+  /* --- Radius: one scale ------------------------------------------------ */
+  --cabi-radius-sm: 8px;
+  --cabi-radius-md: 12px;
+  --cabi-radius-lg: 16px;
+  --cabi-radius-xl: 20px;
+  --cabi-radius-2xl: 24px;
+  --cabi-radius-pill: 999px;
+
+  /* --- Spacing: a 4px base, named for intent ---------------------------- */
+  --cabi-space-1: 4px;
+  --cabi-space-2: 8px;
+  --cabi-space-3: 12px;
+  --cabi-space-4: 16px;
+  --cabi-space-5: 20px;
+  --cabi-space-6: 24px;
+  --cabi-space-8: 32px;
+  --cabi-space-10: 40px;
+  --cabi-space-12: 48px;
+
+  /* --- Control heights --------------------------------------------------
+     Three sizes, applied everywhere. `inline` is the small chrome row used
+     inside dense lists and the activity indicator; `lg` is the primary CTA on
+     a hero surface. Nothing else is allowed to invent a height.
+     ---------------------------------------------------------------------- */
+  --cabi-control-inline: 28px;
+  --cabi-control-sm: 36px;
+  --cabi-control-md: 44px;
+  --cabi-control-lg: 52px;
+  /* Icon buttons are square and match a control height. */
+  --cabi-control-icon-sm: 32px;
+  --cabi-control-icon-md: 40px;
+
+  /* --- Type scale ------------------------------------------------------- */
+  --cabi-text-display: 2.75rem;
+  --cabi-text-h1: 1.5rem;
+  --cabi-text-h2: 1.125rem;
+  --cabi-text-h3: 0.9375rem;
+  --cabi-text-body: 0.9375rem;
+  --cabi-text-sm: 0.8125rem;
+  --cabi-text-caption: 0.6875rem;
+  --cabi-text-overline: 0.625rem;
+  /* Tracking, three values only. */
+  --cabi-tracking-tight: -0.02em;
+  --cabi-tracking-normal: 0;
+  --cabi-tracking-overline: 0.14em;
+
+  /* --- Shadow / glow: one restrained language --------------------------- */
+  --cabi-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.24);
+  --cabi-shadow-md: 0 10px 30px rgba(0, 0, 0, 0.28);
+  --cabi-shadow-lg: 0 22px 60px rgba(0, 0, 0, 0.34);
+  /* One glow, reserved for Cabi, the primary CTA, and a selected item. */
+  --cabi-glow: 0 0 0 1px rgba(196, 181, 253, 0.16), 0 18px 50px rgba(139, 92, 246, 0.18);
+  --cabi-glow-strong: 0 0 0 1px rgba(196, 181, 253, 0.24), 0 22px 60px rgba(139, 92, 246, 0.26);
+
+  /* --- Blur: three levels ----------------------------------------------- */
+  --cabi-blur-sm: 8px;
+  --cabi-blur-md: 18px;
+  --cabi-blur-lg: 30px;
+
+  /* --- Motion: three speeds --------------------------------------------- */
+  --cabi-duration-fast: 160ms;
+  --cabi-duration-normal: 250ms;
+  --cabi-duration-slow: 500ms;
+  --cabi-ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+/* ===========================================================================
+   Component contract
+   ===========================================================================
+
+   Each primitive below is the ONLY way a surface, control, or badge is styled.
+   Pages compose these instead of restating colours, radii, and shadows.
+   =========================================================================== */
+
+/* --- Surface ladder ------------------------------------------------------ */
+
+/* The page background. */
+.cabi-page { background: var(--cabi-bg); color: var(--cabi-text); }
+
+/* A raised content surface: cards, panels, admin sections. */
+.cabi-card {
+  border-radius: var(--cabi-radius-2xl);
+  border: 1px solid var(--cabi-border);
+  background: var(--cabi-surface);
+  box-shadow: var(--cabi-shadow-md);
+}
+/* An inset inside a card: rows, fields, nested panels. */
+.cabi-inset {
+  border-radius: var(--cabi-radius-xl);
+  border: 1px solid var(--cabi-hairline);
+  background: var(--cabi-surface-1);
+}
+.cabi-card-interactive { transition: border-color var(--cabi-duration-fast) var(--cabi-ease), background-color var(--cabi-duration-fast) var(--cabi-ease), transform var(--cabi-duration-fast) var(--cabi-ease); }
+.cabi-card-interactive:hover { border-color: var(--cabi-border-hover); background: var(--cabi-surface-elevated); }
+/* A card that is the focused item: one glow, nothing more. */
+.cabi-card-selected { border-color: var(--cabi-border-hover); box-shadow: var(--cabi-glow); }
+/* The frosted variant, for overlays and floating chrome. */
+.cabi-glass {
+  border-radius: var(--cabi-radius-2xl);
+  border: 1px solid var(--cabi-border);
+  background: linear-gradient(145deg, rgba(21, 19, 29, 0.9), rgba(11, 9, 18, 0.82));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.035), var(--cabi-shadow-lg);
+  backdrop-filter: blur(var(--cabi-blur-md));
+}
+
+/* --- Feedback surfaces -------------------------------------------------- */
+.cabi-surface-success { border-color: var(--cabi-success-border); background: var(--cabi-success-surface); }
+.cabi-surface-warning { border-color: var(--cabi-warning-border); background: var(--cabi-warning-surface); }
+.cabi-surface-danger { border-color: var(--cabi-danger-border); background: var(--cabi-danger-surface); }
+
+/* --- Buttons ------------------------------------------------------------
+   Heights come from the control tokens, so a button can never be 36px on one
+   screen and 44px on the next.
+   ------------------------------------------------------------------------ */
+.cabi-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--cabi-space-2);
+  border-radius: var(--cabi-radius-xl);
+  border: 1px solid transparent;
+  font-size: var(--cabi-text-sm);
+  font-weight: 600;
+  white-space: nowrap;
+  transition: background-color var(--cabi-duration-fast) var(--cabi-ease), border-color var(--cabi-duration-fast) var(--cabi-ease), color var(--cabi-duration-fast) var(--cabi-ease), transform var(--cabi-duration-fast) var(--cabi-ease);
+}
+.cabi-btn:disabled, .cabi-btn[aria-disabled="true"] { opacity: 0.45; pointer-events: none; }
+.cabi-btn:not(:disabled):active { transform: translateY(1px); }
+
+.cabi-btn-inline { height: var(--cabi-control-inline); padding-inline: var(--cabi-space-2); border-radius: var(--cabi-radius-md); font-size: var(--cabi-text-overline); }
+.cabi-btn-sm { height: var(--cabi-control-sm); padding-inline: var(--cabi-space-3); border-radius: var(--cabi-radius-lg); font-size: var(--cabi-text-caption); }
+.cabi-btn-md { height: var(--cabi-control-md); padding-inline: var(--cabi-space-4); }
+.cabi-btn-lg { height: var(--cabi-control-lg); padding-inline: var(--cabi-space-5); font-size: var(--cabi-text-body); }
+.cabi-btn-block { width: 100%; }
+
+/* PRIMARY: lavender fill, dark text. One per view. */
+.cabi-btn-primary { background: linear-gradient(135deg, var(--cabi-primary), var(--cabi-primary-strong)); color: var(--cabi-on-primary); box-shadow: var(--cabi-glow); }
+.cabi-btn-primary:hover { filter: brightness(1.06); }
+/* SECONDARY: dark surface, lavender border. */
+.cabi-btn-secondary { background: var(--cabi-surface-2); border-color: var(--cabi-border); color: var(--cabi-text); }
+.cabi-btn-secondary:hover { background: var(--cabi-surface-3); border-color: var(--cabi-border-hover); }
+/* GHOST: transparent until hovered. */
+.cabi-btn-ghost { background: transparent; color: var(--cabi-text-secondary); }
+.cabi-btn-ghost:hover { background: var(--cabi-surface-2); color: var(--cabi-text); }
+/* DANGER: muted rose, never a bright red block. */
+.cabi-btn-danger { background: var(--cabi-danger-surface); border-color: var(--cabi-danger-border); color: var(--cabi-danger); }
+.cabi-btn-danger:hover { background: rgba(253, 164, 175, 0.14); }
+/* LINK: inline text action. */
+.cabi-btn-link { height: auto; padding: 0; border: 0; background: none; color: var(--cabi-primary); text-decoration: underline; text-underline-offset: 3px; }
+/* ICON: square, matching a control height. Never a random size. */
+.cabi-btn-icon { width: var(--cabi-control-icon-md); height: var(--cabi-control-icon-md); border-radius: var(--cabi-radius-lg); padding: 0; }
+.cabi-btn-icon-sm { width: var(--cabi-control-icon-sm); height: var(--cabi-control-icon-sm); border-radius: var(--cabi-radius-md); padding: 0; }
+/* A touch target that is visually small but reachable on mobile. */
+.cabi-touch-target { min-height: 44px; min-width: 44px; }
+
+/* --- Forms -------------------------------------------------------------- */
+.cabi-label { display: block; font-size: var(--cabi-text-caption); font-weight: 600; text-transform: uppercase; letter-spacing: var(--cabi-tracking-overline); color: var(--cabi-text-muted); }
+.cabi-help { display: block; margin-top: var(--cabi-space-1); font-size: var(--cabi-text-caption); line-height: 1.6; color: var(--cabi-text-faint); }
+
+.cabi-input,
+.cabi-select,
+.cabi-textarea {
+  width: 100%;
+  border-radius: var(--cabi-radius-lg);
+  border: 1px solid var(--cabi-border);
+  background: var(--cabi-surface-1);
+  color: var(--cabi-text);
+  font-size: var(--cabi-text-sm);
+  outline: none;
+  transition: border-color var(--cabi-duration-fast) var(--cabi-ease), box-shadow var(--cabi-duration-fast) var(--cabi-ease), background-color var(--cabi-duration-fast) var(--cabi-ease);
+}
+.cabi-input, .cabi-select { height: var(--cabi-control-md); padding-inline: var(--cabi-space-3); }
+.cabi-textarea { min-height: 96px; padding: var(--cabi-space-3); line-height: 1.6; resize: vertical; }
+.cabi-input::placeholder, .cabi-textarea::placeholder { color: var(--cabi-text-faint); }
+.cabi-input:hover, .cabi-select:hover, .cabi-textarea:hover { border-color: var(--cabi-border-hover); }
+.cabi-input:focus, .cabi-select:focus, .cabi-textarea:focus {
+  border-color: var(--cabi-border-strong);
+  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.12);
+}
+.cabi-input:disabled, .cabi-select:disabled, .cabi-textarea:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  background: var(--cabi-surface-1);
+}
+/* Error state: one treatment, tied to aria-invalid so it cannot drift. */
+.cabi-input[aria-invalid="true"], .cabi-select[aria-invalid="true"], .cabi-textarea[aria-invalid="true"] {
+  border-color: var(--cabi-danger-border);
+  box-shadow: 0 0 0 3px rgba(253, 164, 175, 0.1);
+}
+.cabi-error-text { display: block; margin-top: var(--cabi-space-1); font-size: var(--cabi-text-caption); color: var(--cabi-danger); }
+/* Read-only values that must not look editable. */
+.cabi-readonly { background: var(--cabi-surface-1); color: var(--cabi-text-muted); border-style: dashed; }
+
+/* Dark mode is the only mode: make the native controls agree with it. */
+.cabi-select { color-scheme: dark; }
+.cabi-select option { background: var(--cabi-surface-elevated); color: var(--cabi-text); }
+/* Browser autofill must not paint a white box over a dark field. */
+.cabi-input:-webkit-autofill, .cabi-textarea:-webkit-autofill {
+  -webkit-text-fill-color: var(--cabi-text);
+  box-shadow: inset 0 0 0 1000px var(--cabi-surface-elevated);
+  transition: background-color 99999s ease-out 0s;
+}
+
+/* --- Toggle: a switch, not a checkbox pretending to be one -------------- */
+.cabi-switch {
+  position: relative;
+  display: inline-flex;
+  height: 24px;
+  width: 42px;
+  flex-shrink: 0;
+  align-items: center;
+  border-radius: var(--cabi-radius-pill);
+  border: 1px solid var(--cabi-border);
+  background: var(--cabi-surface-2);
+  transition: background-color var(--cabi-duration-fast) var(--cabi-ease), border-color var(--cabi-duration-fast) var(--cabi-ease);
+}
+.cabi-switch[data-state="on"] { background: var(--cabi-primary-strong); border-color: var(--cabi-primary); }
+.cabi-switch::after {
+  content: "";
+  position: absolute;
+  left: 3px;
+  height: 16px;
+  width: 16px;
+  border-radius: var(--cabi-radius-pill);
+  background: var(--cabi-text);
+  transition: transform var(--cabi-duration-fast) var(--cabi-ease);
+}
+.cabi-switch[data-state="on"]::after { transform: translateX(18px); background: var(--cabi-on-primary); }
+
+/* --- Badges: one shape, four tones ------------------------------------- */
+.cabi-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--cabi-space-1);
+  border-radius: var(--cabi-radius-pill);
+  border: 1px solid var(--cabi-border);
+  background: var(--cabi-surface-2);
+  padding: 2px var(--cabi-space-2);
+  font-size: var(--cabi-text-overline);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: var(--cabi-tracking-overline);
+  color: var(--cabi-text-secondary);
+}
+.cabi-badge-primary { border-color: var(--cabi-border-hover); background: rgba(196, 181, 253, 0.1); color: var(--cabi-primary); }
+.cabi-badge-success { border-color: var(--cabi-success-border); background: var(--cabi-success-surface); color: var(--cabi-success); }
+.cabi-badge-warning { border-color: var(--cabi-warning-border); background: var(--cabi-warning-surface); color: var(--cabi-warning); }
+.cabi-badge-danger { border-color: var(--cabi-danger-border); background: var(--cabi-danger-surface); color: var(--cabi-danger); }
+
+/* --- Typography --------------------------------------------------------- */
+.cabi-display { font-size: var(--cabi-text-display); font-weight: 700; letter-spacing: var(--cabi-tracking-tight); line-height: 1.05; }
+.cabi-h1 { font-size: var(--cabi-text-h1); font-weight: 700; letter-spacing: var(--cabi-tracking-tight); }
+.cabi-h2 { font-size: var(--cabi-text-h2); font-weight: 600; letter-spacing: var(--cabi-tracking-tight); }
+.cabi-h3 { font-size: var(--cabi-text-h3); font-weight: 600; }
+.cabi-body { font-size: var(--cabi-text-body); line-height: 1.7; color: var(--cabi-text-secondary); }
+.cabi-body-sm { font-size: var(--cabi-text-sm); line-height: 1.65; color: var(--cabi-text-secondary); }
+.cabi-caption { font-size: var(--cabi-text-caption); line-height: 1.6; color: var(--cabi-text-muted); }
+/* Overline: reserved for labels, status, and system text — never a paragraph. */
+.cabi-overline { font-size: var(--cabi-text-overline); font-weight: 600; text-transform: uppercase; letter-spacing: var(--cabi-tracking-overline); color: var(--cabi-text-muted); }
+
+/* --- Locked / future feature ------------------------------------------- */
+.cabi-locked {
+  position: relative;
+  border-radius: var(--cabi-radius-2xl);
+  border: 1px solid var(--cabi-hairline);
+  background: var(--cabi-surface-1);
+  opacity: 0.72;
+  transition: opacity var(--cabi-duration-normal) var(--cabi-ease), border-color var(--cabi-duration-normal) var(--cabi-ease);
+}
+.cabi-locked:hover { opacity: 0.92; border-color: var(--cabi-border); }
+
+/* --- Skeleton ----------------------------------------------------------- */
+.cabi-skeleton {
+  border-radius: var(--cabi-radius-xl);
+  border: 1px solid var(--cabi-hairline);
+  background: var(--cabi-surface-1);
+  animation: cabi-skeleton-pulse 2.4s ease-in-out infinite;
+}
+@keyframes cabi-skeleton-pulse { 0%, 100% { opacity: 0.5; } 50% { opacity: 0.85; } }
+
+/* --- Modal -------------------------------------------------------------- */
+.cabi-backdrop { background: rgba(4, 4, 9, 0.74); backdrop-filter: blur(var(--cabi-blur-sm)); }
+.cabi-modal { border-radius: var(--cabi-radius-2xl); border: 1px solid var(--cabi-border); background: var(--cabi-surface); box-shadow: var(--cabi-shadow-lg); }
+.cabi-modal-header { padding: var(--cabi-space-6) var(--cabi-space-6) 0; }
+.cabi-modal-body { padding: var(--cabi-space-5) var(--cabi-space-6); }
+.cabi-modal-footer { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--cabi-space-2); padding: var(--cabi-space-4) var(--cabi-space-6) var(--cabi-space-6); }
+
+/* --- Focus -------------------------------------------------------------- */
+.cabi-focus:focus-visible { outline: 2px solid var(--cabi-primary); outline-offset: 3px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .cabi-skeleton { animation: none; opacity: 0.7; }
+}

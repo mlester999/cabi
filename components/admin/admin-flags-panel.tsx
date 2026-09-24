@@ -53,15 +53,15 @@ export function AdminFlagsPanel() {
     }
   };
 
-  if (phase === "loading") return <p className="text-sm text-[#a8a3b3]" role="status">Loading flags...</p>;
+  if (phase === "loading") return <p className="text-sm text-[var(--cabi-text-secondary)]" role="status">Loading flags...</p>;
 
   return (
     <div className="space-y-5">
-      {notice ? <p role="status" className="rounded-xl border border-violet-200/[0.16] bg-violet-300/[0.06] px-3 py-2 text-xs text-violet-100">{notice}</p> : null}
+      {notice ? <p role="status" className="rounded-xl border border-violet-200/[0.16] bg-violet-300/[0.06] px-3 py-2 text-xs text-[var(--cabi-text-secondary)]">{notice}</p> : null}
 
-      <section className="rounded-[22px] border border-white/[0.07] bg-white/[0.02] p-5">
+      <section className="rounded-2xl border border-[var(--cabi-hairline)] bg-[var(--cabi-surface-1)] p-5">
         <h2 className="text-sm font-bold text-white">Feature flags</h2>
-        <p className="mt-1.5 text-[11px] leading-5 text-[#777180]">
+        <p className="mt-1.5 text-[11px] leading-5 text-[var(--cabi-text-muted)]">
           Resolved on the server and never trusted from a browser. A flag that is off closes its route and hides its
           entry points; the code and schema stay in place for later.
         </p>
@@ -84,7 +84,7 @@ export function AdminFlagsPanel() {
                   aria-label={key}
                   className="focus-ring h-4 w-4 accent-violet-400"
                 />
-                <span className={`w-10 text-[11px] font-semibold ${flags[key] ? "text-emerald-200" : "text-[#8e889b]"}`}>
+                <span className={`w-10 text-[11px] font-semibold ${flags[key] ? "text-emerald-200" : "text-[var(--cabi-text-muted)]"}`}>
                   {flags[key] ? "on" : "off"}
                 </span>
               </label>
@@ -95,7 +95,7 @@ export function AdminFlagsPanel() {
           type="button"
           onClick={() => void save()}
           disabled={busy}
-          className="focus-ring mt-4 h-11 rounded-xl bg-violet-300 px-5 text-sm font-bold text-[#160f22] disabled:opacity-40"
+          className="focus-ring mt-4 h-11 rounded-xl bg-violet-300 px-5 text-sm font-bold text-[var(--cabi-on-primary)] disabled:opacity-40"
         >
           {busy ? "Saving..." : "Save flags"}
         </button>

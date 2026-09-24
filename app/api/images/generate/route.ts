@@ -6,11 +6,11 @@ import { generationBucket, signedImageUrl, uploadGenerationImage } from "@/lib/i
 import { imageGenerationTtlMs } from "@/lib/image-generation/cache";
 import { offTopicReply, uncertainReply, classifyCabiRelevance, extractScene } from "@/lib/image-generation/scope";
 import { checkImageSafety, safetyCodeFor } from "@/lib/image-generation/safety";
-import { imageCapabilitiesFor } from "@/lib/image-generation/provider";
+import { executeImageGeneration } from "@/lib/image-generation/execute";
 import { buildCabiGenerationPlan } from "@/lib/image-generation/plan.server";
 import { parseCabiSceneRequest } from "@/lib/image-generation/parse-scene";
 import { readLatestGenerationContext } from "@/lib/image-generation/lifecycle";
-import { readImageProviderConfig } from "@/lib/image-generation/settings";
+import { resolveImageGenerationConfig } from "@/lib/image-generation/settings";
 import { createImageProvider } from "@/lib/image-generation/provider";
 import { assertSameOrigin, clientAddress, jsonError } from "@/lib/security/request";
 import { checkRateLimit } from "@/lib/security/rate-limit";
@@ -153,19 +153,20 @@ export async function POST(request: Request) {
 
   // The provider key is read here and nowhere earlier, so a refusal above can
   // never have touched it.
-  const providerConfig = await readImageProviderConfig();
-  if (!providerConfig) {
+  const imageConfig = await resolveImageGenerationConfig();
+  const apiKey = imageConfig.apiKey;
+  if (!apiKey) {
     return jsonError("Cabi's image generation hasn't been configured yet.", 503, "IMAGES_NOT_CONFIGURED");
   }
 
   const { data: quotaData } = await db.rpc("image_generation_quota", {
     p_wallet_account_id: wallet.walletAccountId,
-    p_daily_limit: providerConfig.settings.dailyLimit,
+    p_daily_limit: imageConfig.limits.daily,
   });
   const quota = (Array.isArray(quotaData) ? quotaData[0] : quotaData) as { allowed?: boolean } | undefined;
   if (quota && quota.allowed === false) {
     return Response.json(
-      { type: "chat_response", message: `That is all ${providerConfig.settings.dailyLimit} images for today. More tomorrow.` },
+      { type: "chat_response", message: `That is all ${imageConfig.limits.daily} images for today. More tomorrow.` },
       { status: 429, headers: { "Cache-Control": "private, no-store" } },
     );
   }
@@ -176,7 +177,7 @@ export async function POST(request: Request) {
    * — the character bible alone drives consistency. This is stated in the admin
    * console rather than implied here.
    */
-  const capabilities = imageCapabilitiesFor({ provider: providerConfig.settings.provider, model: providerConfig.settings.model });
+  const capabilities = imageConfig.capabilities;
 
   // The previous image in this conversation supplies the scene to carry forward,
   // which is what makes "now put yourself in a hoodie" change only the outfit.
@@ -204,22 +205,28 @@ export async function POST(request: Request) {
 
   const generationId = crypto.randomUUID();
   const provider = createImageProvider({
-    provider: providerConfig.settings.provider,
-    apiKey: providerConfig.apiKey,
-    baseUrl: providerConfig.settings.baseUrl,
-    model: providerConfig.settings.model,
+    provider: imageConfig.provider,
+    apiKey,
+    baseUrl: imageConfig.endpoint,
+    model: imageConfig.model,
     supportsReferenceImage: capabilities.supportsReferenceImages,
     capabilities,
   });
 
-  const generated = await provider.generateCabiImage({
-    scene: plan.scene,
-    aspectRatio,
-    quality: providerConfig.settings.defaultQuality,
-    seed: plan.seed ?? undefined,
-    negativePrompt: plan.negative,
-    referenceImages: plan.referenceImages,
-    preparedPrompt: plan.prompt,
+  const generated = await executeImageGeneration({
+    source: "HTTP_GENERATION",
+    config: imageConfig,
+    provider,
+    referenceVersion: plan.reference.version,
+    request: {
+      scene: plan.scene,
+      aspectRatio,
+      quality: imageConfig.quality,
+      seed: plan.seed ?? undefined,
+      negativePrompt: plan.negative,
+      referenceImages: plan.referenceImages,
+      preparedPrompt: plan.prompt,
+    },
   });
 
   // Metadata recorded on every row: which reference produced it, what varied, and
@@ -230,7 +237,7 @@ export async function POST(request: Request) {
     outfit: plan.outfit,
     reference_version: plan.reference.version,
     seed: plan.seed,
-    reference_conditioned: plan.capabilities.referenceConditioning,
+    reference_conditioned: generated.referenceConditioned,
   };
 
   if (!generated.ok) {
@@ -242,8 +249,8 @@ export async function POST(request: Request) {
       conversation_id: conversationId ?? null,
       user_prompt: prompt,
       aspect_ratio: aspectRatio,
-      provider: providerConfig.settings.provider,
-      model: providerConfig.settings.model,
+      provider: imageConfig.provider,
+      model: imageConfig.model,
       status: "FAILED",
       failure_code: generated.error,
       idempotency_key: idempotencyKey ?? null,
@@ -251,11 +258,11 @@ export async function POST(request: Request) {
     });
     const status = generated.error === "RATE_LIMITED" ? 429 : generated.error === "TIMEOUT" ? 504 : 502;
     // A rate limit is not a failure to report as one: it is Cabi asking for a
-    // moment. Anything else leads with her own line and offers a retry, while the
-    // specific reason travels alongside it for the message body.
-    const message = generated.error === "RATE_LIMITED" ? generated.message : imageFailureMessage;
+    // moment. Anything else leads with her own line and offers a retry; provider
+    // details stay in the server-side generation row and diagnostics only.
+    const message = generated.error === "RATE_LIMITED" ? "I am still drawing that one. Try again in a moment." : imageFailureMessage;
     return Response.json(
-      { type: "chat_response", message, reason: generated.message, retryable: true, retryLabel: "Try Again" },
+      { type: "chat_response", message, retryable: true, retryLabel: "Try Again" },
       { status, headers: { "Cache-Control": "private, no-store" } },
     );
   }

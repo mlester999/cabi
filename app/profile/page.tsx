@@ -31,20 +31,20 @@ export default async function ProfilePage() {
     <main className="cabi-noise min-h-[100dvh] overflow-x-hidden bg-transparent text-white">
       <div className="mx-auto w-full max-w-[820px] px-4 py-6 sm:px-7 sm:py-9">
         <header className="flex items-center gap-3 sm:gap-4">
-          <Link href="/" className="focus-ring grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-white/[0.07] bg-white/[0.03] text-[#a8a3b3] hover:text-white" aria-label="Back to Cabi">
+          <Link href="/" className="focus-ring grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-[var(--cabi-hairline)] bg-[var(--cabi-surface-2)] text-[var(--cabi-text-secondary)] hover:text-white" aria-label="Back to Cabi">
             <ArrowLeft size={18} />
           </Link>
           <div className="min-w-0 flex-1">
             <h1 className="text-xl font-bold tracking-[-0.02em] sm:text-2xl">Your profile</h1>
-            <p className="mt-1 text-xs text-[#a8a3b3]">Rank, lifetime progress, and your bond with Cabi.</p>
+            <p className="mt-1 text-xs text-[var(--cabi-text-secondary)]">Rank, lifetime progress, and your bond with Cabi.</p>
           </div>
         </header>
         {gated.bypassed && <div className="mt-5"><CpuGateBypassNotice /></div>}
 
         {auth.identity ? <ProfileExperience /> : (
-          <div className="glass mt-10 rounded-[26px] p-8 text-center">
+          <div className="glass mt-10 rounded-2xl p-8 text-center">
             <p className="text-sm font-semibold text-white">Connect your wallet first.</p>
-            <p className="mx-auto mt-2 max-w-sm text-xs leading-6 text-[#a8a3b3]">
+            <p className="mx-auto mt-2 max-w-sm text-xs leading-6 text-[var(--cabi-text-secondary)]">
               Your profile, rank and season history live with your wallet, so I need you signed in to show them.
             </p>
           </div>

@@ -115,7 +115,12 @@ async function readImage(payload: TogetherPayload, signal: AbortSignal): Promise
   if (!first) return null;
 
   if (typeof first.url === "string" && first.url.startsWith("https://")) {
-    const response = await fetch(first.url, { signal });
+    // Together's generated URLs are CDN objects. Some of those edges reject a
+    // request with an empty User-Agent even though the generation succeeded.
+    const response = await fetch(first.url, {
+      signal,
+      headers: { "User-Agent": "cabi-cat-partner-unit/1.0", Accept: "image/*" },
+    });
     if (!response.ok) return null;
     const buffer = await response.arrayBuffer();
     return buffer.byteLength > 128 ? new Uint8Array(buffer) : null;
@@ -166,6 +171,16 @@ function sizeForModel(model: ImageModelDefinition, ratio: AspectRatio): { width:
   return { ...sizeForAspectRatio(aspectRatio), aspectRatio };
 }
 
+function isUsableReferenceUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "https:") return false;
+    return !["localhost", "127.0.0.1", "::1"].includes(url.hostname.toLowerCase());
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Builds the Together wire body from the selected registry entry.
  *
@@ -196,11 +211,12 @@ export function buildTogetherRequestBody(
     body.negative_prompt = request.negativePrompt.trim();
   }
 
-  if (definition.supportsReferenceImages && definition.referenceParameter && request.referenceImages?.length) {
+  const reference = request.referenceImages?.find(isUsableReferenceUrl);
+  if (definition.supportsReferenceImages && definition.referenceParameter && reference) {
     if (definition.referenceParameter === "reference_images") {
-      body.reference_images = [...request.referenceImages];
+      body.reference_images = [reference];
     } else {
-      body.image_url = request.referenceImages[0];
+      body.image_url = reference;
     }
   }
 
@@ -246,7 +262,7 @@ export async function generateTogetherImage(
 
     if (!response.ok) {
       const classified = classifyTogetherHttpError(response.status);
-      return { ok: false, ...classified };
+      return { ok: false, ...classified, httpStatus: response.status };
     }
 
     const payload = await response.json().catch(() => null) as TogetherPayload | null;

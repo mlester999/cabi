@@ -20,6 +20,7 @@ import { guardAppApiCpu } from "@/lib/site/guard";
 import { recordChatTurnSocial } from "@/lib/chat/social";
 import { achievementCopy } from "@/lib/ranking/achievements";
 import { generateChatImage } from "@/lib/image-generation/chat";
+import { noticeCard } from "@/lib/actions/cards";
 import { linkGenerationToMessage, readLatestGenerationContext } from "@/lib/image-generation/lifecycle";
 
 export const dynamic = "force-dynamic";
@@ -156,7 +157,17 @@ export async function POST(request: Request) {
       previousImageContext: walletAccountId
         ? await readLatestGenerationContext(walletAccountId, conversationId).catch(() => null)
         : null,
-    }).catch(() => ({ handled: false }) as const),
+    }).catch(() => ({
+      handled: true as const,
+      usedProvider: true,
+      reply: "",
+      card: noticeCard({
+        title: "I could not draw that one",
+        message: "I couldn't make that image right now. You can try again when you're ready.",
+        tone: "error",
+        retry: { label: "Try Again", prompt: parsed.data.message },
+      }),
+    })),
   ]);
   const mood: CabiMood = inferMood({
     phase: "thinking",
@@ -198,8 +209,9 @@ export async function POST(request: Request) {
   // deterministic line that accompanies the picture, so the model is not called.
   const imageReply = image.handled ? image.reply : null;
   const deterministicReply = imageReply ?? (action.skipModel && action.reply ? action.reply : null);
+  const isDeterministic = image.handled || Boolean(action.skipModel && action.reply);
   // Only a request that actually needs the model requires a configured provider.
-  if (!deterministicReply && !config) {
+  if (!isDeterministic && !config) {
     return jsonError("Cabi's AI connection hasn't been configured yet.", 503, "AI_NOT_CONFIGURED");
   }
   // Narrowed once here so the streaming closure does not have to re-check it.
@@ -224,9 +236,9 @@ export async function POST(request: Request) {
       // emitted before any text, exactly like an action card.
       if (card) controller.enqueue(encoder.encode(event("action", { card })));
       try {
-        if (deterministicReply) {
-          text = deterministicReply;
-          emitChunked(controller, deterministicReply);
+        if (isDeterministic) {
+          text = deterministicReply ?? "";
+          if (text) emitChunked(controller, text);
         } else {
           for await (const item of provider.stream({ messages: prompt, signal: request.signal }, activeConfig!)) {
             if (item.type === "text-delta") { text += item.text; controller.enqueue(encoder.encode(event("delta", { text: item.text }))); }
@@ -257,12 +269,14 @@ export async function POST(request: Request) {
           }
           // Usage logging is telemetry, not conversation durability. A logging
           // outage must not turn a correctly saved reply into a failed chat.
-          await db.from("usage_logs").insert({ user_id: profileId, wallet_account_id: walletAccountId, conversation_id: conversationId, provider: deterministicReply ? "cabi-actions" : "deepseek", model: deterministicReply ? "deterministic" : activeConfig?.model ?? "auto", input_tokens: usage?.input ?? null, output_tokens: usage?.output ?? null, latency_ms: Date.now() - started, status: "success" });
+          await db.from("usage_logs").insert({ user_id: profileId, wallet_account_id: walletAccountId, conversation_id: conversationId, provider: isDeterministic ? "cabi-actions" : "deepseek", model: isDeterministic ? "deterministic" : activeConfig?.model ?? "auto", input_tokens: usage?.input ?? null, output_tokens: usage?.output ?? null, latency_ms: Date.now() - started, status: "success" });
         }
         const [memoryIntent, bond] = walletAccountId ? await Promise.all([
           context.memoryEnabled ? applyMemoryIntent(walletAccountId, userMessageId, parsed.data.message) : Promise.resolve({ type: "none" as const }),
           recordConversationBond(walletAccountId, conversationId),
-          context.memoryEnabled ? maybeSummarizeConversation(walletAccountId, conversationId, provider, activeConfig!).catch(() => false) : Promise.resolve(false),
+          context.memoryEnabled && !isDeterministic && activeConfig
+            ? maybeSummarizeConversation(walletAccountId, conversationId, provider, activeConfig).catch(() => false)
+            : Promise.resolve(false),
         ]) : [{ type: "none" as const }, bondFromPoints(0)];
         // Rank and cross-chat memory are recorded after the reply is durable, and
         // never at the cost of it: `recordChatTurnSocial` swallows its own errors.
@@ -298,7 +312,7 @@ export async function POST(request: Request) {
       } catch {
         if (db && walletAccountId && profileId) {
           await db.from("messages").update({ content: text, status: cancelled ? "cancelled" : "failed", updated_at: new Date().toISOString() }).eq("id", assistantMessageId).eq("conversation_id", conversationId);
-          await db.from("usage_logs").insert({ user_id: profileId, wallet_account_id: walletAccountId, conversation_id: conversationId, provider: deterministicReply ? "cabi-actions" : "deepseek", model: deterministicReply ? "deterministic" : activeConfig?.model ?? "auto", latency_ms: Date.now() - started, status: cancelled ? "cancelled" : "failed" });
+          await db.from("usage_logs").insert({ user_id: profileId, wallet_account_id: walletAccountId, conversation_id: conversationId, provider: isDeterministic ? "cabi-actions" : "deepseek", model: isDeterministic ? "deterministic" : activeConfig?.model ?? "auto", latency_ms: Date.now() - started, status: cancelled ? "cancelled" : "failed" });
         }
         if (!cancelled) controller.enqueue(encoder.encode(event("error", { code: "AI_UNAVAILABLE", message: "Looks like my brain needs a second." })));
       } finally { controller.close(); }

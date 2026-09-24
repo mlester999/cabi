@@ -15,7 +15,7 @@ export default function AdminSettingsPage() {
       <SiteModePanel />
       <OwnerWalletsPanel />
       <PrelaunchSettingsPanel />
-      <div className="mt-12 border-t border-white/[0.07] pt-10">
+      <div className="mt-12 border-t border-[var(--cabi-hairline)] pt-10">
         <ConfigPanel
           configKey="app_config"
           eyebrow="Operations"

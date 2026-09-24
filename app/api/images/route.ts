@@ -3,8 +3,9 @@ import { z } from "zod";
 import { getServiceClient } from "@/lib/db/supabase";
 import { checkImageScope } from "@/lib/image-generation/scope";
 import { buildCabiGenerationPlan } from "@/lib/image-generation/plan.server";
-import { createImageProvider, imageCapabilitiesFor } from "@/lib/image-generation/provider";
-import { readImageProviderConfig, readImageSettings } from "@/lib/image-generation/settings";
+import { createImageProvider } from "@/lib/image-generation/provider";
+import { executeImageGeneration } from "@/lib/image-generation/execute";
+import { resolveImageGenerationConfig } from "@/lib/image-generation/settings";
 import { generationBucket, signedImageUrl, uploadGenerationImage } from "@/lib/image-generation/storage";
 import { aspectRatios } from "@/lib/image-generation/types";
 import { awardImageXp, countImageXpToday } from "@/lib/ranking/service";
@@ -52,7 +53,8 @@ export async function POST(request: Request) {
     );
   }
 
-  const settings = await readImageSettings();
+  const imageConfig = await resolveImageGenerationConfig();
+  const settings = imageConfig.settings;
   if (!settings.enabled) return jsonError("Cabi's image studio isn't switched on yet.", 503, "IMAGES_DISABLED");
 
   let wallet = null;
@@ -97,13 +99,10 @@ export async function POST(request: Request) {
     );
   }
 
-  const providerConfig = await readImageProviderConfig();
-  if (!providerConfig) return jsonError("Cabi's image provider hasn't been configured yet.", 503, "IMAGES_NOT_CONFIGURED");
+  const apiKey = imageConfig.apiKey;
+  if (!apiKey) return jsonError("Cabi's image provider hasn't been configured yet.", 503, "IMAGES_NOT_CONFIGURED");
 
-  const capabilities = imageCapabilitiesFor({
-    provider: providerConfig.settings.provider,
-    model: providerConfig.settings.model,
-  });
+  const capabilities = imageConfig.capabilities;
   const planned = await buildCabiGenerationPlan({
     scene: scope.scene,
     aspectRatio: aspectRatio as "1:1" | "16:9" | "9:16",
@@ -113,26 +112,32 @@ export async function POST(request: Request) {
   const plan = planned.plan;
 
   const provider = createImageProvider({
-    provider: providerConfig.settings.provider,
-    apiKey: providerConfig.apiKey,
-    baseUrl: providerConfig.settings.baseUrl,
-    model: providerConfig.settings.model,
+    provider: imageConfig.provider,
+    apiKey,
+    baseUrl: imageConfig.endpoint,
+    model: imageConfig.model,
     supportsReferenceImage: capabilities.supportsReferenceImages,
     capabilities,
   });
 
-  const generated = await provider.generateCabiImage({
-    scene: plan.scene,
-    aspectRatio: aspectRatio as "1:1" | "16:9" | "9:16",
-    quality,
-    seed: plan.seed ?? undefined,
-    negativePrompt: plan.negative,
-    referenceImages: plan.referenceImages,
-    preparedPrompt: plan.prompt,
+  const generated = await executeImageGeneration({
+    source: "HTTP_GENERATION",
+    config: imageConfig,
+    provider,
+    referenceVersion: plan.reference.version,
+    request: {
+      scene: plan.scene,
+      aspectRatio: aspectRatio as "1:1" | "16:9" | "9:16",
+      quality,
+      seed: plan.seed ?? undefined,
+      negativePrompt: plan.negative,
+      referenceImages: plan.referenceImages,
+      preparedPrompt: plan.prompt,
+    },
   });
   const generationMetadata = {
     reference_version: plan.reference.version,
-    reference_conditioned: plan.capabilities.referenceConditioning,
+    reference_conditioned: generated.referenceConditioned,
   };
   if (!generated.ok) {
     // A failed call is recorded as FAILED, which the quota function does not
@@ -142,13 +147,13 @@ export async function POST(request: Request) {
       conversation_id: parsed.data.conversationId ?? null,
       user_prompt: plan.scene,
       aspect_ratio: aspectRatio,
-      provider: providerConfig.settings.provider,
-      model: providerConfig.settings.model,
+      provider: imageConfig.provider,
+      model: imageConfig.model,
       status: "FAILED",
       failure_code: generated.error,
       ...generationMetadata,
     });
-    return jsonError(generated.message, generated.error === "RATE_LIMITED" ? 429 : 502, generated.error);
+    return jsonError(generated.error === "RATE_LIMITED" ? "I am still drawing that one. Try again in a moment." : "That one didn't come out. Want me to try again?", generated.error === "RATE_LIMITED" ? 429 : 502, "IMAGE_GENERATION_FAILED");
   }
 
   const generationId = crypto.randomUUID();

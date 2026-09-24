@@ -89,21 +89,21 @@ export function CpuAccessPanel({
     : (wholeTokensFrom(view.deficit) ?? (balance != null && view.minimumBalance > balance ? view.minimumBalance - balance : null));
 
   return (
-    <div className="w-full rounded-[26px] border border-violet-200/[0.12] bg-[#0b0912]/95 p-5 shadow-[0_28px_80px_rgba(0,0,0,.55)] sm:rounded-[30px] sm:p-7">
+    <div className="w-full rounded-2xl border border-violet-200/[0.12] bg-[var(--cabi-bg-deep)]/95 p-5 shadow-[0_28px_80px_rgba(0,0,0,.55)] sm:rounded-2xl sm:p-7">
       <div className="flex items-center gap-3">
-        <MiniCabi className="h-11 w-11 rounded-[16px]" />
+        <MiniCabi className="h-11 w-11 rounded-xl" />
         <div className="min-w-0 flex-1">
-          <p className="text-[10px] font-semibold uppercase tracking-[.22em] text-violet-300">Cabi Holder Access</p>
-          <p className="mt-1 truncate text-sm text-[#a8a3b3]">
+          <p className="text-[10px] font-semibold uppercase tracking-[.22em] text-[var(--cabi-primary)]">Cabi Holder Access</p>
+          <p className="mt-1 truncate text-sm text-[var(--cabi-text-secondary)]">
             {view.required ? `${view.required} $${symbol} required` : "Holder requirement"}
           </p>
         </div>
-        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-violet-200/15 bg-violet-300/[0.07] text-violet-200">
+        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-violet-200/15 bg-violet-300/[0.07] text-[var(--cabi-primary)]">
           <Coins size={16} />
         </span>
       </div>
 
-      <p className="mt-5 text-balance text-[15px] leading-6 text-[#d8d4df] sm:text-base">
+      <p className="mt-5 text-balance text-[15px] leading-6 text-[var(--cabi-text-secondary)] sm:text-base">
         {signedOut
           ? `Cabi is currently available to holders of at least ${view.required ? `${view.required} $${symbol}` : `the required $${symbol}`}. Connect your wallet to check.`
           : view.reason === "CPU_CHECK_FAILED"
@@ -127,7 +127,7 @@ export function CpuAccessPanel({
         )}
       </dl>
 
-      <p className="mt-4 text-[12.5px] leading-5 text-[#777180]">
+      <p className="mt-4 text-[12.5px] leading-5 text-[var(--cabi-text-muted)]">
         Grab ${symbol} on Clank.trade, then come back and check your balance again.
       </p>
 
@@ -142,7 +142,7 @@ export function CpuAccessPanel({
           <button
             type="button"
             onClick={onConnect}
-            className="focus-ring flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-[#c4b5fd] to-[#a78bfa] text-sm font-semibold text-[#160f27] shadow-[0_14px_40px_rgba(139,92,246,.22)] hover:brightness-105"
+            className="focus-ring flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-[var(--cabi-primary)] to-[var(--cabi-primary-strong)] text-sm font-semibold text-[var(--cabi-on-primary)] shadow-[0_14px_40px_rgba(139,92,246,.22)] hover:brightness-105"
           >
             <Wallet size={16} /> Connect Wallet
           </button>
@@ -154,7 +154,7 @@ export function CpuAccessPanel({
           target="_blank"
           rel="noopener noreferrer"
           onClick={onBuy}
-          className="focus-ring flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-[#c4b5fd] to-[#a78bfa] text-sm font-semibold text-[#160f27] shadow-[0_14px_40px_rgba(139,92,246,.22)] hover:brightness-105"
+          className="focus-ring flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-[var(--cabi-primary)] to-[var(--cabi-primary-strong)] text-sm font-semibold text-[var(--cabi-on-primary)] shadow-[0_14px_40px_rgba(139,92,246,.22)] hover:brightness-105"
         >
           {buying ? <LoaderCircle size={16} className="animate-spin" /> : <ExternalLink size={16} />} {signedOut ? `Buy $${symbol}` : `Open $${symbol} on Clank.trade`}
         </a>
@@ -164,7 +164,7 @@ export function CpuAccessPanel({
               type="button"
               onClick={onCheckAgain}
               disabled={checking}
-              className="focus-ring flex h-12 w-full items-center justify-center gap-2 rounded-2xl border border-white/[0.1] bg-white/[0.04] text-sm font-semibold text-white hover:bg-white/[0.07] disabled:opacity-50"
+              className="focus-ring flex h-12 w-full items-center justify-center gap-2 rounded-2xl border border-[var(--cabi-border)] bg-[var(--cabi-surface-2)] text-sm font-semibold text-white hover:bg-[var(--cabi-surface-3)] disabled:opacity-50"
             >
               {checking
                 ? <><LoaderCircle size={16} className="animate-spin" /> Checking balance…</>
@@ -173,7 +173,7 @@ export function CpuAccessPanel({
             <button
               type="button"
               onClick={onDisconnect}
-              className="focus-ring flex h-11 w-full items-center justify-center gap-2 rounded-2xl text-xs font-semibold text-[#8e889b] hover:bg-white/[0.04] hover:text-white"
+              className="focus-ring flex h-11 w-full items-center justify-center gap-2 rounded-2xl text-xs font-semibold text-[var(--cabi-text-muted)] hover:bg-[var(--cabi-surface-2)] hover:text-white"
             >
               <LogOut size={14} /> Disconnect Wallet
             </button>
@@ -181,9 +181,9 @@ export function CpuAccessPanel({
         )}
       </div>
 
-      <details className="mt-5 rounded-2xl border border-white/[0.06] bg-white/[0.02] px-3 py-2.5">
-        <summary className="cursor-pointer text-xs font-semibold text-[#a8a3b3]">How to get access</summary>
-        <ol className="mt-3 space-y-1.5 pl-4 text-[12px] leading-5 text-[#8e889b] [list-style:decimal]">
+      <details className="mt-5 rounded-2xl border border-[var(--cabi-hairline)] bg-[var(--cabi-surface-1)] px-3 py-2.5">
+        <summary className="cursor-pointer text-xs font-semibold text-[var(--cabi-text-secondary)]">How to get access</summary>
+        <ol className="mt-3 space-y-1.5 pl-4 text-[12px] leading-5 text-[var(--cabi-text-muted)] [list-style:decimal]">
           <li>Open ${symbol} on Clank.trade.</li>
           <li>Connect your EVM wallet there.</li>
           <li>Buy enough ${symbol} to reach {view.required ? `${view.required} $${symbol}` : `the required amount`}.</li>
@@ -192,8 +192,8 @@ export function CpuAccessPanel({
         </ol>
       </details>
 
-      <p className="mt-4 flex items-start gap-2 text-[11px] leading-5 text-[#625d6d]">
-        <ShieldCheck size={13} className="mt-0.5 shrink-0 text-violet-300" />
+      <p className="mt-4 flex items-start gap-2 text-[11px] leading-5 text-[var(--cabi-text-faint)]">
+        <ShieldCheck size={13} className="mt-0.5 shrink-0 text-[var(--cabi-primary)]" />
         Cabi reads your ${symbol} balance directly from the official contract on the server. Buying opens Clank.trade in a new tab and never sends a transaction from here.
       </p>
     </div>
@@ -202,9 +202,9 @@ export function CpuAccessPanel({
 
 function Row({ icon, label, value, mono = false, emphasis = false }: { icon: React.ReactNode; label: string; value: string; mono?: boolean; emphasis?: boolean }) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 rounded-2xl border border-white/[0.06] bg-white/[0.025] px-3.5 py-2.5">
-      <dt className="flex items-center gap-2 text-[11px] uppercase tracking-[.13em] text-[#706a7d]">{icon}{label}</dt>
-      <dd className={`min-w-0 break-all text-right text-sm font-semibold ${emphasis ? "text-violet-100" : "text-white"} ${mono ? "font-mono text-[13px]" : ""}`}>{value}</dd>
+    <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 rounded-2xl border border-[var(--cabi-hairline)] bg-[var(--cabi-surface-1)] px-3.5 py-2.5">
+      <dt className="flex items-center gap-2 text-[11px] uppercase tracking-[.13em] text-[var(--cabi-text-muted)]">{icon}{label}</dt>
+      <dd className={`min-w-0 break-all text-right text-sm font-semibold ${emphasis ? "text-[var(--cabi-text-secondary)]" : "text-white"} ${mono ? "font-mono text-[13px]" : ""}`}>{value}</dd>
     </div>
   );
 }
@@ -412,7 +412,7 @@ export function CpuSignedOutGate({
   };
 
   return (
-    <div className={`relative flex w-full items-center justify-center overflow-x-hidden px-4 ${initial?.overlay ? "absolute inset-0 z-[60] bg-[#07070d]/92 backdrop-blur-md" : "min-h-[100dvh] py-10"}`}>
+    <div className={`relative flex w-full items-center justify-center overflow-x-hidden px-4 ${initial?.overlay ? "absolute inset-0 z-[60] bg-[var(--cabi-bg)]/92 backdrop-blur-md" : "min-h-[100dvh] py-10"}`}>
       <div className="pointer-events-none absolute left-1/2 top-1/4 h-[380px] w-[380px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-violet-500/[0.12] blur-[90px]" />
       <div className="relative w-full max-w-[440px]">
         <CpuAccessPanel

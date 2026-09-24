@@ -69,22 +69,22 @@ export function MyCabiImages() {
     }
   };
 
-  if (phase === "loading") return <p className="mt-4 text-sm text-[#a8a3b3]" role="status">Loading your Cabi images...</p>;
+  if (phase === "loading") return <p className="mt-4 text-sm text-[var(--cabi-text-secondary)]" role="status">Loading your Cabi images...</p>;
 
   if (phase === "error") {
     return (
-      <div className="mt-4 rounded-2xl border border-white/[0.07] bg-white/[0.02] p-5 text-center">
-        <p className="text-sm text-[#d5d0de]">I couldn&apos;t load your images just now.</p>
-        <button type="button" onClick={() => void load()} className="focus-ring mt-3 inline-flex h-9 items-center rounded-xl border border-white/[0.08] bg-white/[0.03] px-4 text-xs font-semibold">Try again</button>
+      <div className="mt-4 rounded-2xl border border-[var(--cabi-hairline)] bg-[var(--cabi-surface-1)] p-5 text-center">
+        <p className="text-sm text-[var(--cabi-text-secondary)]">I couldn&apos;t load your images just now.</p>
+        <button type="button" onClick={() => void load()} className="focus-ring mt-3 inline-flex h-9 items-center rounded-xl border border-[var(--cabi-hairline)] bg-[var(--cabi-surface-2)] px-4 text-xs font-semibold">Try again</button>
       </div>
     );
   }
 
   if (images.length === 0) {
     return (
-      <div className="mt-4 rounded-2xl border border-white/[0.07] bg-white/[0.02] p-5 text-center">
+      <div className="mt-4 rounded-2xl border border-[var(--cabi-hairline)] bg-[var(--cabi-surface-1)] p-5 text-center">
         <p className="text-sm font-semibold text-white">No Cabi images yet.</p>
-        <p className="mx-auto mt-2 max-w-xs text-xs leading-6 text-[#a8a3b3]">
+        <p className="mx-auto mt-2 max-w-xs text-xs leading-6 text-[var(--cabi-text-secondary)]">
           Ask me in chat, like &ldquo;make a picture of you drinking coffee&rdquo;, and it will show up here.
         </p>
       </div>
@@ -93,28 +93,28 @@ export function MyCabiImages() {
 
   return (
     <div className="mt-4">
-      {notice ? <p role="status" className="mb-3 text-[11px] text-violet-200">{notice}</p> : null}
+      {notice ? <p role="status" className="mb-3 text-[11px] text-[var(--cabi-primary)]">{notice}</p> : null}
       {quota ? (
-        <p className="mb-3 text-[10px] text-[#777180]">
-          Cabi Images <span className="text-[#a8a3b3]">{quota.used} / {quota.dailyLimit}</span> used today
+        <p className="mb-3 text-[10px] text-[var(--cabi-text-muted)]">
+          Cabi Images <span className="text-[var(--cabi-text-secondary)]">{quota.used} / {quota.dailyLimit}</span> used today
         </p>
       ) : null}
-      {quota ? <p className="mb-3 text-[11px] text-[#706a7d]">{quota.remaining} image{quota.remaining === 1 ? "" : "s"} left today</p> : null}
+      {quota ? <p className="mb-3 text-[11px] text-[var(--cabi-text-muted)]">{quota.remaining} image{quota.remaining === 1 ? "" : "s"} left today</p> : null}
       <ul className="grid gap-3 sm:grid-cols-3">
         {images.map((image) => (
-          <li key={image.id} className="overflow-hidden rounded-2xl border border-white/[0.07] bg-white/[0.02]">
+          <li key={image.id} className="overflow-hidden rounded-2xl border border-[var(--cabi-hairline)] bg-[var(--cabi-surface-1)]">
             {image.url ? (
               // eslint-disable-next-line @next/next/no-img-element -- signed, short-lived storage URLs.
               <img src={image.url} alt={image.prompt} className="aspect-square w-full bg-black/40 object-cover" loading="lazy" />
             ) : null}
             <div className="p-2.5">
-              <p className="line-clamp-2 text-[11px] leading-5 text-[#d5d0de]">{image.prompt}</p>
-              <p className="mt-1 text-[10px] text-[#625d6d]">{new Date(image.createdAt).toLocaleDateString()}</p>
+              <p className="line-clamp-2 text-[11px] leading-5 text-[var(--cabi-text-secondary)]">{image.prompt}</p>
+              <p className="mt-1 text-[10px] text-[var(--cabi-text-faint)]">{new Date(image.createdAt).toLocaleDateString()}</p>
               <div className="mt-2 flex items-center gap-1.5">
                 <a
                   href={image.url ?? "#"}
                   download={`cabi-${image.id}.png`}
-                  className="focus-ring grid h-8 w-8 place-items-center rounded-lg border border-white/[0.08] bg-white/[0.03] text-[#8e889b] hover:text-white"
+                  className="focus-ring grid h-8 w-8 place-items-center rounded-lg border border-[var(--cabi-hairline)] bg-[var(--cabi-surface-2)] text-[var(--cabi-text-muted)] hover:text-white"
                   aria-label={`Download image: ${image.prompt}`}
                 >
                   <Download size={12} />
@@ -123,7 +123,7 @@ export function MyCabiImages() {
                     safety checks and daily allowance rather than a hidden path. */}
                 <a
                   href={`/?regenerate=${encodeURIComponent(image.prompt)}`}
-                  className="focus-ring grid h-8 w-8 place-items-center rounded-lg border border-white/[0.08] bg-white/[0.03] text-[#8e889b] hover:text-white"
+                  className="focus-ring grid h-8 w-8 place-items-center rounded-lg border border-[var(--cabi-hairline)] bg-[var(--cabi-surface-2)] text-[var(--cabi-text-muted)] hover:text-white"
                   aria-label={`Regenerate image: ${image.prompt}`}
                 >
                   <RefreshCw size={12} />
@@ -132,7 +132,7 @@ export function MyCabiImages() {
                   type="button"
                   onClick={() => void remove(image.id)}
                   disabled={busy === image.id}
-                  className="focus-ring grid h-8 w-8 place-items-center rounded-lg border border-white/[0.08] bg-white/[0.03] text-[#8e889b] hover:text-rose-200 disabled:opacity-40"
+                  className="focus-ring grid h-8 w-8 place-items-center rounded-lg border border-[var(--cabi-hairline)] bg-[var(--cabi-surface-2)] text-[var(--cabi-text-muted)] hover:text-rose-200 disabled:opacity-40"
                   aria-label={`Delete image: ${image.prompt}`}
                 >
                   <Trash2 size={12} />

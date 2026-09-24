@@ -83,12 +83,12 @@ export function PrelaunchSettingsPanel() {
       />
       {!databaseReady && <Banner>Connect Supabase before saving. These defaults are what the public page currently renders.</Banner>}
 
-      <div className="mt-7 rounded-[24px] border border-white/[0.065] bg-[#0e0c15] p-5">
+      <div className="mt-7 rounded-2xl border border-[var(--cabi-hairline)] bg-[var(--cabi-surface)] p-5">
         <div className="grid gap-5 lg:grid-cols-2">
           {fields.map((field) => (
             <label key={field.key} className={field.kind === "textarea" ? "lg:col-span-2" : ""}>
-              <span className="text-xs font-medium text-[#a8a3b3]">{field.label}</span>
-              {field.help && <span className="ml-2 text-[10px] text-[#625d6d]">{field.help}</span>}
+              <span className="text-xs font-medium text-[var(--cabi-text-secondary)]">{field.label}</span>
+              {field.help && <span className="ml-2 text-[10px] text-[var(--cabi-text-faint)]">{field.help}</span>}
 
               {field.kind === "textarea" ? (
                 <textarea
@@ -105,7 +105,7 @@ export function PrelaunchSettingsPanel() {
                     onChange={(event) => setValue({ ...value, [field.key]: event.target.checked })}
                     className="accent-violet-300"
                   />
-                  <span className="text-xs text-[#777180]">{Boolean(value[field.key]) ? "Visible on the prelaunch page" : "Hidden"}</span>
+                  <span className="text-xs text-[var(--cabi-text-muted)]">{Boolean(value[field.key]) ? "Visible on the prelaunch page" : "Hidden"}</span>
                 </span>
               ) : field.kind === "chips" ? (
                 <input
@@ -132,7 +132,7 @@ export function PrelaunchSettingsPanel() {
         <button
           type="button"
           onClick={() => setValue(initial)}
-          className="focus-ring flex h-11 items-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.03] px-4 text-sm"
+          className="focus-ring flex h-11 items-center gap-2 rounded-xl border border-[var(--cabi-hairline)] bg-[var(--cabi-surface-2)] px-4 text-sm"
         >
           <RotateCcw size={15} /> Reset
         </button>
@@ -140,14 +140,14 @@ export function PrelaunchSettingsPanel() {
           type="button"
           disabled={busy || !databaseReady}
           onClick={() => void save()}
-          className="focus-ring flex h-11 items-center gap-2 rounded-xl bg-violet-200 px-4 text-sm font-semibold text-[#160f27] disabled:opacity-40"
+          className="focus-ring flex h-11 items-center gap-2 rounded-xl bg-[var(--cabi-primary)] px-4 text-sm font-semibold text-[var(--cabi-on-primary)] disabled:opacity-40"
         >
           {busy ? <LoaderCircle size={15} className="animate-spin" /> : <Save size={15} />} {busy ? "Saving…" : "Save"}
         </button>
-        <Link href="/" className="focus-ring flex h-11 items-center rounded-xl border border-white/[0.08] bg-white/[0.03] px-4 text-sm text-[#d5d0de] transition hover:bg-white/[0.06]">
+        <Link href="/" className="focus-ring flex h-11 items-center rounded-xl border border-[var(--cabi-hairline)] bg-[var(--cabi-surface-2)] px-4 text-sm text-[var(--cabi-text-secondary)] transition hover:bg-[var(--cabi-surface-3)]">
           Preview public page
         </Link>
-        {notice && <p role="status" className="text-xs text-violet-200">{notice}</p>}
+        {notice && <p role="status" className="text-xs text-[var(--cabi-primary)]">{notice}</p>}
         {error && <p role="alert" className="text-xs text-rose-200">{error}</p>}
       </div>
     </section>

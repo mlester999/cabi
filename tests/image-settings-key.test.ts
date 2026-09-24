@@ -49,6 +49,7 @@ import {
   readImageProviderConfig,
   readStoredImageProviderConfig,
   readImageSettings,
+  resolveImageGenerationConfig,
   writeImageSettings,
 } from "@/lib/image-generation/settings";
 import { togetherImageEndpoint } from "@/lib/ai/image/together";
@@ -156,5 +157,30 @@ describe("image key precedence", () => {
     process.env.TOGETHER_API_KEY = "   ";
 
     expect((await readImageProviderConfig())?.apiKey).toBe("stored-together-key");
+  });
+
+  it("returns one canonical provider snapshot for the saved model and limits", async () => {
+    await writeImageSettings({ ...settings, dailyLimit: 7, defaultQuality: "high" }, "owner@example.test", "stored-together-key");
+    const resolved = await resolveImageGenerationConfig();
+    expect(resolved).toMatchObject({
+      provider: "together",
+      model: "Qwen/Qwen-Image-2.0",
+      endpoint: togetherImageEndpoint,
+      apiKey: "stored-together-key",
+      apiKeySource: "admin",
+      aspectRatio: "1:1",
+      quality: "high",
+      limits: { daily: 7, allowGuestGeneration: false },
+    });
+    expect(resolved.capabilities).toMatchObject({ supportsReferenceImages: true, supportsSeed: true });
+  });
+
+  it("reads fresh settings on every resolution and can overlay only the admin test selection", async () => {
+    await writeImageSettings({ ...settings, model: "Qwen/Qwen-Image-2.0-Pro" }, "owner@example.test", "stored-together-key");
+    const saved = await resolveImageGenerationConfig();
+    const liveTest = await resolveImageGenerationConfig({ provider: "together", model: "Qwen/Qwen-Image-2.0" });
+    expect(saved.model).toBe("Qwen/Qwen-Image-2.0-Pro");
+    expect(liveTest.model).toBe("Qwen/Qwen-Image-2.0");
+    expect(liveTest.apiKey).toBe("stored-together-key");
   });
 });

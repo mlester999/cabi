@@ -3,11 +3,12 @@ import "server-only";
 import { env } from "@/lib/config/env";
 import { getServiceClient } from "@/lib/db/supabase";
 import { decryptSecret, encryptSecret, type SecretEnvelope } from "@/lib/security/crypto";
-import { imageModelFor, imageProviderFor, recommendedImageModel } from "@/lib/image-generation/registry";
+import { imageCapabilitiesForModel, imageModelFor, imageProviderFor, recommendedImageModel } from "@/lib/image-generation/registry";
 import {
   defaultImageSettings,
   type AspectRatio,
   type ImageGenerationSettings,
+  type ImageProviderCapabilities,
   type ImageProviderId,
   type ImageQuality,
 } from "@/lib/image-generation/types";
@@ -32,6 +33,29 @@ const imageSecretAad = `cabi:secret_settings:${imageSecretKey}:v1`;
 const togetherImageEndpoint = imageProviderFor("together")!.endpoint;
 
 export type ImageApiKeySource = "admin" | "environment";
+
+/**
+ * One server-side snapshot used by every image entry point.
+ *
+ * The snapshot deliberately contains both the browser-safe settings shape and
+ * the decrypted key. It never crosses an HTTP boundary; callers use it to make
+ * one provider request with one selected model and one set of capabilities.
+ */
+export type ResolvedImageGenerationConfig = {
+  settings: ImageSettingsInput;
+  provider: ImageProviderId;
+  model: string;
+  endpoint: string;
+  apiKey: string | null;
+  apiKeySource: ImageApiKeySource | null;
+  capabilities: ImageProviderCapabilities;
+  aspectRatio: AspectRatio;
+  quality: ImageQuality;
+  limits: {
+    daily: number;
+    allowGuestGeneration: boolean;
+  };
+};
 
 /** The only masked-key shape the admin UI is allowed to display. */
 const maskedImageApiKeyPattern = /^[•·*…]{4,}[A-Za-z0-9]{4}$/u;
@@ -262,15 +286,50 @@ export async function readStoredImageProviderConfig(): Promise<ImageProviderConf
  * The environment is only a Together fallback and never borrows chat config.
  */
 export async function readImageProviderConfig(): Promise<ImageProviderConfig | null> {
+  const resolved = await resolveImageGenerationConfig();
+  if (!resolved.apiKey) return null;
+  return {
+    settings: resolved.settings,
+    apiKey: resolved.apiKey,
+    apiKeySource: resolved.apiKeySource ?? "environment",
+  };
+}
+
+/**
+ * Resolves the live image configuration without a cache window.
+ *
+ * An optional selection is used only by the admin connection test so it can
+ * test the model currently shown in the form. Normal generation uses the saved
+ * selection. In both cases the endpoint, key source, model, capabilities and
+ * limits come from this one function.
+ */
+export async function resolveImageGenerationConfig(selection?: { provider?: string; model?: string }): Promise<ResolvedImageGenerationConfig> {
   const stored = await readStoredImageProviderConfig();
-  if (stored) return stored;
+  const savedSettings = stored?.settings ?? parseImageSettings(await readImageSettings());
+  const settings = parseImageSettings({
+    ...savedSettings,
+    ...(selection?.provider !== undefined ? { provider: selection.provider } : {}),
+    ...(selection?.model !== undefined ? { model: selection.model } : {}),
+  });
+  const environmentKey = settings.provider === "together" ? resolveEnvironmentTogetherApiKey() : null;
+  const apiKey = stored?.apiKey ?? environmentKey;
+  const capabilities = imageCapabilitiesForModel({ provider: settings.provider, model: settings.model });
 
-  const environmentKey = resolveEnvironmentTogetherApiKey();
-  if (!environmentKey) return null;
-
-  const settings = await readImageSettings();
-  if (settings.provider !== "together") return null;
-  return { settings: parseImageSettings(settings), apiKey: environmentKey, apiKeySource: "environment" };
+  return {
+    settings,
+    provider: settings.provider,
+    model: settings.model,
+    endpoint: settings.baseUrl,
+    apiKey,
+    apiKeySource: stored?.apiKey ? "admin" : environmentKey ? "environment" : null,
+    capabilities,
+    aspectRatio: settings.defaultAspectRatio,
+    quality: settings.defaultQuality,
+    limits: {
+      daily: settings.dailyLimit,
+      allowGuestGeneration: settings.allowGuestGeneration,
+    },
+  };
 }
 
 export async function writeImageSettings(input: ImageSettingsInput, actor: string, apiKey?: string) {

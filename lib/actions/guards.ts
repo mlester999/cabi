@@ -59,6 +59,11 @@ const baseSchema = {
   requiresConfirmation: z.boolean().optional(),
   tone: z.enum(["neutral", "caution", "error"]).optional(),
   message: z.string().max(600).optional(),
+  retry: z.object({
+    label: z.string().max(40),
+    prompt: z.string().min(1).max(600),
+    parentGenerationId: z.string().uuid().optional(),
+  }).optional(),
 };
 
 export const actionCardSchema = z.discriminatedUnion("kind", [

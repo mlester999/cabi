@@ -1,6 +1,5 @@
 import "server-only";
 
-import { publicAppUrl } from "@/lib/config/env";
 import {
   type CabiExpression,
   type CabiOutfit,
@@ -9,7 +8,7 @@ import {
 } from "@/lib/cabi/image-identity";
 import { cabiIdentityLayers, readCabiCharacterBible } from "@/lib/cabi/character-bible.server";
 import { resolveCabiReference } from "@/lib/cabi/reference/resolve.server";
-import { cabiFallbackReferenceAsset, cabiReferenceUnavailable, type ResolvedCabiReference } from "@/lib/cabi/reference/types";
+import { cabiReferenceUnavailable, type ResolvedCabiReference } from "@/lib/cabi/reference/types";
 import type { AspectRatio } from "@/lib/image-generation/types";
 
 /**
@@ -69,31 +68,24 @@ export type CabiGenerationPlanResult =
 /**
  * The server-controlled image reference for the selected model.
  *
- * A data URL is used for an uploaded reference so the provider does not need a
- * reachable signed URL, and the bundled asset is served from this deployment's own
- * origin. `data:` URLs are only ever built from bytes this server produced.
+ * Together's reference-image endpoints fetch a URL on the provider side. Only a
+ * fresh HTTPS signed URL for an active admin upload is valid here. The bundled
+ * local asset remains the identity fallback in the prompt, but it is not sent as
+ * a provider reference because localhost/deployment-private URLs are not
+ * guaranteed to be reachable by Together.
  */
 export function referenceImageFor(reference: ResolvedCabiReference, modelSupportsReferenceImages: boolean): string[] | undefined {
-  if (!modelSupportsReferenceImages) return undefined;
-
-  if (reference.bytes && reference.bytes.byteLength > 0) {
-    // btoa is unavailable for arbitrary byte strings in every runtime, so the
-    // conversion is done explicitly rather than with a shortcut.
-    let binary = "";
-    const chunk = 0x8000;
-    for (let offset = 0; offset < reference.bytes.byteLength; offset += chunk) {
-      binary += String.fromCharCode(...reference.bytes.subarray(offset, offset + chunk));
-    }
-    return [`data:${reference.mimeType};base64,${btoa(binary)}`];
+  if (!modelSupportsReferenceImages || !reference.conditionable || !reference.signedUrl) return undefined;
+  try {
+    const url = new URL(reference.signedUrl);
+    // Never hand Together a data URL, localhost URL, or plain HTTP URL. The
+    // adapter performs the same validation as a final defense-in-depth check.
+    if (url.protocol !== "https:") return undefined;
+    if (["localhost", "127.0.0.1", "::1"].includes(url.hostname.toLowerCase())) return undefined;
+    return [url.toString()];
+  } catch {
+    return undefined;
   }
-
-  if (reference.source === "BUNDLED") {
-    // The bundled reference lives at a fixed /public path on this deployment.
-    return [`${publicAppUrl().replace(/\/$/u, "")}${cabiFallbackReferenceAsset}`];
-  }
-
-  // An uploaded reference whose bytes could not be read still has a signed URL.
-  return reference.signedUrl ? [reference.signedUrl] : undefined;
 }
 
 /**
@@ -159,8 +151,8 @@ export async function buildCabiGenerationPlan(input: {
         width: reference.width,
         height: reference.height,
       },
-      // The bytes only travel when they can actually be used.
-      referenceBytes: input.modelSupportsReferenceImages && reference.bytes ? reference.bytes : null,
+      // Together receives a signed HTTPS URL, never a data URL or local path.
+      referenceBytes: null,
       referenceImages,
       capabilities: { referenceConditioning: Boolean(referenceImages?.length) },
     },

@@ -70,7 +70,28 @@ vi.mock("@/lib/image-generation/settings", () => ({
       },
       apiKey: "sk-test-not-a-real-key",
     }
-    : null)),
+     : null)),
+  resolveImageGenerationConfig: vi.fn(async () => ({
+    settings: {
+      enabled: mocks.enabled,
+      provider: "together",
+      baseUrl: "https://api.together.xyz/v1/images/generations",
+      model: "Qwen/Qwen-Image-2.0",
+      defaultAspectRatio: "1:1",
+      defaultQuality: "standard",
+      dailyLimit: mocks.dailyLimit,
+      allowGuestGeneration: mocks.allowGuest,
+    },
+    provider: "together",
+    model: "Qwen/Qwen-Image-2.0",
+    endpoint: "https://api.together.xyz/v1/images/generations",
+    apiKey: mocks.hasProvider ? "sk-test-not-a-real-key" : null,
+    apiKeySource: mocks.hasProvider ? "admin" : null,
+    capabilities: { supportsReferenceImages: true, supportsImageToImage: true, supportsSeed: true },
+    aspectRatio: "1:1",
+    quality: "standard",
+    limits: { daily: mocks.dailyLimit, allowGuestGeneration: mocks.allowGuest },
+  })),
 }));
 
 vi.mock("@/lib/image-generation/provider", () => ({
@@ -280,6 +301,9 @@ describe("provider failure", () => {
     // Failure is a transition on the row that was already QUEUED, so the
     // lifecycle has one row moving through states rather than two rows.
     expect(lifecycle.markFailed).toHaveBeenCalledWith(expect.objectContaining({ code: "PROVIDER_ERROR" }));
+    expect(result.reply).toBe("");
+    expect((result.card as Record<string, unknown>).message).not.toContain("I could not draw that one just now");
+    expect((result.card as Record<string, unknown>).retry).toMatchObject({ label: "Try Again", prompt: "Generate a picture of you at the beach" });
     const queued = mocks.inserted.filter((row) => row.status === "QUEUED");
     expect(queued).toHaveLength(1);
     expect(mocks.inserted.every((row) => row.wallet_account_id === wallet.walletAccountId)).toBe(true);

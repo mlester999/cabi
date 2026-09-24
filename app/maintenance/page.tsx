@@ -29,21 +29,21 @@ export default async function MaintenancePage() {
       <div className="cabi-grain" aria-hidden="true" />
 
       <main className="relative z-20 w-full max-w-[520px] text-center">
-        <div className="glass rounded-[30px] p-7 sm:p-9">
+        <div className="glass rounded-2xl p-7 sm:p-9">
           <span className="relative mx-auto grid h-20 w-20 place-items-center">
             <span className="cabi-glow absolute inset-0 rounded-full bg-violet-500/20 blur-2xl" aria-hidden="true" />
             <CabiMascot className="relative h-16 w-16" />
           </span>
-          <p className="mt-6 text-[10px] font-semibold uppercase tracking-[.26em] text-violet-300">Cabi · Cat Partner Unit</p>
+          <p className="mt-6 text-[10px] font-semibold uppercase tracking-[.26em] text-[var(--cabi-primary)]">Cabi · Cat Partner Unit</p>
           <h1 className="mt-3 text-balance text-3xl font-semibold tracking-[-.04em] sm:text-4xl">Cabi is napping.</h1>
-          <p className="mx-auto mt-4 max-w-[24rem] text-pretty text-sm leading-7 text-[#a8a3b3]">
+          <p className="mx-auto mt-4 max-w-[24rem] text-pretty text-sm leading-7 text-[var(--cabi-text-secondary)]">
             She&apos;s briefly offline while some work is finished. Everything you saved is safe — come back in a little
             while.
           </p>
-          <div className="cabi-indeterminate mt-7 h-px w-full rounded-full bg-white/[0.07]" aria-hidden="true" />
+          <div className="cabi-indeterminate mt-7 h-px w-full rounded-full bg-[var(--cabi-surface-3)]" aria-hidden="true" />
           <Link
             href="/"
-            className="focus-ring mx-auto mt-7 inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-violet-200 px-5 text-sm font-semibold text-[#160f27] transition hover:brightness-105"
+            className="focus-ring mx-auto mt-7 inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-[var(--cabi-primary)] px-5 text-sm font-semibold text-[var(--cabi-on-primary)] transition hover:brightness-105"
           >
             <MiniCabi className="h-5 w-5 rounded-lg" decorative /> Try again
           </Link>

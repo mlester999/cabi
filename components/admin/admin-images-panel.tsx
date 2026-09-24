@@ -2,17 +2,21 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  Check,
   CheckCircle2,
   ChevronDown,
   ImagePlus,
   Info,
   LockKeyhole,
+  Minus,
   PlugZap,
   Save,
   ShieldCheck,
   Trash2,
   XCircle,
 } from "lucide-react";
+
+import { Badge as SharedBadge } from "@/components/ui/cabi-primitives";
 
 import { CabiReferencePanel } from "@/components/admin/cabi-reference-panel";
 import {
@@ -190,10 +194,10 @@ export function AdminImagesPanel() {
     }
   };
 
-  if (phase === "loading") return <p className="mt-8 text-sm text-[#a8a3b3]" role="status">Loading image settings...</p>;
+  if (phase === "loading") return <p className="mt-8 text-sm text-[var(--cabi-text-secondary)]" role="status">Loading image settings...</p>;
 
-  const field = "focus-ring h-11 w-full rounded-xl border border-white/[0.09] bg-white/[0.03] px-3 text-sm text-white";
-  const label = "block text-[10px] font-semibold uppercase tracking-[.14em] text-[#777180]";
+  const field = "focus-ring h-11 w-full rounded-xl border border-[var(--cabi-border)] bg-[var(--cabi-surface-2)] px-3 text-sm text-white";
+  const label = "block text-[10px] font-semibold uppercase tracking-[.14em] text-[var(--cabi-text-muted)]";
   const providerLabel = providers.find((entry) => entry.id === settings.provider)?.label ?? "Together AI";
 
   return (
@@ -201,31 +205,31 @@ export function AdminImagesPanel() {
       {notice ? (
         <p
           role={notice.tone === "error" ? "alert" : "status"}
-          className={`rounded-xl border px-3 py-2 text-xs ${notice.tone === "success" ? "border-emerald-300/[0.18] bg-emerald-300/[0.06] text-emerald-100" : notice.tone === "error" ? "border-rose-300/[0.2] bg-rose-300/[0.06] text-rose-100" : "border-violet-200/[0.16] bg-violet-300/[0.06] text-violet-100"}`}
+          className={`rounded-xl border px-3 py-2 text-xs ${notice.tone === "success" ? "border-emerald-300/[0.18] bg-emerald-300/[0.06] text-emerald-100" : notice.tone === "error" ? "border-rose-300/[0.2] bg-rose-300/[0.06] text-rose-100" : "border-violet-200/[0.16] bg-violet-300/[0.06] text-[var(--cabi-text-secondary)]"}`}
         >
           {notice.message}
         </p>
       ) : null}
 
-      <section className="rounded-[22px] border border-violet-200/[0.12] bg-white/[0.02] p-5">
+      <section className="rounded-2xl border border-violet-200/[0.12] bg-[var(--cabi-surface-1)] p-5">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <h2 className="flex items-center gap-2 text-sm font-bold text-white"><ImagePlus size={15} className="text-violet-300" aria-hidden="true" /> CABI IMAGE GENERATION</h2>
-            <p className="mt-1.5 max-w-2xl text-[11px] leading-5 text-[#777180]">
+            <h2 className="flex items-center gap-2 text-sm font-bold text-white"><ImagePlus size={15} className="text-[var(--cabi-primary)]" aria-hidden="true" /> CABI IMAGE GENERATION</h2>
+            <p className="mt-1.5 max-w-2xl text-[11px] leading-5 text-[var(--cabi-text-muted)]">
               Configure Cabi&apos;s dedicated image studio. The selected model, official reference, and generation limits are applied server-side for every image.
             </p>
           </div>
-          <span className="rounded-full border border-violet-200/[0.14] bg-violet-300/[0.08] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[.12em] text-violet-200">Owner controls</span>
+          <span className="rounded-full border border-violet-200/[0.14] bg-violet-300/[0.08] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[.12em] text-[var(--cabi-primary)]">Owner controls</span>
         </div>
 
         <div className="mt-5 grid gap-2 sm:grid-cols-2">
-          <label className="flex items-center gap-3 rounded-xl border border-white/[0.07] bg-white/[0.02] px-3 py-3">
+          <label className="flex items-center gap-3 rounded-xl border border-[var(--cabi-hairline)] bg-[var(--cabi-surface-1)] px-3 py-3">
             <input type="checkbox" checked={settings.enabled} onChange={(event) => setSettings({ ...settings, enabled: event.target.checked })} className="focus-ring h-4 w-4 accent-violet-400" />
-            <span><span className="block text-[13px] font-medium text-white">Enable image generation</span><span className="mt-0.5 block text-[11px] text-[#777180]">Turn the Cabi image studio on for the app.</span></span>
+            <span><span className="block text-[13px] font-medium text-white">Enable image generation</span><span className="mt-0.5 block text-[11px] text-[var(--cabi-text-muted)]">Turn the Cabi image studio on for the app.</span></span>
           </label>
-          <label className="flex items-center gap-3 rounded-xl border border-white/[0.07] bg-white/[0.02] px-3 py-3">
+          <label className="flex items-center gap-3 rounded-xl border border-[var(--cabi-hairline)] bg-[var(--cabi-surface-1)] px-3 py-3">
             <input type="checkbox" checked={settings.allowGuestGeneration} onChange={(event) => setSettings({ ...settings, allowGuestGeneration: event.target.checked })} className="focus-ring h-4 w-4 accent-violet-400" />
-            <span><span className="block text-[13px] font-medium text-white">Allow guests to generate</span><span className="mt-0.5 block text-[11px] text-[#777180]">Off by default; generation costs are quota-controlled.</span></span>
+            <span><span className="block text-[13px] font-medium text-white">Allow guests to generate</span><span className="mt-0.5 block text-[11px] text-[var(--cabi-text-muted)]">Off by default; generation costs are quota-controlled.</span></span>
           </label>
         </div>
 
@@ -236,9 +240,9 @@ export function AdminImagesPanel() {
               <select aria-label="Provider" value={settings.provider} onChange={(event) => changeProvider(event.target.value)} className={`${field} appearance-none pr-10`}>
                 {providers.map((provider) => <option key={provider.id} value={provider.id}>{provider.label}</option>)}
               </select>
-              <ChevronDown size={15} className="pointer-events-none absolute right-3 top-3.5 text-[#777180]" aria-hidden="true" />
+              <ChevronDown size={15} className="pointer-events-none absolute right-3 top-3.5 text-[var(--cabi-text-muted)]" aria-hidden="true" />
             </span>
-            <span className="mt-1.5 block text-[11px] text-[#625d6d]">{providers.find((entry) => entry.id === settings.provider)?.description ?? "Verified provider catalog."}</span>
+            <span className="mt-1.5 block text-[11px] text-[var(--cabi-text-faint)]">{providers.find((entry) => entry.id === settings.provider)?.description ?? "Verified provider catalog."}</span>
           </label>
           <label className="block">
             <span className={label}>Model</span>
@@ -246,13 +250,13 @@ export function AdminImagesPanel() {
               <select aria-label="Model" value={settings.model} onChange={(event) => changeModel(event.target.value)} className={`${field} appearance-none pr-10`}>
                 {models.filter((entry) => entry.provider === settings.provider).map((model) => <option key={model.id} value={model.id}>{model.label}{model.badges[0] ? ` · ${model.badges[0]}` : ""}</option>)}
               </select>
-              <ChevronDown size={15} className="pointer-events-none absolute right-3 top-3.5 text-[#777180]" aria-hidden="true" />
+              <ChevronDown size={15} className="pointer-events-none absolute right-3 top-3.5 text-[var(--cabi-text-muted)]" aria-hidden="true" />
             </span>
             {selectedModel ? (
-              <span className="mt-2 block rounded-xl border border-white/[0.07] bg-white/[0.02] px-3 py-2.5">
+              <span className="mt-2 block rounded-xl border border-[var(--cabi-hairline)] bg-[var(--cabi-surface-1)] px-3 py-2.5">
                 <span className="block text-[12px] font-semibold text-white">{selectedModel.label}</span>
-                <span className="mt-0.5 block text-[11px] leading-5 text-[#8e889b]">{selectedModel.useCase}</span>
-                {selectedModel.qualityNote ? <span className="mt-1 block text-[10px] text-[#625d6d]">{selectedModel.qualityNote}</span> : null}
+                <span className="mt-0.5 block text-[11px] leading-5 text-[var(--cabi-text-muted)]">{selectedModel.useCase}</span>
+                {selectedModel.qualityNote ? <span className="mt-1 block text-[10px] text-[var(--cabi-text-faint)]">{selectedModel.qualityNote}</span> : null}
                 <span className="mt-2 flex flex-wrap gap-1.5">
                   {selectedModel.badges.map((badge) => <Badge key={badge} tone={badge === "Recommended" || badge === "Reference Ready" || badge === "Character Consistency" ? "green" : badge === "Highest Quality" ? "amber" : "violet"}>{badge}</Badge>)}
                 </span>
@@ -264,7 +268,7 @@ export function AdminImagesPanel() {
                   <Capability label="Negative Prompt" supported={selectedModel.supportsNegativePrompt} />
                   <Capability label="Steps" supported={selectedModel.supportsSteps} />
                 </span>
-                <span className="mt-2 block font-mono text-[10px] text-[#625d6d]">{selectedModel.id}</span>
+                <span className="mt-2 block font-mono text-[10px] text-[var(--cabi-text-faint)]">{selectedModel.id}</span>
               </span>
             ) : null}
           </label>
@@ -274,7 +278,7 @@ export function AdminImagesPanel() {
               <ShieldCheck size={15} className="mt-0.5 shrink-0 text-emerald-300" aria-hidden="true" />
               <div>
                 <p className="text-[12px] font-semibold text-emerald-100">Official endpoint and reference are managed automatically</p>
-                <p className="mt-1 text-[11px] leading-5 text-[#8eaa9b]">Together AI uses its verified image endpoint. Cabi&apos;s active reference is attached automatically whenever the selected model supports reference conditioning.</p>
+                <p className="mt-1 text-[11px] leading-5 text-[var(--cabi-success)]">Together AI uses its verified image endpoint. Cabi&apos;s active reference is attached automatically whenever the selected model supports reference conditioning.</p>
               </div>
             </div>
           </div>
@@ -298,15 +302,23 @@ export function AdminImagesPanel() {
           </label>
         </div>
 
-        <div className="mt-5 border-t border-white/[0.06] pt-5">
+        {/* CABI REFERENCE and CABI IDENTITY sit after the model capability report
+            and before the API key: the reference is what keeps Cabi recognizable,
+            and whether it can be conditioned on is a property of the model just
+            selected. */}
+        <div className="mt-6 border-t border-[var(--cabi-hairline)] pt-6">
+          <CabiReferencePanel selectedProvider={settings.provider} selectedModel={settings.model} selectedModelDefinition={selectedModel} />
+        </div>
+
+        <div className="mt-5 border-t border-[var(--cabi-hairline)] pt-5">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <span className={label}>{providerLabel} API Key</span>
-            <span className="inline-flex items-center gap-1.5 text-[10px] text-[#777180]"><LockKeyhole size={12} aria-hidden="true" /> Encrypted at rest</span>
+            <span className="inline-flex items-center gap-1.5 text-[10px] text-[var(--cabi-text-muted)]"><LockKeyhole size={12} aria-hidden="true" /> Encrypted at rest</span>
           </div>
           {settings.hasApiKey && !clearApiKey ? (
             <p className="mt-2 flex items-center gap-2 text-[12px] text-emerald-200"><CheckCircle2 size={13} aria-hidden="true" /> {settings.apiKeySource === "environment" ? "An environment key is configured" : "A key is stored"}, ending {settings.keyLastFour ?? "----"}</p>
           ) : (
-            <p className="mt-2 flex items-center gap-2 text-[12px] text-[#8e889b]"><XCircle size={13} aria-hidden="true" /> No key stored</p>
+            <p className="mt-2 flex items-center gap-2 text-[12px] text-[var(--cabi-text-muted)]"><XCircle size={13} aria-hidden="true" /> No key stored</p>
           )}
           <input
             type="password"
@@ -317,7 +329,7 @@ export function AdminImagesPanel() {
             aria-label={`${providerLabel} API Key`}
             className={`mt-3 ${field}`}
           />
-          <p className="mt-1.5 flex items-start gap-1.5 text-[11px] leading-5 text-[#625d6d]"><Info size={13} className="mt-0.5 shrink-0" aria-hidden="true" /> Only the last four characters are shown after saving. The key is never returned to the browser or logged.</p>
+          <p className="mt-1.5 flex items-start gap-1.5 text-[11px] leading-5 text-[var(--cabi-text-faint)]"><Info size={13} className="mt-0.5 shrink-0" aria-hidden="true" /> Only the last four characters are shown after saving. The key is never returned to the browser or logged.</p>
           {settings.hasApiKey && settings.apiKeySource !== "environment" ? (
             <button type="button" onClick={() => setClearApiKey((current) => !current)} className={`focus-ring mt-2 inline-flex items-center gap-1.5 text-[11px] ${clearApiKey ? "text-emerald-200" : "text-rose-200"}`}>
               <Trash2 size={12} aria-hidden="true" /> {clearApiKey ? "Keep stored key" : "Remove stored key"}
@@ -334,7 +346,11 @@ export function AdminImagesPanel() {
                 <p className={`mt-1 text-[11px] leading-5 ${connection.ok ? "text-emerald-100/75" : "text-rose-100/75"}`}>{connection.message}</p>
                 {connection.ok ? <p className="mt-2 text-[11px] text-emerald-100/80">Model: {imageModelFor(settings.provider, connection.model ?? settings.model)?.label ?? selectedModel?.label ?? settings.model} · Reference conditioning: {connection.referenceConditioning ? "supported" : "not supported"}</p> : null}
                 {connection.diagnostics ? (
-                  <dl className="mt-3 grid gap-x-4 gap-y-1 text-[10px] text-white/60 sm:grid-cols-2">
+                  <details className="mt-3">
+                    <summary className="cabi-focus cursor-pointer text-[11px] text-[var(--cabi-text-muted)] transition-colors hover:text-[var(--cabi-text-secondary)]">
+                      Advanced details
+                    </summary>
+                    <dl className="mt-2 grid gap-x-4 gap-y-1 text-[10px] text-[var(--cabi-text-muted)] sm:grid-cols-2">
                     <div><dt className="uppercase tracking-[.1em] text-white/35">Provider</dt><dd>{connection.diagnostics.provider}</dd></div>
                     <div><dt className="uppercase tracking-[.1em] text-white/35">Provider value</dt><dd>{connection.diagnostics.providerReceived ?? "—"} · {connection.diagnostics.providerValid === undefined ? "—" : connection.diagnostics.providerValid ? "valid" : "invalid"}</dd></div>
                     <div><dt className="uppercase tracking-[.1em] text-white/35">Model value</dt><dd>{connection.diagnostics.modelReceived ?? "—"} · {connection.diagnostics.modelValid === undefined ? "—" : connection.diagnostics.modelValid ? "valid" : "invalid"}</dd></div>
@@ -344,7 +360,8 @@ export function AdminImagesPanel() {
                     <div><dt className="uppercase tracking-[.1em] text-white/35">Request started</dt><dd>{connection.diagnostics.providerRequestStarted === undefined ? "—" : connection.diagnostics.providerRequestStarted ? "Yes" : "No"}</dd></div>
                     <div><dt className="uppercase tracking-[.1em] text-white/35">HTTP status</dt><dd>{connection.diagnostics.httpStatus ?? "—"}</dd></div>
                     <div className="sm:col-span-2"><dt className="uppercase tracking-[.1em] text-white/35">Endpoint</dt><dd className="break-all">{connection.diagnostics.endpoint}</dd></div>
-                  </dl>
+                    </dl>
+                  </details>
                 ) : null}
               </div>
             </div>
@@ -352,42 +369,48 @@ export function AdminImagesPanel() {
         ) : null}
 
         <div className="mt-5 flex flex-wrap gap-3">
-          <button type="button" disabled={busy !== null} onClick={() => void submit("save")} className="focus-ring inline-flex h-11 items-center gap-2 rounded-xl bg-violet-300 px-5 text-sm font-bold text-[#160f22] disabled:opacity-40">
+          <button type="button" disabled={busy !== null} onClick={() => void submit("save")} className="focus-ring inline-flex h-11 items-center gap-2 rounded-xl bg-violet-300 px-5 text-sm font-bold text-[var(--cabi-on-primary)] disabled:opacity-40">
             <Save size={15} aria-hidden="true" /> {busy === "save" ? "Saving..." : "Save settings"}
           </button>
-          <button type="button" disabled={busy !== null} onClick={() => void submit("test")} className="focus-ring inline-flex h-11 items-center gap-2 rounded-xl border border-white/[0.1] px-5 text-sm font-semibold text-[#d5d0de] disabled:opacity-40">
+          <button type="button" disabled={busy !== null} onClick={() => void submit("test")} className="focus-ring inline-flex h-11 items-center gap-2 rounded-xl border border-[var(--cabi-border)] px-5 text-sm font-semibold text-[var(--cabi-text-secondary)] disabled:opacity-40">
             <PlugZap size={15} aria-hidden="true" /> {busy === "test" ? "Testing..." : `Test ${providerLabel}`}
           </button>
         </div>
       </section>
 
-      <CabiReferencePanel selectedProvider={settings.provider} selectedModel={settings.model} selectedModelDefinition={selectedModel} />
 
-      <section className="rounded-[22px] border border-white/[0.07] bg-white/[0.02] p-5">
+      <section className="rounded-2xl border border-[var(--cabi-hairline)] bg-[var(--cabi-surface-1)] p-5">
         <h2 className="text-sm font-bold text-white">Required storage buckets</h2>
-        <p className="mt-1.5 text-[11px] leading-5 text-[#777180]">Create these private Supabase Storage buckets. Objects are served through short-lived signed URLs.</p>
-        <ul className="mt-3 space-y-1.5 font-mono text-[12px] text-violet-200"><li>cabi-generations</li><li>avatars</li><li>cabi-system-assets</li></ul>
-        <p className="mt-3 text-[11px] leading-5 text-[#625d6d]"><span className="font-mono text-violet-200">cabi-system-assets</span> holds product-owned artwork. The official reference lives at <span className="font-mono">official/cabi-reference.png</span>.</p>
+        <p className="mt-1.5 text-[11px] leading-5 text-[var(--cabi-text-muted)]">Create these private Supabase Storage buckets. Objects are served through short-lived signed URLs.</p>
+        <ul className="mt-3 space-y-1.5 font-mono text-[12px] text-[var(--cabi-primary)]"><li>cabi-generations</li><li>avatars</li><li>cabi-system-assets</li></ul>
+        <p className="mt-3 text-[11px] leading-5 text-[var(--cabi-text-faint)]"><span className="font-mono text-[var(--cabi-primary)]">cabi-system-assets</span> holds product-owned artwork. The official reference lives at <span className="font-mono">official/cabi-reference.png</span>.</p>
       </section>
     </div>
   );
 }
 
+/**
+ * A capability badge.
+ *
+ * Local tones map onto the shared badge contract, so a badge on this screen is
+ * shaped, sized, and tracked exactly like a badge anywhere else in the product.
+ */
 function Badge({ children, tone }: { children: React.ReactNode; tone: "green" | "violet" | "amber" | "muted" }) {
-  const styles = {
-    green: "border-emerald-300/[0.18] bg-emerald-300/[0.08] text-emerald-200",
-    violet: "border-violet-200/[0.16] bg-violet-300/[0.08] text-violet-200",
-    amber: "border-amber-300/[0.18] bg-amber-300/[0.08] text-amber-200",
-    muted: "border-white/[0.1] bg-white/[0.04] text-[#8e889b]",
-  }[tone];
-  return <span className={`rounded-full border px-2 py-0.5 text-[10px] ${styles}`}>{children}</span>;
+  const mapped = tone === "green" ? "success" : tone === "amber" ? "warning" : tone === "violet" ? "primary" : "neutral";
+  return <SharedBadge tone={mapped}>{children}</SharedBadge>;
 }
 
 function Capability({ label, supported }: { label: string; supported: boolean }) {
   return (
-    <span className="flex items-center gap-1.5 text-[10px] text-[#a8a3b3]">
-      <span aria-hidden="true" className={supported ? "text-emerald-300" : "text-[#625d6d]"}>{supported ? "✓" : "✕"}</span>
+    <span
+      className="flex items-center gap-1.5 text-[10px] text-[var(--cabi-text-secondary)]"
+      data-capability={supported ? "supported" : "unsupported"}
+    >
+      {supported
+        ? <Check size={11} className="shrink-0 text-[var(--cabi-success)]" aria-hidden="true" />
+        : <Minus size={11} className="shrink-0 text-[var(--cabi-text-faint)]" aria-hidden="true" />}
       <span>{label}</span>
+      <span className="sr-only">{supported ? "supported" : "not supported"}</span>
     </span>
   );
 }

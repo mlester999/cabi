@@ -83,6 +83,34 @@ vi.mock("@/lib/image-generation/settings", async (importOriginal) => {
       },
       apiKey: "test-key-not-real",
     }),
+    resolveImageGenerationConfig: async () => ({
+      settings: {
+        enabled: true,
+        provider: mocks.providerId,
+        baseUrl: "https://api.together.xyz/v1/images/generations",
+        model: mocks.providerModel,
+        defaultAspectRatio: "1:1",
+        defaultQuality: "standard",
+        dailyLimit: 5,
+        allowGuestGeneration: false,
+      },
+      provider: mocks.providerId,
+      model: mocks.providerModel,
+      endpoint: "https://api.together.xyz/v1/images/generations",
+      apiKey: "test-key-not-real",
+      apiKeySource: "admin",
+      capabilities: {
+        supportsTextToImage: true,
+        supportsReferenceImages: mocks.providerModel !== "Qwen/Qwen-Image",
+        supportsImageToImage: mocks.providerModel !== "Qwen/Qwen-Image",
+        supportsSeed: true,
+        supportsNegativePrompt: true,
+        supportsSteps: true,
+      },
+      aspectRatio: "1:1",
+      quality: "standard",
+      limits: { daily: 5, allowGuestGeneration: false },
+    }),
   };
 });
 vi.mock("@/lib/cabi/reference/resolve.server", () => ({ resolveCabiReference: async () => mocks.reference }));
@@ -174,9 +202,9 @@ describe("the official reference is used automatically", () => {
     await POST(request({ prompt: "Cabi in a hoodie", aspectRatio: "1:1" }));
     const passed = mocks.generated[0];
     expect(Array.isArray(passed.referenceImages)).toBe(true);
-    // A data URL built from the stored bytes, so the provider needs no access to
-    // the private bucket.
-    expect(String((passed.referenceImages as string[])[0])).toMatch(/^data:image\/png;base64,/u);
+    // Together fetches a public HTTPS reference URL; private bytes/data URLs are
+    // intentionally never put on the provider wire.
+    expect((passed.referenceImages as string[])[0]).toBe("https://storage.example/signed/reference.png");
     // And the reference version is recorded on the row.
     const completed = mocks.inserted.find((row) => row.status === "COMPLETED");
     expect(completed?.reference_version).toBe(3);
@@ -205,12 +233,12 @@ describe("the official reference is used automatically", () => {
     expect(completed?.reference_conditioned).toBe(false);
   });
 
-  it("records the bundled fallback as version 0 and attaches it for the default model", async () => {
+  it("records the bundled fallback as version 0 without sending a local reference URL", async () => {
     await POST(request({ prompt: "Cabi waving", aspectRatio: "1:1" }));
     const completed = mocks.inserted.find((row) => row.status === "COMPLETED");
     expect(completed?.reference_version).toBe(0);
-    expect(String((mocks.generated[0].referenceImages as string[])[0])).toContain("cabi-cpu-model.png");
-    expect(completed?.reference_conditioned).toBe(true);
+    expect(mocks.generated[0].referenceImages).toBeUndefined();
+    expect(completed?.reference_conditioned).toBe(false);
   });
 });
 

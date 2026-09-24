@@ -97,9 +97,29 @@ export type ImageGenerationError =
   | "INVALID_RESPONSE"
   | "UNSAFE_PROMPT";
 
+/** Safe, provider-agnostic category used only for server diagnostics. */
+export type ImageProviderErrorCategory =
+  | "none"
+  | "authentication"
+  | "billing"
+  | "rate_limit"
+  | "reference_input"
+  | "model_or_endpoint"
+  | "unsafe_prompt"
+  | "provider_outage"
+  | "timeout"
+  | "provider_error";
+
 export type ImageGenerationResult =
   | { ok: true; image: GeneratedImage }
-  | { ok: false; error: ImageGenerationError; message: string };
+  | {
+      ok: false;
+      error: ImageGenerationError;
+      message: string;
+      /** Provider status is server-side metadata; never expose it in chat copy. */
+      httpStatus?: number;
+      providerErrorCategory?: ImageProviderErrorCategory;
+    };
 
 export type ImageConnectionDiagnostics = {
   provider: string;

@@ -76,15 +76,15 @@ export function ProfileSetupModal({ open, suggestedName, onComplete }: {
             initial={{ opacity: 0, y: 16, scale: .97 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             transition={{ type: "spring", stiffness: 220, damping: 26 }}
-            className="glass w-full max-w-[440px] rounded-[28px] p-6 sm:p-7"
+            className="glass w-full max-w-[440px] rounded-2xl p-6 sm:p-7"
           >
             <h2 id="profile-setup-title" className="text-lg font-bold tracking-[-0.01em] text-white">Welcome to Cabi.</h2>
-            <p className="mt-2 text-sm leading-7 text-[#a8a3b3]">
+            <p className="mt-2 text-sm leading-7 text-[var(--cabi-text-secondary)]">
               Before we keep going, what should I call you?
             </p>
 
             <label className="mt-5 block">
-              <span className="text-[11px] font-semibold uppercase tracking-[.14em] text-[#777180]">Your name</span>
+              <span className="text-[11px] font-semibold uppercase tracking-[.14em] text-[var(--cabi-text-muted)]">Your name</span>
               <input
                 ref={inputRef}
                 value={username}
@@ -96,11 +96,11 @@ export function ProfileSetupModal({ open, suggestedName, onComplete }: {
                 maxLength={20}
                 aria-invalid={Boolean(error)}
                 aria-describedby={error ? "profile-setup-error" : "profile-setup-hint"}
-                className="focus-ring mt-2 h-12 w-full rounded-2xl border border-white/[0.09] bg-white/[0.03] px-4 text-sm text-white placeholder:text-[#5d5867]"
+                className="focus-ring mt-2 h-12 w-full rounded-2xl border border-[var(--cabi-border)] bg-[var(--cabi-surface-2)] px-4 text-sm text-white placeholder:text-[var(--cabi-text-faint)]"
               />
             </label>
 
-            <p id="profile-setup-hint" className="mt-2 text-[11px] leading-5 text-[#625d6d]">
+            <p id="profile-setup-hint" className="mt-2 text-[11px] leading-5 text-[var(--cabi-text-faint)]">
               3 to 20 characters. Letters, numbers, hyphens and underscores. This is the name shown on the leaderboard, so it needs to be yours.
             </p>
 
@@ -108,7 +108,7 @@ export function ProfileSetupModal({ open, suggestedName, onComplete }: {
               <p id="profile-setup-error" role="alert" className="mt-2 text-[12px] font-medium text-rose-300">{error}</p>
             ) : null}
 
-            <p className="mt-4 text-[11px] leading-5 text-[#625d6d]">
+            <p className="mt-4 text-[11px] leading-5 text-[var(--cabi-text-faint)]">
               No photo needed. I will use your initials until you add one.
             </p>
 
@@ -116,12 +116,12 @@ export function ProfileSetupModal({ open, suggestedName, onComplete }: {
               type="button"
               onClick={() => void submit()}
               disabled={saving || username.trim().length === 0}
-              className="focus-ring mt-5 inline-flex h-12 w-full items-center justify-center rounded-2xl bg-violet-300 text-sm font-bold text-[#160f22] transition hover:bg-violet-200 disabled:cursor-not-allowed disabled:opacity-40"
+              className="focus-ring mt-5 inline-flex h-12 w-full items-center justify-center rounded-2xl bg-violet-300 text-sm font-bold text-[var(--cabi-on-primary)] transition hover:bg-[var(--cabi-primary)] disabled:cursor-not-allowed disabled:opacity-40"
             >
               {saving ? "Saving that..." : "Continue"}
             </button>
 
-            <p className="mt-3 text-center text-[11px] text-[#625d6d]">
+            <p className="mt-3 text-center text-[11px] text-[var(--cabi-text-faint)]">
               I never ask for your private key or seed phrase.
             </p>
           </motion.div>

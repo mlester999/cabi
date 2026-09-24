@@ -60,7 +60,7 @@ export function PrelaunchExperience({
 
       {settings.announcement ? (
         <Reveal className="relative z-30 mx-auto mt-5 w-full max-w-[1240px] px-5 sm:px-8">
-          <p className="rounded-2xl border border-violet-200/[0.13] bg-violet-300/[0.05] px-4 py-3 text-center text-[13px] leading-6 text-violet-100">
+          <p className="rounded-2xl border border-violet-200/[0.13] bg-violet-300/[0.05] px-4 py-3 text-center text-[13px] leading-6 text-[var(--cabi-text-secondary)]">
             {settings.announcement}
           </p>
         </Reveal>
@@ -80,13 +80,13 @@ export function PrelaunchExperience({
 
           <div className="order-2 min-w-0">
             <Reveal>
-              <p className="text-[11px] font-semibold uppercase tracking-[.28em] text-violet-300/80">
+              <p className="text-[11px] font-semibold uppercase tracking-[.28em] text-[var(--cabi-primary)]/80">
                 {settings.statusLabel || "CABI SYSTEM"}
               </p>
               <h1 className="mt-4 text-balance text-[clamp(2.15rem,7.4vw,3.9rem)] font-semibold leading-[1.02] tracking-[-0.045em]">
                 {settings.headline}
               </h1>
-              <p className="mt-4 max-w-[38rem] text-pretty text-[15px] leading-7 text-[#b9b3c6] sm:text-[17px] sm:leading-8">
+              <p className="mt-4 max-w-[38rem] text-pretty text-[15px] leading-7 text-[var(--cabi-text-secondary)] sm:text-[17px] sm:leading-8">
                 {settings.subheadline}
               </p>
             </Reveal>
@@ -97,7 +97,7 @@ export function PrelaunchExperience({
 
             <Reveal delay={0.12} className="mt-5">
               <div className="flex flex-col gap-4 sm:flex-row sm:items-stretch">
-                <p className="glass min-w-0 flex-1 rounded-[26px] p-4 text-[13px] leading-6 text-[#b9b3c6] sm:p-5 sm:text-sm sm:leading-7">
+                <p className="glass min-w-0 flex-1 rounded-2xl p-4 text-[13px] leading-6 text-[var(--cabi-text-secondary)] sm:p-5 sm:text-sm sm:leading-7">
                   {settings.description}
                 </p>
               </div>
@@ -115,7 +115,7 @@ export function PrelaunchExperience({
           <div className="order-3 hidden lg:block">
             <Reveal y={16}>
               <CabiCharacter className="ml-auto h-[clamp(430px,60vh,660px)] w-full max-w-[600px]" />
-              <p className="mt-1 text-center text-[11px] uppercase tracking-[.3em] text-[#4f4a5c]">
+              <p className="mt-1 text-center text-[11px] uppercase tracking-[.3em] text-[var(--cabi-text-faint)]">
                 Cat Partner Unit · ${ticker}
               </p>
             </Reveal>
@@ -136,8 +136,8 @@ export function PrelaunchExperience({
       <footer className="relative z-20 mx-auto w-full max-w-[1240px] px-5 pb-10 sm:px-8">
         <div className="cabi-hairline cabi-hairline-breathe" aria-hidden="true" />
         <div className="mt-5 flex flex-col items-center gap-2 text-center sm:flex-row sm:justify-between sm:text-left">
-          <p className="text-[11px] uppercase tracking-[.22em] text-[#4f4a5c]">Cabi · Cat Partner Unit</p>
-          <p className="text-[11px] text-[#4f4a5c]">Cabi is still learning. Nothing here is financial advice.</p>
+          <p className="text-[11px] uppercase tracking-[.22em] text-[var(--cabi-text-faint)]">Cabi · Cat Partner Unit</p>
+          <p className="text-[11px] text-[var(--cabi-text-faint)]">Cabi is still learning. Nothing here is financial advice.</p>
         </div>
       </footer>
     </div>

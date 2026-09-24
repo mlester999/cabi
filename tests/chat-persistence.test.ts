@@ -4,6 +4,8 @@ const mocks = vi.hoisted(() => ({
   database: vi.fn(),
   wallet: vi.fn(),
   writes: [] as Array<{ table: string; operation: string; value: unknown }>,
+  imageCalls: [] as Array<{ message: string; options: unknown }>,
+  modelCalls: 0,
 }));
 
 vi.mock("@/lib/ai/config", () => ({ getProviderConfig: vi.fn(async () => ({
@@ -11,9 +13,30 @@ vi.mock("@/lib/ai/config", () => ({ getProviderConfig: vi.fn(async () => ({
   temperature: 0.5, maxOutputTokens: 100, timeoutMs: 5_000, retryCount: 0,
 })) }));
 vi.mock("@/lib/ai/deepseek", () => ({ DeepSeekProvider: class {
-  async *stream() { yield { type: "text-delta", text: "Hi from Cabi" }; yield { type: "usage", usage: { input: 2, output: 3, total: 5 } }; }
+  async *stream() { mocks.modelCalls += 1; yield { type: "text-delta", text: "Hi from Cabi" }; yield { type: "usage", usage: { input: 2, output: 3, total: 5 } }; }
   async generate() { return { text: "summary", model: "test-model" }; }
 } }));
+vi.mock("@/lib/image-generation/chat", () => ({
+  generateChatImage: vi.fn(async (message: string, options: unknown) => {
+    if (!message.startsWith("Generate an image")) return { handled: false as const };
+    mocks.imageCalls.push({ message, options });
+    return {
+      handled: true as const,
+      usedProvider: true,
+      reply: "",
+      card: {
+        kind: "NOTICE",
+        id: "notice-image-failure",
+        title: "I could not draw that one",
+        rows: [],
+        links: [],
+        tone: "error",
+        message: "I couldn't make that image right now.",
+        retry: { label: "Try Again", prompt: message },
+      },
+    };
+  }),
+}));
 vi.mock("@/lib/bond", () => ({
   bondFromPoints: vi.fn(() => ({ level: 1, label: "New friend", progress: 0, points: 0 })),
   recordConversationBond: vi.fn(async () => ({ level: 1, label: "New friend", progress: 5, points: 3 })),
@@ -82,11 +105,11 @@ function databaseDouble(options: { assistantInsertFails?: boolean; assistantComp
   return db;
 }
 
-function request(persist: boolean) {
+function request(persist: boolean, message = "Hello Cabi") {
   return new Request("http://localhost:5173/api/chat", {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ message: "Hello Cabi", persist, clientRequestId: "cf2ad16e-6cd2-4fb2-830a-4759ac8d963f", guestHistory: [] }),
+    body: JSON.stringify({ message, persist, clientRequestId: "cf2ad16e-6cd2-4fb2-830a-4759ac8d963f", guestHistory: [] }),
   });
 }
 
@@ -95,6 +118,8 @@ describe("chat persistence boundary", () => {
     mocks.database.mockReset();
     mocks.wallet.mockReset();
     mocks.writes.length = 0;
+    mocks.imageCalls.length = 0;
+    mocks.modelCalls = 0;
   });
 
   it("does not create a database client or write messages for a guest", async () => {
@@ -116,6 +141,20 @@ describe("chat persistence boundary", () => {
     expect(response.status).toBe(200);
     expect(mocks.writes.filter((write) => write.table === "conversations" && write.operation === "insert")).toHaveLength(1);
     expect(mocks.writes.filter((write) => write.table === "messages" && write.operation === "insert")).toHaveLength(2);
+  });
+
+  it("persists an image failure card without calling the chat model or duplicating its empty reply", async () => {
+    mocks.wallet.mockResolvedValue({ walletAccountId: "wallet-a", profileId: "profile-a", walletAddress: "0x00000000000000000000000000000000000000A1" });
+    mocks.database.mockReturnValue(databaseDouble());
+    const response = await chat(request(true, "Generate an image of you at the beach"));
+    const body = await response.text();
+    expect(response.status).toBe(200);
+    expect(mocks.modelCalls).toBe(0);
+    expect(body).toContain("event: action");
+    expect(body).not.toContain("event: delta");
+    const assistantUpdate = mocks.writes.find((write) => write.table === "messages" && write.operation === "update" && typeof write.value === "object" && write.value !== null && "metadata_json" in write.value) as { value?: { content?: string; metadata_json?: { actionCard?: { retry?: unknown } } } } | undefined;
+    expect(assistantUpdate?.value?.content).toBe("");
+    expect(assistantUpdate?.value?.metadata_json?.actionCard?.retry).toBeDefined();
   });
 
   it("returns 503 instead of silently downgrading when wallet authentication storage fails", async () => {

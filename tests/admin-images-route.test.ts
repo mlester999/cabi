@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   readSettings: vi.fn(),
   readStored: vi.fn(),
   readEnvironment: vi.fn(),
+  resolveConfig: vi.fn(),
   write: vi.fn(),
   remove: vi.fn(),
   create: vi.fn(),
@@ -31,6 +32,7 @@ vi.mock("@/lib/image-generation/settings", () => ({
   readImageSettings: mocks.readSettings,
   readStoredImageProviderConfig: mocks.readStored,
   resolveEnvironmentTogetherApiKey: mocks.readEnvironment,
+  resolveImageGenerationConfig: mocks.resolveConfig,
   removeImageApiKey: mocks.remove,
   writeImageSettings: mocks.write,
 }));
@@ -56,13 +58,31 @@ function request(body: Record<string, unknown>) {
 }
 
 beforeEach(() => {
-  for (const mock of [mocks.admin, mocks.audit, mocks.readSettings, mocks.readStored, mocks.readEnvironment, mocks.write, mocks.remove, mocks.create, mocks.capabilities, mocks.testConnection]) mock.mockReset();
+  for (const mock of [mocks.admin, mocks.audit, mocks.readSettings, mocks.readStored, mocks.readEnvironment, mocks.resolveConfig, mocks.write, mocks.remove, mocks.create, mocks.capabilities, mocks.testConnection]) mock.mockReset();
   mocks.configs.length = 0;
   mocks.admin.mockResolvedValue({ session: { email: "owner@example.test" }, response: null });
   mocks.audit.mockResolvedValue(undefined);
   mocks.readSettings.mockResolvedValue({ ...settings, hasApiKey: true, keyLastFour: "ored", apiKeySource: "admin" });
   mocks.readStored.mockResolvedValue({ settings, apiKey: "stored-together-key", apiKeySource: "admin" });
   mocks.readEnvironment.mockReturnValue("environment-key");
+  mocks.resolveConfig.mockImplementation(async (selection?: { provider?: string; model?: string }) => {
+    const stored = await mocks.readStored();
+    const provider = selection?.provider ?? stored?.settings?.provider ?? "together";
+    const model = selection?.model ?? stored?.settings?.model ?? settings.model;
+    const apiKey = stored?.apiKey ?? mocks.readEnvironment();
+    return {
+      settings: { ...settings, provider, model, baseUrl: "https://api.together.xyz/v1/images/generations" },
+      provider,
+      model,
+      endpoint: "https://api.together.xyz/v1/images/generations",
+      apiKey,
+      apiKeySource: stored?.apiKey ? "admin" : apiKey ? "environment" : null,
+      capabilities: mocks.capabilities(),
+      aspectRatio: "1:1",
+      quality: "standard",
+      limits: { daily: 5, allowGuestGeneration: false },
+    };
+  });
   mocks.write.mockResolvedValue(undefined);
   mocks.remove.mockResolvedValue(undefined);
   mocks.capabilities.mockReturnValue({ supportsReferenceImages: true, supportsImageToImage: true, supportsImageEditing: true, supportsSeed: true });

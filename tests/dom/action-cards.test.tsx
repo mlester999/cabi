@@ -9,8 +9,8 @@ vi.mock("next/link", () => ({
 import { ActionCardView } from "@/components/chat/action-card";
 import { ChatMessage } from "@/components/chat/chat-message";
 import { SlashCommandPalette } from "@/components/chat/slash-command-palette";
-import { tokenCard, tradeCard, clarifyCard } from "@/lib/actions/cards";
-import { cabiStatusDefaults } from "@/lib/cabi/status-messages";
+import { noticeCard, tokenCard, tradeCard, clarifyCard } from "@/lib/actions/cards";
+import { cabiStatusAnnouncements, cabiStatusDefaults } from "@/lib/cabi/status-messages";
 import type { TokenMetadata } from "@/lib/tokens/metadata";
 
 const CPU_ADDRESS = "0x1a421A5065316d9b4062939E9959DDEcE6630528";
@@ -83,17 +83,62 @@ describe("action card rendering", () => {
     expect(screen.queryByRole("region", { name: /card$/ })).toBeNull();
   });
 
-  it("rotates cozy thinking copy while Cabi is streaming", () => {
+  it("renders one retry action without a duplicate empty assistant bubble", () => {
+    const onRetry = vi.fn();
+    render(
+      <ChatMessage
+        message={{
+          id: "m-retry",
+          role: "assistant",
+          content: "",
+          status: "complete",
+          actionCard: noticeCard({
+            title: "I could not draw that one",
+            message: "I couldn't make that image right now.",
+            tone: "error",
+            retry: { label: "Try Again", prompt: "Generate a picture of Cabi" },
+          }),
+        }}
+        onRetryPrompt={onRetry}
+      />,
+    );
+    expect(screen.queryByText("…")).toBeNull();
+    screen.getByRole("button", { name: /Try again/i }).click();
+    expect(onRetry).toHaveBeenCalledWith("Generate a picture of Cabi", undefined);
+  });
+
+  it("shows the shared Cabi thinking status while streaming, and rotates it slowly", () => {
     vi.useFakeTimers();
     try {
-      render(<ChatMessage message={{ id: "m3", role: "assistant", content: "", status: "streaming" }} />);
-      const thinking = screen.getByRole("status");
-      expect(thinking).toHaveTextContent(cabiStatusDefaults.CHAT_THINKING[0]);
-
+      // Rendered inside act: the status component starts timers on mount, and an
+      // unwrapped render leaves a pending update that can leak into the assertions.
       act(() => {
-        vi.advanceTimersByTime(1_900);
+        render(<ChatMessage message={{ id: "m3", role: "assistant", content: "", status: "streaming" }} />);
       });
-      expect(thinking).toHaveTextContent(cabiStatusDefaults.CHAT_THINKING[1]);
+
+      /*
+       * The transcript no longer carries its own thinking indicator: it renders the
+       * shared `CabiActivityStatus`, which has ONE stable announcement and a slow,
+       * varied rotation. This test pins both properties, so a future change cannot
+       * quietly reintroduce a second, faster-moving implementation.
+       */
+      const live = screen.getByRole("status");
+      expect(live).toHaveTextContent(cabiStatusAnnouncements.CHAT_THINKING);
+
+      const visible = document.querySelector("[data-cabi-status]");
+      expect(visible).not.toBeNull();
+      const first = visible?.textContent ?? "";
+      expect(cabiStatusDefaults.CHAT_THINKING.some((line) => first.includes(line))).toBe(true);
+
+      // Nothing may change this quickly: 500ms rotation is what the brief forbids.
+      act(() => { vi.advanceTimersByTime(600); });
+      expect(document.querySelector("[data-cabi-status]")?.textContent ?? "").toBe(first);
+
+      // Past the slowest documented delay it has moved on, and the announcement
+      // has not.
+      act(() => { vi.advanceTimersByTime(12_000); });
+      expect(document.querySelector("[data-cabi-status]")?.textContent ?? "").not.toBe(first);
+      expect(screen.getByRole("status")).toHaveTextContent(cabiStatusAnnouncements.CHAT_THINKING);
     } finally {
       vi.useRealTimers();
     }

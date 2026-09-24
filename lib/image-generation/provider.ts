@@ -2,7 +2,7 @@ import "server-only";
 
 import { generateTogetherImage } from "@/lib/ai/image/together";
 import { buildCabiImagePrompt, cabiNegativePrompt, cabiReferenceAsset } from "@/lib/image-generation/cabi-character";
-import { imageModelFor, imageProviderFor, recommendedImageModel } from "@/lib/image-generation/registry";
+import { imageCapabilitiesForModel, imageModelFor, imageProviderFor, recommendedImageModel } from "@/lib/image-generation/registry";
 import {
   aspectRatioSizes,
   noImageCapabilities,
@@ -280,16 +280,17 @@ function createTogetherProvider(config: ImageProviderConfig): ImageGenerationPro
       // sends them when the selected model genuinely supports them.
       const result = await generateTogetherImage(
         { prompt: scene, aspectRatio, seed, negativePrompt, referenceImages, preparedPrompt },
-        { apiKey: config.apiKey, model },
+        { apiKey: config.apiKey, model, endpoint: config.baseUrl },
       );
       if (result.ok) return result;
-      return { ok: false, error: result.error, message: result.message };
+      return result;
     },
     async testConnection() {
       const { testTogetherConnection } = await import("@/lib/ai/image/together");
       return testTogetherConnection({
         apiKey: config.apiKey,
         model,
+        endpoint: config.baseUrl,
       });
     },
   };
@@ -330,17 +331,6 @@ export function createImageProvider(config: ImageProviderConfig): ImageGeneratio
  * may be attached at all.
  */
 export function imageCapabilitiesFor(config: { provider: ImageProviderConfig["provider"]; model?: string }): ImageProviderCapabilities {
-  const model = imageModelFor(config.provider, config.model ?? "");
-  if (!model) return { ...noImageCapabilities };
-  return {
-    supportsTextToImage: model.supportsTextToImage,
-    supportsReferenceImages: model.supportsReferenceImages,
-    supportsImageToImage: model.supportsImageEditing,
-    supportsImageEditing: model.supportsImageEditing,
-    supportsSeed: model.supportsSeed,
-    referenceParameter: model.referenceParameter,
-    supportsNegativePrompt: model.supportsNegativePrompt,
-    supportsSteps: model.supportsSteps,
-  };
+  return imageCapabilitiesForModel(config);
 }
 export { cabiReferenceAsset };

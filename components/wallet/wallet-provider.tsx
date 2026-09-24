@@ -325,45 +325,45 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   return (
     <WalletContext.Provider value={value}>
       {children}
-      {openingPreview && <div role="status" className="fixed inset-0 z-[100] grid place-items-center bg-[#07070d]/95 text-center text-white"><div><p className="text-lg font-semibold text-violet-100">Welcome back.</p><p className="mt-2 text-sm text-[#a8a3b3]">Opening Cabi...</p></div></div>}
+      {openingPreview && <div role="status" className="fixed inset-0 z-[100] grid place-items-center bg-[var(--cabi-bg)]/95 text-center text-white"><div><p className="text-lg font-semibold text-[var(--cabi-text-secondary)]">Welcome back.</p><p className="mt-2 text-sm text-[var(--cabi-text-secondary)]">Opening Cabi...</p></div></div>}
       <Dialog open={connectOpen} onOpenChange={(open) => { if (!open && phase === "idle") setConnectOpen(false); }}>
-        <DialogContent className="glass gap-0 rounded-[28px] border-violet-200/[0.12] bg-[#0b0912] p-0 text-white sm:max-w-[430px]" showCloseButton={phase === "idle"}>
+        <DialogContent className="glass gap-0 rounded-2xl border-violet-200/[0.12] bg-[var(--cabi-bg-deep)] p-0 text-white sm:max-w-[430px]" showCloseButton={phase === "idle"}>
           <div className="p-6 sm:p-7">
-            <div className="grid h-12 w-12 place-items-center rounded-2xl border border-violet-200/15 bg-violet-300/[0.07] text-violet-200"><WalletCards size={21} /></div>
+            <div className="grid h-12 w-12 place-items-center rounded-2xl border border-violet-200/15 bg-violet-300/[0.07] text-[var(--cabi-primary)]"><WalletCards size={21} /></div>
             <DialogHeader className="mt-5 text-left">
               <DialogTitle className="text-xl tracking-[-.025em]">Want me to remember our chats?</DialogTitle>
-              <DialogDescription className="mt-1.5 leading-6 text-[#a8a3b3]">Connect your wallet to save conversations, memories, and your bond with Cabi.</DialogDescription>
+              <DialogDescription className="mt-1.5 leading-6 text-[var(--cabi-text-secondary)]">Connect your wallet to save conversations, memories, and your bond with Cabi.</DialogDescription>
             </DialogHeader>
 
             {phase !== "idle" ? (
               <div className="mt-6 rounded-2xl border border-violet-200/10 bg-violet-300/[0.04] p-5 text-center">
-                <LoaderCircle className="mx-auto animate-spin text-violet-200" size={24} />
+                <LoaderCircle className="mx-auto animate-spin text-[var(--cabi-primary)]" size={24} />
                 <p className="mt-3 text-sm font-medium">{phase === "connecting" ? "Opening your wallet…" : phase === "signing" ? "Check your wallet to sign in" : "Verifying your sign-in…"}</p>
                 {/* Cabi's own wording for the verification step, so sign-in reads
                     as her checking rather than as a bare spinner. It never implies
                     key access: only a signature is ever involved. */}
                 {phase === "verifying" && <CabiActivityStatus type="WALLET_VERIFYING" className="mt-2 justify-center" />}
-                <p className="mt-2 text-xs leading-5 text-[#8e889b]">This signature is only for sign-in. It costs no gas and sends no transaction.</p>
+                <p className="mt-2 text-xs leading-5 text-[var(--cabi-text-muted)]">This signature is only for sign-in. It costs no gas and sends no transaction.</p>
               </div>
             ) : (
               <div className="mt-6 space-y-2">
                 {wallets.length > 0 ? wallets.map((wallet) => (
-                  <button key={wallet.id} onClick={() => void connect(wallet)} className="focus-ring flex min-h-12 w-full items-center gap-3 rounded-2xl border border-white/[0.07] bg-white/[0.025] px-4 text-left transition hover:border-violet-200/20 hover:bg-violet-300/[0.06]">
+                  <button key={wallet.id} onClick={() => void connect(wallet)} className="focus-ring flex min-h-12 w-full items-center gap-3 rounded-2xl border border-[var(--cabi-hairline)] bg-[var(--cabi-surface-1)] px-4 text-left transition hover:border-violet-200/20 hover:bg-violet-300/[0.06]">
                     <WalletLogo wallet={wallet} size="sm" />
                     <span className="min-w-0 flex-1 truncate text-sm font-medium">{wallet.name}</span>
-                    <ChevronRight size={16} className="text-[#625d6d]" />
+                    <ChevronRight size={16} className="text-[var(--cabi-text-faint)]" />
                   </button>
                 )) : (
-                  <div className="rounded-2xl border border-dashed border-white/[0.09] px-5 py-6 text-center">
+                  <div className="rounded-2xl border border-dashed border-[var(--cabi-border)] px-5 py-6 text-center">
                     <p className="text-sm font-medium">No browser wallet found</p>
-                    <p className="mt-2 text-xs leading-5 text-[#777180]">Open Cabi in an EVM wallet browser or enable an installed wallet extension, then try again.</p>
+                    <p className="mt-2 text-xs leading-5 text-[var(--cabi-text-muted)]">Open Cabi in an EVM wallet browser or enable an installed wallet extension, then try again.</p>
                   </div>
                 )}
               </div>
             )}
 
             {error && <p role="alert" className="mt-4 rounded-xl border border-rose-300/15 bg-rose-300/[0.05] px-3 py-2.5 text-xs leading-5 text-rose-200">{error}</p>}
-            <div className="mt-5 flex items-start gap-2.5 text-[11px] leading-5 text-[#777180]"><ShieldCheck size={15} className="mt-0.5 shrink-0 text-violet-300" /><p>Signing in is free and does not require a transaction. Cabi only uses your public address as your account.</p></div>
+            <div className="mt-5 flex items-start gap-2.5 text-[11px] leading-5 text-[var(--cabi-text-muted)]"><ShieldCheck size={15} className="mt-0.5 shrink-0 text-[var(--cabi-primary)]" /><p>Signing in is free and does not require a transaction. Cabi only uses your public address as your account.</p></div>
             {session && <div className="mt-4 flex items-center gap-2 text-xs text-emerald-300"><Check size={14} /> Wallet authenticated</div>}
           </div>
         </DialogContent>

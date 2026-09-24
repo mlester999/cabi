@@ -152,16 +152,31 @@ describe("request construction", () => {
       aspectRatio: "1:1",
       seed: 42,
       negativePrompt: "blurry",
-      referenceImages: ["data:image/png;base64,reference"],
+      referenceImages: ["https://storage.example/signed/reference.png"],
     }, "Qwen/Qwen-Image-2.0");
     expect(body).toMatchObject({
       model: "Qwen/Qwen-Image-2.0",
       steps: 28,
       seed: 42,
       negative_prompt: "blurry",
-      image_url: "data:image/png;base64,reference",
+      image_url: "https://storage.example/signed/reference.png",
     });
     expect(body).not.toHaveProperty("reference_images");
+  });
+
+  it("does not put data URLs or local paths on the Together reference field", () => {
+    const data = buildTogetherRequestBody({
+      prompt: "Cabi at a desk",
+      aspectRatio: "1:1",
+      referenceImages: ["data:image/png;base64,reference"],
+    }, "Qwen/Qwen-Image-2.0");
+    const local = buildTogetherRequestBody({
+      prompt: "Cabi at a desk",
+      aspectRatio: "1:1",
+      referenceImages: ["http://localhost:5173/assets/cabi.png"],
+    }, "Qwen/Qwen-Image-2.0");
+    expect(data.body).not.toHaveProperty("image_url");
+    expect(local.body).not.toHaveProperty("image_url");
   });
 
   it("authenticates with the key as a bearer token and never in the body", async () => {

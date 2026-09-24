@@ -190,8 +190,8 @@ export function CabiReferencePanel({ selectedProvider, selectedModel, selectedMo
     }
   };
 
-  const field = "focus-ring w-full rounded-xl border border-white/[0.09] bg-white/[0.03] px-3 py-2.5 text-sm text-white";
-  const label = "block text-[10px] font-semibold uppercase tracking-[.14em] text-[#777180]";
+  const field = "focus-ring w-full rounded-xl border border-[var(--cabi-border)] bg-[var(--cabi-surface-2)] px-3 py-2.5 text-sm text-white";
+  const label = "block text-[10px] font-semibold uppercase tracking-[.14em] text-[var(--cabi-text-muted)]";
   const reference = payload?.reference;
   const preview = reference?.previewUrl ?? reference?.fallbackPath ?? "/assets/cabi-cpu-model.png";
   const effectiveProvider = selectedProvider === "together" ? "Together AI" : (selectedProvider ?? payload?.provider.provider ?? "—");
@@ -217,15 +217,15 @@ export function CabiReferencePanel({ selectedProvider, selectedModel, selectedMo
       {notice ? <p role="status" className="rounded-xl border border-emerald-300/[0.18] bg-emerald-300/[0.06] px-3 py-2 text-xs text-emerald-100">{notice}</p> : null}
       {error ? <p role="alert" className="rounded-xl border border-rose-300/[0.2] bg-rose-300/[0.06] px-3 py-2 text-xs text-rose-100">{error}</p> : null}
 
-      <section className="rounded-[22px] border border-violet-200/[0.12] bg-white/[0.02] p-5">
+      <section className="rounded-2xl border border-violet-200/[0.12] bg-[var(--cabi-surface-1)] p-5">
         <h2 className="text-sm font-bold text-white">CABI REFERENCE</h2>
-        <p className="mt-1.5 text-[11px] leading-5 text-[#777180]">
+        <p className="mt-1.5 text-[11px] leading-5 text-[var(--cabi-text-muted)]">
           Official Character Reference. Every Cabi image is generated from this identity, so she stays recognizably
           herself in any outfit, pose, expression, or scene.
         </p>
 
         <div className="mt-5 grid gap-5 sm:grid-cols-[180px_minmax(0,1fr)]">
-          <div className="overflow-hidden rounded-2xl border border-white/[0.09] bg-[#0b0912]">
+          <div className="overflow-hidden rounded-2xl border border-[var(--cabi-border)] bg-[var(--cabi-bg-deep)]">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={preview} alt="Current official Cabi reference" className="h-[180px] w-full object-contain" />
           </div>
@@ -245,19 +245,19 @@ export function CabiReferencePanel({ selectedProvider, selectedModel, selectedMo
               <button
                 type="button"
                 onClick={() => fileInput.current?.click()}
-                className="focus-ring inline-flex h-10 items-center gap-2 rounded-xl bg-violet-300 px-4 text-xs font-bold text-[#160f22]"
+                className="focus-ring inline-flex h-9 items-center gap-2 rounded-xl bg-violet-300 px-4 text-xs font-bold text-[var(--cabi-on-primary)]"
               >
                 <Upload size={14} aria-hidden="true" /> {reference?.source === "ADMIN_UPLOAD" ? "Replace Reference" : "Upload New Reference"}
               </button>
               <button
                 type="button"
                 onClick={() => setShowHistory((current) => !current)}
-                className="focus-ring inline-flex h-10 items-center gap-2 rounded-xl border border-white/[0.1] px-4 text-xs font-semibold text-[#d5d0de]"
+                className="focus-ring inline-flex h-9 items-center gap-2 rounded-xl border border-[var(--cabi-border)] px-4 text-xs font-semibold text-[var(--cabi-text-secondary)]"
               >
                 <History size={14} aria-hidden="true" /> View History
               </button>
             </div>
-            <p className="mt-2 text-[11px] leading-5 text-[#625d6d]">
+            <p className="mt-2 text-[11px] leading-5 text-[var(--cabi-text-faint)]">
               PNG, JPEG, or WebP. PNG recommended. Only one reference is active at a time, and previous versions stay
               restorable.
             </p>
@@ -281,12 +281,12 @@ export function CabiReferencePanel({ selectedProvider, selectedModel, selectedMo
       </section>
 
       {showHistory && payload && payload.history.length > 0 ? (
-        <section className="rounded-[22px] border border-white/[0.07] bg-white/[0.02] p-5">
+        <section className="rounded-2xl border border-[var(--cabi-hairline)] bg-[var(--cabi-surface-1)] p-5">
           <h3 className="text-sm font-bold text-white">Reference history</h3>
           <ul className="mt-3 space-y-2">
             {payload.history.map((entry) => (
-              <li key={entry.id} className="flex flex-wrap items-center gap-3 rounded-xl border border-white/[0.06] bg-white/[0.02] p-2.5">
-                <span className="h-12 w-12 shrink-0 overflow-hidden rounded-lg border border-white/[0.08] bg-[#0b0912]">
+              <li key={entry.id} className="flex flex-wrap items-center gap-3 rounded-xl border border-[var(--cabi-hairline)] bg-[var(--cabi-surface-1)] p-2.5">
+                <span className="h-12 w-12 shrink-0 overflow-hidden rounded-lg border border-[var(--cabi-hairline)] bg-[var(--cabi-bg-deep)]">
                   {entry.previewUrl
                     // eslint-disable-next-line @next/next/no-img-element
                     ? <img src={entry.previewUrl} alt="" className="h-full w-full object-contain" />
@@ -297,7 +297,7 @@ export function CabiReferencePanel({ selectedProvider, selectedModel, selectedMo
                     Version {entry.version}
                     {entry.active ? <span className="ml-2 rounded-full border border-emerald-300/[0.2] bg-emerald-300/[0.08] px-2 py-0.5 text-[10px] text-emerald-200">ACTIVE</span> : null}
                   </p>
-                  <p className="mt-0.5 text-[11px] text-[#777180]">
+                  <p className="mt-0.5 text-[11px] text-[var(--cabi-text-muted)]">
                     {formatDate(entry.uploadedAt)} · {entry.uploadedBy ?? "unknown"} · {entry.width && entry.height ? `${entry.width} × ${entry.height}` : "dims unknown"}
                   </p>
                 </div>
@@ -306,7 +306,7 @@ export function CabiReferencePanel({ selectedProvider, selectedModel, selectedMo
                     type="button"
                     disabled={busy !== null}
                     onClick={() => void restore(entry.id)}
-                    className="focus-ring inline-flex h-9 items-center gap-1.5 rounded-lg border border-white/[0.1] px-3 text-[11px] font-semibold text-[#d5d0de] disabled:opacity-40"
+                    className="focus-ring inline-flex h-9 items-center gap-1.5 rounded-lg border border-[var(--cabi-border)] px-3 text-[11px] font-semibold text-[var(--cabi-text-secondary)] disabled:opacity-40"
                   >
                     <RotateCcw size={12} aria-hidden="true" /> Restore
                   </button>
@@ -317,7 +317,7 @@ export function CabiReferencePanel({ selectedProvider, selectedModel, selectedMo
         </section>
       ) : null}
 
-      <section className="rounded-[22px] border border-white/[0.07] bg-white/[0.02] p-5">
+      <section className="rounded-2xl border border-[var(--cabi-hairline)] bg-[var(--cabi-surface-1)] p-5">
         <h2 className="text-sm font-bold text-white">Provider capability</h2>
         <dl className="mt-3 space-y-2 text-[12px]">
           <Row label="Provider" value={effectiveProvider} />
@@ -328,29 +328,29 @@ export function CabiReferencePanel({ selectedProvider, selectedModel, selectedMo
             value={!capabilityKnown ? "CHECKING…" : supportsReference ? "SUPPORTED" : "NOT SUPPORTED"}
           />
         </dl>
-        <p className="mt-3 flex items-start gap-2 rounded-xl border border-white/[0.06] bg-white/[0.02] p-3 text-[11px] leading-5 text-[#8e889b]">
+        <p className="mt-3 flex items-start gap-2 rounded-xl border border-[var(--cabi-hairline)] bg-[var(--cabi-surface-1)] p-3 text-[11px] leading-5 text-[var(--cabi-text-muted)]">
           {supportsReference
             ? <CheckCircle2 size={14} className="mt-0.5 shrink-0 text-emerald-300" aria-hidden="true" />
             : <AlertTriangle size={14} className="mt-0.5 shrink-0 text-amber-300" aria-hidden="true" />}
           <span>{capabilityMessage}</span>
         </p>
-        <p className="mt-2 text-[11px] leading-5 text-[#625d6d]">
+        <p className="mt-2 text-[11px] leading-5 text-[var(--cabi-text-faint)]">
           {supportsReference
             ? "No client upload or replacement is needed; the active official image is selected server-side."
             : "No reference image is sent for this model."}
         </p>
       </section>
 
-      <section className="rounded-[22px] border border-white/[0.07] bg-white/[0.02] p-5">
-        <h2 className="flex items-center gap-2 text-sm font-bold text-white"><ShieldCheck size={15} className="text-violet-300" aria-hidden="true" /> CABI IDENTITY — Character Bible</h2>
-        <p className="mt-1.5 text-[11px] leading-5 text-[#777180]">
+      <section className="rounded-2xl border border-[var(--cabi-hairline)] bg-[var(--cabi-surface-1)] p-5">
+        <h2 className="flex items-center gap-2 text-sm font-bold text-white"><ShieldCheck size={15} className="text-[var(--cabi-primary)]" aria-hidden="true" /> CABI IDENTITY — Character Bible</h2>
+        <p className="mt-1.5 text-[11px] leading-5 text-[var(--cabi-text-muted)]">
           Cabi&apos;s core identity is fixed in code and cannot be edited here. What follows is the surrounding art
           direction, which is additive: a bad edit makes an image less pleasant, never a different character.
         </p>
 
         <ul className="mt-4 flex flex-wrap gap-1.5">
           {(payload?.bible.protectedTraits ?? []).map((trait) => (
-            <li key={trait} className="rounded-full border border-white/[0.08] bg-white/[0.03] px-2.5 py-1 text-[10px] text-[#a8a3b3]">
+            <li key={trait} className="rounded-full border border-[var(--cabi-hairline)] bg-[var(--cabi-surface-2)] px-2.5 py-1 text-[10px] text-[var(--cabi-text-secondary)]">
               {trait}
             </li>
           ))}
@@ -384,7 +384,7 @@ export function CabiReferencePanel({ selectedProvider, selectedModel, selectedMo
             type="button"
             disabled={busy !== null}
             onClick={() => void saveBible()}
-            className="focus-ring inline-flex h-10 items-center gap-2 rounded-xl bg-violet-300 px-4 text-xs font-bold text-[#160f22] disabled:opacity-40"
+            className="focus-ring inline-flex h-9 items-center gap-2 rounded-xl bg-violet-300 px-4 text-xs font-bold text-[var(--cabi-on-primary)] disabled:opacity-40"
           >
             {busy === "bible" ? "Saving…" : "Save character notes"}
           </button>
@@ -392,7 +392,7 @@ export function CabiReferencePanel({ selectedProvider, selectedModel, selectedMo
             type="button"
             disabled={busy !== null || !payload?.bible.customized}
             onClick={() => void resetBible()}
-            className="focus-ring inline-flex h-10 items-center gap-2 rounded-xl border border-white/[0.1] px-4 text-xs font-semibold text-[#d5d0de] disabled:opacity-40"
+            className="focus-ring inline-flex h-9 items-center gap-2 rounded-xl border border-[var(--cabi-border)] px-4 text-xs font-semibold text-[var(--cabi-text-secondary)] disabled:opacity-40"
           >
             <RotateCcw size={13} aria-hidden="true" /> {busy === "reset" ? "Resetting…" : "Reset Character Bible"}
           </button>
@@ -401,27 +401,27 @@ export function CabiReferencePanel({ selectedProvider, selectedModel, selectedMo
 
       {pendingFile && confirmReplace ? (
         <div className="fixed inset-0 z-[90] grid place-items-center bg-black/70 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="replace-reference-title">
-          <div className="glass w-full max-w-md rounded-[24px] border border-violet-200/[0.14] bg-[#0b0912] p-5 text-white">
+          <div className="glass w-full max-w-md rounded-2xl border border-violet-200/[0.14] bg-[var(--cabi-bg-deep)] p-5 text-white">
             <div className="flex items-start justify-between gap-3">
               <h3 id="replace-reference-title" className="text-base font-semibold">Replace Cabi&apos;s official reference?</h3>
-              <button type="button" onClick={() => { setPendingFile(null); setConfirmReplace(false); if (fileInput.current) fileInput.current.value = ""; }} className="focus-ring grid h-9 w-9 place-items-center rounded-xl text-[#8e889b] hover:bg-white/[0.05]" aria-label="Cancel">
+              <button type="button" onClick={() => { setPendingFile(null); setConfirmReplace(false); if (fileInput.current) fileInput.current.value = ""; }} className="focus-ring grid h-9 w-9 place-items-center rounded-xl text-[var(--cabi-text-muted)] hover:bg-[var(--cabi-surface-3)]" aria-label="Cancel">
                 <X size={16} aria-hidden="true" />
               </button>
             </div>
-            <p className="mt-3 text-[12px] leading-6 text-[#a8a3b3]">
+            <p className="mt-3 text-[12px] leading-6 text-[var(--cabi-text-secondary)]">
               Future generations will use this image as Cabi&apos;s visual identity. Existing generated images will not
               change.
             </p>
-            <p className="mt-2 text-[11px] text-[#625d6d]">{pendingFile.name} · {(pendingFile.size / 1024).toFixed(0)} KB</p>
+            <p className="mt-2 text-[11px] text-[var(--cabi-text-faint)]">{pendingFile.name} · {(pendingFile.size / 1024).toFixed(0)} KB</p>
             <div className="mt-5 flex flex-wrap gap-2">
-              <button type="button" onClick={() => { setPendingFile(null); setConfirmReplace(false); if (fileInput.current) fileInput.current.value = ""; }} className="focus-ring h-10 rounded-xl border border-white/[0.1] px-4 text-xs font-semibold text-[#d5d0de]">
+              <button type="button" onClick={() => { setPendingFile(null); setConfirmReplace(false); if (fileInput.current) fileInput.current.value = ""; }} className="focus-ring h-9 rounded-xl border border-[var(--cabi-border)] px-4 text-xs font-semibold text-[var(--cabi-text-secondary)]">
                 Cancel
               </button>
               <button
                 type="button"
                 disabled={busy !== null}
                 onClick={() => void upload(pendingFile)}
-                className="focus-ring h-10 rounded-xl bg-violet-300 px-4 text-xs font-bold text-[#160f22] disabled:opacity-40"
+                className="focus-ring h-9 rounded-xl bg-violet-300 px-4 text-xs font-bold text-[var(--cabi-on-primary)] disabled:opacity-40"
               >
                 {busy === "upload" ? "Uploading…" : "Replace Reference"}
               </button>
@@ -435,8 +435,8 @@ export function CabiReferencePanel({ selectedProvider, selectedModel, selectedMo
 
 function Row({ label, value, mono = false }: { label: string; value: string; mono?: boolean }) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-2">
-      <dt className="text-[10px] uppercase tracking-[.13em] text-[#706a7d]">{label}</dt>
+    <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 rounded-xl border border-[var(--cabi-hairline)] bg-[var(--cabi-surface-1)] px-3 py-2">
+      <dt className="text-[10px] uppercase tracking-[.13em] text-[var(--cabi-text-muted)]">{label}</dt>
       <dd className={`min-w-0 break-all text-right text-[12px] font-medium text-white ${mono ? "font-mono text-[11px]" : ""}`}>{value}</dd>
     </div>
   );

@@ -1,4 +1,4 @@
-import type { AspectRatio, ImageProviderId } from "@/lib/image-generation/types";
+import type { AspectRatio, ImageProviderCapabilities, ImageProviderId } from "@/lib/image-generation/types";
 
 export type ImageProviderDefinition = {
   id: Extract<ImageProviderId, "together">;
@@ -163,4 +163,35 @@ export function recommendedImageModel(provider = "together"): ImageModelDefiniti
   return imageModelsForProvider(provider).find((model) => model.recommended)
     ?? imageModelsForProvider(provider)[0]
     ?? IMAGE_MODELS["Qwen/Qwen-Image-2.0"];
+}
+
+/**
+ * Returns the capabilities for a provider/model pair without constructing a
+ * provider or touching credentials. This is shared by settings resolution,
+ * the admin surface, and runtime adapters so their reference decisions cannot
+ * drift.
+ */
+export function imageCapabilitiesForModel(config: { provider: string; model?: string }): ImageProviderCapabilities {
+  const model = imageModelFor(config.provider, config.model ?? "");
+  if (!model) {
+    return {
+      supportsTextToImage: false,
+      supportsReferenceImages: false,
+      supportsImageToImage: false,
+      supportsImageEditing: false,
+      supportsSeed: false,
+      supportsNegativePrompt: false,
+      supportsSteps: false,
+    };
+  }
+  return {
+    supportsTextToImage: model.supportsTextToImage,
+    supportsReferenceImages: model.supportsReferenceImages,
+    supportsImageToImage: model.supportsImageEditing,
+    supportsImageEditing: model.supportsImageEditing,
+    supportsSeed: model.supportsSeed,
+    referenceParameter: model.referenceParameter,
+    supportsNegativePrompt: model.supportsNegativePrompt,
+    supportsSteps: model.supportsSteps,
+  };
 }

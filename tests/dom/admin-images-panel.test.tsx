@@ -59,7 +59,10 @@ describe("owner image settings panel", () => {
     fireEvent.change(model, { target: { value: "Qwen/Qwen-Image" } });
     expect(screen.getAllByText("Text to Image").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Reference Images").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("✕").length).toBeGreaterThan(0);
+    // Unsupported capabilities use a Lucide Minus icon rather than a Unicode
+    // glyph, so the assertion is on the exported state instead of the character.
+    expect(document.querySelectorAll("[data-capability='unsupported']").length).toBeGreaterThan(0);
+    expect(document.querySelectorAll("[data-capability='supported']").length).toBeGreaterThan(0);
     expect(screen.getByTestId("cabi-reference-panel")).toHaveAttribute("data-model", "Qwen/Qwen-Image");
   });
 
