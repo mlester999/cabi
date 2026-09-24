@@ -169,6 +169,16 @@ describe("the prompt always carries the fixed identity", () => {
     expect(prompt).toContain("Scene: Cabi at the beach");
   });
 
+  it("turns the harmless cuteness request into a clean positive provider prompt", async () => {
+    const response = await POST(request({ prompt: "Generate an image of your cuteness", aspectRatio: "1:1" }));
+    expect(response.status).toBe(200);
+    expect(mocks.generated).toHaveLength(1);
+    const prompt = String(mocks.generated[0].preparedPrompt);
+    expect(prompt).toContain("a cute, cheerful portrait of Cabi in a cozy setting");
+    expect(prompt).not.toContain("Generate an image of your cuteness");
+    expect(prompt.toLowerCase()).not.toMatch(/never childlike|clearly adult|prohibited|unsafe|sexual|violent|hateful/iu);
+  });
+
   it("strips an attempt to redefine Cabi while keeping her identity", async () => {
     await POST(request({ prompt: "Make Cabi blonde with blue eyes and remove her cat ears", aspectRatio: "1:1" }));
     const prompt = String(mocks.generated[0].preparedPrompt);

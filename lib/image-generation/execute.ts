@@ -19,6 +19,8 @@ export type ImageGenerationExecutionResult = ImageGenerationResult & {
   referenceConditioned: boolean;
   /** True when a reference 403 was proven to be reference-specific by a successful text-only retry. */
   referenceFallbackUsed: boolean;
+  /** True when the one permitted UNSAFE_PROMPT retry used the minimal prompt. */
+  promptFallbackUsed: boolean;
 };
 
 function diagnosticFor(input: {
@@ -30,6 +32,15 @@ function diagnosticFor(input: {
 }): void {
   const reference = input.request.referenceImages?.[0];
   const size = aspectRatioSizes[input.request.aspectRatio];
+  const providerErrorCategory = input.result.ok
+    ? "none"
+    : imageDiagnosticErrorCategory({
+        httpStatus: input.result.httpStatus,
+        error: input.result.error,
+        referenceAttached: Boolean(reference),
+        providerErrorCategory: input.result.providerErrorCategory,
+      });
+  input.request.trace?.update({ providerErrorCategory });
   logImageGenerationDiagnostic({
     source: input.source,
     provider: input.config.provider,
@@ -45,14 +56,7 @@ function diagnosticFor(input: {
     responseFormat: "url",
     requestStarted: true,
     httpStatus: input.result.ok ? null : input.result.httpStatus ?? null,
-    providerErrorCategory: input.result.ok
-      ? "none"
-      : imageDiagnosticErrorCategory({
-          httpStatus: input.result.httpStatus,
-          error: input.result.error,
-          referenceAttached: Boolean(reference),
-          providerErrorCategory: input.result.providerErrorCategory,
-        }),
+    providerErrorCategory,
   });
 }
 
@@ -70,6 +74,8 @@ export async function executeImageGeneration(input: {
   provider: ImageGenerationProvider;
   request: ImageGenerationRequest;
   referenceVersion: number | null;
+  /** Positive-only retry prompt built by the server-side Cabi plan. */
+  minimalPrompt?: string;
   trace?: ImagePipelineTrace;
 }): Promise<ImageGenerationExecutionResult> {
   const request = input.trace ? { ...input.request, trace: input.trace } : input.request;
@@ -79,22 +85,43 @@ export async function executeImageGeneration(input: {
     ...first,
     referenceConditioned: Boolean(request.referenceImages?.length),
     referenceFallbackUsed: false,
+    promptFallbackUsed: false,
   } as ImageGenerationExecutionResult;
 
-  if (
-    first.ok
-    || !request.referenceImages?.length
-    || first.providerErrorCategory !== "reference_input"
-  ) {
+  if (first.ok) return firstWithMetadata;
+
+  // Together may classify a harmless assembled prompt as UNSAFE_PROMPT. The
+  // application safety gate has already passed, so make one clean positive
+  // retry. It is never a moderation bypass and it is never repeated.
+  if (first.error === "UNSAFE_PROMPT" && input.minimalPrompt?.trim()) {
+    const fallbackRequest = {
+      ...request,
+      preparedPrompt: input.minimalPrompt,
+      negativePrompt: undefined,
+    };
+    input.trace?.update({ retryCount: 1 });
+    const fallback = await input.provider.generateCabiImage(fallbackRequest);
+    diagnosticFor({ ...input, request: fallbackRequest, result: fallback });
+    return {
+      ...fallback,
+      referenceConditioned: Boolean(fallbackRequest.referenceImages?.length),
+      referenceFallbackUsed: false,
+      promptFallbackUsed: true,
+    } as ImageGenerationExecutionResult;
+  }
+
+  if (!request.referenceImages?.length || first.providerErrorCategory !== "reference_input") {
     return firstWithMetadata;
   }
 
   const fallbackRequest = { ...request, referenceImages: undefined };
+  input.trace?.update({ retryCount: 1 });
   const fallback = await input.provider.generateCabiImage(fallbackRequest);
   diagnosticFor({ ...input, request: fallbackRequest, result: fallback });
   return {
     ...fallback,
     referenceConditioned: false,
     referenceFallbackUsed: true,
+    promptFallbackUsed: false,
   } as ImageGenerationExecutionResult;
 }

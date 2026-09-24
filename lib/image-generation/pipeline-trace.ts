@@ -57,6 +57,13 @@ export type ImagePipelineDebugDetails = {
   contentType: string | null;
   byteLength: number | null;
   error: string | null;
+  providerErrorCategory: string | null;
+  promptHash: string | null;
+  promptLength: number | null;
+  scene: string | null;
+  expression: string | null;
+  outfit: string | null;
+  retryCount: number;
   latencyMs: number;
   events: ImagePipelineDebugEvent[];
 };
@@ -75,6 +82,13 @@ type TraceFields = {
   contentType?: string | null;
   byteLength?: number | null;
   error?: string | null;
+  providerErrorCategory?: string | null;
+  promptHash?: string | null;
+  promptLength?: number | null;
+  scene?: string | null;
+  expression?: string | null;
+  outfit?: string | null;
+  retryCount?: number;
 };
 
 function safeId(value: string | null | undefined): string | null {
@@ -107,6 +121,13 @@ export class ImagePipelineTrace {
     aspectRatio: string | null;
     width: number | null;
     height: number | null;
+    providerErrorCategory: string | null;
+    promptHash: string | null;
+    promptLength: number | null;
+    scene: string | null;
+    expression: string | null;
+    outfit: string | null;
+    retryCount: number;
   };
   private failed: { stage: ImagePipelineStage; httpStatus: number | null; error: string } | null = null;
   private lastStage: ImagePipelineStage | null = null;
@@ -128,6 +149,13 @@ export class ImagePipelineTrace {
       aspectRatio: input.aspectRatio ?? null,
       width: null,
       height: null,
+      providerErrorCategory: null,
+      promptHash: null,
+      promptLength: null,
+      scene: null,
+      expression: null,
+      outfit: null,
+      retryCount: 0,
     };
   }
 
@@ -141,6 +169,13 @@ export class ImagePipelineTrace {
     if (fields.aspectRatio !== undefined) this.context.aspectRatio = fields.aspectRatio;
     if (fields.width !== undefined) this.context.width = fields.width;
     if (fields.height !== undefined) this.context.height = fields.height;
+    if (fields.providerErrorCategory !== undefined) this.context.providerErrorCategory = fields.providerErrorCategory;
+    if (fields.promptHash !== undefined) this.context.promptHash = fields.promptHash;
+    if (fields.promptLength !== undefined) this.context.promptLength = fields.promptLength;
+    if (fields.scene !== undefined) this.context.scene = fields.scene?.slice(0, 400) ?? null;
+    if (fields.expression !== undefined) this.context.expression = fields.expression?.slice(0, 40) ?? null;
+    if (fields.outfit !== undefined) this.context.outfit = fields.outfit?.slice(0, 80) ?? null;
+    if (fields.retryCount !== undefined) this.context.retryCount = Math.max(0, Math.min(2, Math.trunc(fields.retryCount)));
   }
 
   record(stage: ImagePipelineStage, fields: TraceFields = {}) {

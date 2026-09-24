@@ -13,7 +13,7 @@ import { checkImageSafety } from "@/lib/image-generation/safety";
 import { noticeCard, imageCard } from "@/lib/actions/cards";
 import type { ActionCard } from "@/lib/actions/types";
 import { createImagePipelineTrace, type ImagePipelineTrace } from "@/lib/image-generation/pipeline-trace";
-import { logImagePipelineTrace } from "@/lib/image-generation/diagnostics";
+import { imagePipelineDatabaseFields, logImagePipelineTrace } from "@/lib/image-generation/diagnostics";
 import { recordCabiPlanStages, runCabiImagePipeline } from "@/lib/image-generation/pipeline";
 
 /**
@@ -50,8 +50,6 @@ export type ChatImageOptions = {
   messageId: string | null;
   /** Shared with the chat route so message creation and image stages have one ID. */
   trace?: ImagePipelineTrace;
-  /** Only a server-authenticated owner/admin preview may receive diagnostics. */
-  debugAllowed?: boolean;
 };
 
 export type ChatImageResult =
@@ -77,25 +75,19 @@ export async function generateChatImage(message: string, options: ChatImageOptio
     const result = await generateChatImageInternal(message, { ...options, trace });
     trace.record("FINAL_RESPONSE_RETURNED");
     logImagePipelineTrace(trace);
-    if (options.debugAllowed && result.handled && result.card.kind === "NOTICE") {
-      return { ...result, trace, card: { ...result.card, debugDetails: trace.snapshot() } };
-    }
-    return options.debugAllowed ? { ...result, trace } : result;
+    return result;
   } catch {
     trace.record("FINAL_RESPONSE_RETURNED", { error: "UNEXPECTED_PIPELINE_ERROR" });
     logImagePipelineTrace(trace);
-    const debugDetails = options.debugAllowed ? trace.snapshot() : undefined;
     return {
       handled: true,
       usedProvider: false,
       reply: "",
-      ...(options.debugAllowed ? { trace } : {}),
       card: noticeCard({
         title: "Couldn't make that image",
         message: "I couldn't make that image right now. You can try again when you're ready.",
         tone: "error",
         retry: { label: "Try Again", prompt: message },
-        debugDetails,
       }),
     };
   }
@@ -312,6 +304,7 @@ async function generateChatImageInternal(message: string, options: ChatImageOpti
       reference_version: plan.reference.version,
       seed: plan.seed,
       reference_conditioned: plan.capabilities.referenceConditioning,
+      ...imagePipelineDatabaseFields(trace),
     });
     trace.record("GENERATION_ROW_CREATED", { error: insertResult?.error ? "DATABASE_INSERT_FAILED" : null });
   } catch {
@@ -344,7 +337,12 @@ async function generateChatImageInternal(message: string, options: ChatImageOpti
   if (!pipeline.ok) {
     // FAILED does not consume the daily allowance, so a provider outage never
     // burns one of the user's images.
-    const markedFailed = await markFailed({ generationId, code: pipeline.error, message: pipeline.message });
+    const markedFailed = await markFailed({
+      generationId,
+      code: pipeline.error,
+      message: pipeline.message,
+      diagnostics: imagePipelineDatabaseFields(trace),
+    });
     trace.record("GENERATION_ROW_UPDATED", { error: markedFailed === false ? "DATABASE_UPDATE_FAILED" : null });
     const storageFailure = pipeline.error === "STORAGE_FAILED" || pipeline.error === "SIGNED_URL_FAILED";
     return {

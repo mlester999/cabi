@@ -139,7 +139,7 @@ describe("cabi character consistency", () => {
   it("keeps a reference asset path and prohibited-substitution list", () => {
     expect(cabiReferenceAsset).toBe("/assets/cabi-cpu-model.png");
     expect(cabiCharacterBible.prohibited.length).toBeGreaterThanOrEqual(5);
-    expect(cabiNegativePrompt).toContain("different character");
+    expect(cabiNegativePrompt).toContain("malformed hands");
   });
 
   it("never leaks the bible through the user-facing prompt helper", () => {

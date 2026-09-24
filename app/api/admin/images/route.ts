@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import { auditAdmin } from "@/lib/admin/audit";
 import { adminOrResponse } from "@/lib/admin/auth";
+import { getServiceClient } from "@/lib/db/supabase";
 import { createImageProvider } from "@/lib/image-generation/provider";
 import {
   IMAGE_PROVIDER_OPTIONS,
@@ -24,6 +25,7 @@ import { createImagePipelineTrace } from "@/lib/image-generation/pipeline-trace"
 import { runFullCabiImageTest } from "@/lib/image-generation/full-test";
 import type { ImageGenerationSettings } from "@/lib/image-generation/types";
 import { assertSameOrigin, jsonError } from "@/lib/security/request";
+import { shortAddress } from "@/lib/wallet-data/types";
 
 export const dynamic = "force-dynamic";
 
@@ -128,11 +130,49 @@ function invalidSelectionResponse(value: unknown) {
 }
 
 /** Admin image-generation settings. The endpoint and decrypted key stay server-side. */
-export async function GET() {
+export async function GET(request: Request) {
   // This is an owner surface, not a public app API. The admin session is the
   // authorization and remains usable during PRELAUNCH/MAINTENANCE.
   const auth = await adminOrResponse();
   if (auth.response) return auth.response;
+
+  if (new URL(request.url).searchParams.get("section") === "errors") {
+    const db = getServiceClient();
+    if (!db) return Response.json({ errors: [] }, { headers: responseHeaders() });
+    const { data, error } = await db
+      .from("image_generations")
+      .select("id,created_at,failed_at,wallet_account_id,provider,model,failure_code,failure_message,diagnostic_stage,provider_error_category,http_status,pipeline_request_id,prompt_hash,prompt_length,diagnostic_scene,diagnostic_expression,diagnostic_outfit,prompt_retry_count,reference_conditioned")
+      .eq("status", "FAILED")
+      .order("created_at", { ascending: false })
+      .limit(50);
+    if (error) return jsonError("Recent image diagnostics could not be loaded.", 503, "DIAGNOSTICS_UNAVAILABLE");
+    const errors = (data ?? []).map((row) => {
+      const record = row as Record<string, unknown>;
+      const wallet = typeof record.wallet_account_id === "string" ? record.wallet_account_id : "";
+      return {
+        id: typeof record.id === "string" ? record.id : null,
+        time: typeof record.failed_at === "string" ? record.failed_at : record.created_at,
+        requestId: typeof record.pipeline_request_id === "string" ? record.pipeline_request_id : null,
+        user: wallet ? shortAddress(wallet, 8, 4) : "—",
+        stage: typeof record.diagnostic_stage === "string" ? record.diagnostic_stage : null,
+        provider: typeof record.provider === "string" ? record.provider : null,
+        model: typeof record.model === "string" ? record.model : null,
+        category: typeof record.provider_error_category === "string" ? record.provider_error_category : record.failure_code,
+        httpStatus: typeof record.http_status === "number" ? record.http_status : null,
+        details: {
+          message: typeof record.failure_message === "string" ? record.failure_message.slice(0, 500) : null,
+          promptHash: typeof record.prompt_hash === "string" ? record.prompt_hash : null,
+          promptLength: typeof record.prompt_length === "number" ? record.prompt_length : null,
+          scene: typeof record.diagnostic_scene === "string" ? record.diagnostic_scene : null,
+          expression: typeof record.diagnostic_expression === "string" ? record.diagnostic_expression : null,
+          outfit: typeof record.diagnostic_outfit === "string" ? record.diagnostic_outfit : null,
+          promptRetryCount: typeof record.prompt_retry_count === "number" ? record.prompt_retry_count : 0,
+          referenceConditioned: record.reference_conditioned === true,
+        },
+      };
+    });
+    return Response.json({ errors }, { headers: responseHeaders() });
+  }
 
   const settings = await readImageSettings();
   return Response.json({ settings: adminSettings(settings), ...catalog() }, { headers: responseHeaders() });
@@ -269,6 +309,7 @@ export async function POST(request: Request) {
       diagnostics: snapshot,
       referenceConditioned: result.ok ? result.referenceConditioned : false,
       referenceFallbackUsed: result.ok ? result.referenceFallbackUsed : false,
+      promptFallbackUsed: result.ok ? result.promptFallbackUsed : false,
     }, { status: result.ok ? 200 : 502, headers: responseHeaders() });
   }
 

@@ -196,6 +196,7 @@ function createStabilityProvider(config: ImageProviderConfig): ImageGenerationPr
     supportsImageToImage: false,
     supportsImageEditing: false,
     supportsSeed: false,
+    supportsNegativePrompt: true,
   };
 
   return {
@@ -203,12 +204,14 @@ function createStabilityProvider(config: ImageProviderConfig): ImageGenerationPr
     label: "Stability AI",
     supportsReferenceImage: capabilities.supportsReferenceImages,
     capabilities,
-    async generateCabiImage({ scene, aspectRatio, preparedPrompt, signal }) {
+    async generateCabiImage({ scene, aspectRatio, negativePrompt, preparedPrompt, signal }) {
       const { signal: scoped, clear } = timedSignal(signal);
       try {
         const form = new FormData();
         form.append("prompt", preparedPrompt ?? buildCabiImagePrompt(scene));
-        form.append("negative_prompt", cabiNegativePrompt);
+        if (capabilities.supportsNegativePrompt && (negativePrompt ?? cabiNegativePrompt).trim()) {
+          form.append("negative_prompt", (negativePrompt ?? cabiNegativePrompt).trim());
+        }
         form.append("output_format", "png");
         form.append("aspect_ratio", aspectRatio);
         const response = await fetch(`${base}/v2beta/stable-image/generate/${model.startsWith("sd3") ? "sd3" : "core"}`, {

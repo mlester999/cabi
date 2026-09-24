@@ -17,8 +17,6 @@ import { assertSameOrigin, clientAddress, jsonError } from "@/lib/security/reque
 import { checkRateLimit } from "@/lib/security/rate-limit";
 import { chatRequestSchema } from "@/lib/validation/api";
 import { readWalletAuth } from "@/lib/wallet/session";
-import { readAdminSession } from "@/lib/security/session";
-import { readOwnerPreviewAuth } from "@/lib/site/owner-preview";
 import { shouldPersistChat } from "@/lib/wallet/persistence";
 import { guardAppApiCpu } from "@/lib/site/guard";
 import { recordChatTurnSocial } from "@/lib/chat/social";
@@ -68,12 +66,6 @@ export async function POST(request: Request) {
     ? createImagePipelineTrace({ source: "CHAT_GENERATION", conversationId: parsed.data.conversationId ?? null })
     : null;
   imageTrace?.record("IMAGE_INTENT_DETECTED");
-  const debugAllowed = imageRequested
-    ? Boolean(
-      (await readAdminSession().catch(() => null))
-      ?? (await readOwnerPreviewAuth().catch(() => null)),
-    )
-    : false;
   // The provider config is resolved but NOT required yet. Some requests are
   // answered entirely by trusted application code (wallet reads, token lookups,
   // slash commands) and must keep working even when no AI key is configured -
@@ -179,7 +171,6 @@ export async function POST(request: Request) {
         ? await readLatestGenerationContext(walletAccountId, conversationId).catch(() => null)
         : null,
       trace: imageTrace ?? undefined,
-      debugAllowed,
     }),
   ]);
   const mood: CabiMood = inferMood({

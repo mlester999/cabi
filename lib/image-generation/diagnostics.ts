@@ -1,5 +1,7 @@
 import "server-only";
 
+import { createHash } from "node:crypto";
+
 import { envBoolean } from "@/lib/config/env";
 import type {
   ImageGenerationError,
@@ -39,6 +41,11 @@ export function imageReferenceInputType(value: string | undefined): ImageReferen
   if (value.startsWith("https://")) return "https-url";
   if (value.startsWith("http://")) return "http-url";
   return "other";
+}
+
+/** Stable short fingerprint for correlating a failure without storing a prompt. */
+export function imagePromptHash(prompt: string): string {
+  return createHash("sha256").update(prompt).digest("hex").slice(0, 16);
 }
 
 /**
@@ -83,4 +90,21 @@ export function logImagePipelineTrace(trace: ImagePipelineTrace | ImagePipelineD
   if (!envBoolean("IMAGE_GENERATION_DIAGNOSTICS")) return;
   const snapshot = "snapshot" in trace ? trace.snapshot() : trace;
   console.info("[cabi:image-pipeline]", JSON.stringify(snapshot));
+}
+
+/** Safe columns for the owner diagnostics view; never includes the prompt. */
+export function imagePipelineDatabaseFields(trace: ImagePipelineTrace | ImagePipelineDebugDetails) {
+  const snapshot = "snapshot" in trace ? trace.snapshot() : trace;
+  return {
+    pipeline_request_id: snapshot.requestId,
+    diagnostic_stage: snapshot.stage ?? snapshot.lastStage,
+    provider_error_category: snapshot.providerErrorCategory,
+    http_status: snapshot.httpStatus,
+    prompt_hash: snapshot.promptHash,
+    prompt_length: snapshot.promptLength,
+    diagnostic_scene: snapshot.scene,
+    diagnostic_expression: snapshot.expression,
+    diagnostic_outfit: snapshot.outfit,
+    prompt_retry_count: snapshot.retryCount,
+  };
 }

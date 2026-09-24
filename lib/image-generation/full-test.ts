@@ -15,6 +15,7 @@ export type FullCabiImageTestResult =
       trace: ImagePipelineTrace;
       referenceConditioned: boolean;
       referenceFallbackUsed: boolean;
+      promptFallbackUsed: boolean;
     }
   | { ok: false; message: string; trace: ImagePipelineTrace };
 
@@ -92,5 +93,6 @@ export async function runFullCabiImageTest(input: {
     trace,
     referenceConditioned: pipeline.generated.referenceConditioned,
     referenceFallbackUsed: pipeline.generated.referenceFallbackUsed,
+    promptFallbackUsed: pipeline.generated.promptFallbackUsed,
   };
 }

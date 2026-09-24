@@ -185,6 +185,7 @@ export async function PATCH(request: Request) {
     } catch (error) {
       const code = error instanceof Error ? error.message : "SAVE_FAILED";
       if (code === "DATABASE_NOT_CONFIGURED") return jsonError("Supabase must be connected first.", 503, code);
+      if (code === "VISUAL_GUIDANCE_ONLY") return jsonError("Use visual art direction and quality-avoidance notes only. Provider settings, URLs, and policy instructions are not accepted here.", 400, code);
       return jsonError("Those character notes could not be saved.", 503, "SAVE_FAILED");
     }
   }

@@ -17,9 +17,9 @@
 
 import {
   cabiExpressions,
+  cleanCabiScene,
   isCabiExpression,
   isCabiOutfit,
-  sanitizeScene,
   type CabiExpression,
   type CabiOutfit,
 } from "@/lib/cabi/image-identity";
@@ -163,10 +163,10 @@ export function parseCabiSceneRequest(
   const previousExpression = isCabiExpression(previous?.expression) ? previous.expression : null;
   const previousOutfit = isCabiOutfit(previous?.outfit) ? previous.outfit : null;
 
-  const carriedScene = isModification ? sanitizeScene(previous?.scene ?? "") : "";
+  const carriedScene = isModification ? cleanCabiScene(previous?.scene ?? "") : "";
   // A bare colour survives sanitisation only if it was scoped to clothing, which
   // is decided against the original message above.
-  const ownScene = sanitizeScene(raw);
+  const ownScene = cleanCabiScene(raw);
 
   return {
     scene: carriedScene || ownScene,

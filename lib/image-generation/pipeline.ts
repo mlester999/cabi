@@ -7,6 +7,7 @@ import type { ResolvedImageGenerationConfig } from "@/lib/image-generation/setti
 import { generationBucket, signedImageUrl, uploadGenerationImage } from "@/lib/image-generation/storage";
 import type { CabiGenerationPlan } from "@/lib/image-generation/plan.server";
 import type { ImagePipelineSource, ImagePipelineTrace } from "@/lib/image-generation/pipeline-trace";
+import { imagePromptHash } from "@/lib/image-generation/diagnostics";
 
 export type CabiImagePipelineFailure = {
   ok: false;
@@ -41,6 +42,11 @@ export function recordCabiPlanStages(trace: ImagePipelineTrace, config: Resolved
     aspectRatio: plan.aspectRatio,
     width: size.width,
     height: size.height,
+    promptHash: imagePromptHash(plan.prompt),
+    promptLength: plan.prompt.length,
+    scene: plan.scene,
+    expression: plan.expression,
+    outfit: plan.outfit,
   });
 }
 
@@ -72,6 +78,7 @@ export async function runCabiImagePipeline(input: {
       config: input.config,
       provider,
       referenceVersion: input.plan.reference.version,
+      minimalPrompt: input.plan.minimalPrompt,
       request: {
         scene: input.plan.scene,
         aspectRatio: input.plan.aspectRatio,

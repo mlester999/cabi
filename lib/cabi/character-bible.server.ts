@@ -4,7 +4,7 @@ import {
   cabiCanonicalIdentity,
   cabiComposition,
   cabiQuality,
-  sanitizeScene,
+  cleanCabiScene,
 } from "@/lib/cabi/image-identity";
 import { getServiceClient } from "@/lib/db/supabase";
 import { createTtlCache } from "@/lib/wallet-data/cache";
@@ -44,6 +44,39 @@ export const cabiCharacterBibleSchema = z.object({
   negative: z.string().trim().max(600),
 });
 
+/** Owner notes are visual controls only; they are never a second prompt. */
+const nonVisualGuidancePatterns: readonly RegExp[] = [
+  /https?:\/\//iu,
+  /\b(?:system|developer|assistant|user)\s+(?:prompt|message|instruction)s?\b/iu,
+  /\b(?:ignore|disregard|forget)\s+(?:all\s+)?(?:previous|above|prior)\b/iu,
+  /\b(?:provider|model|endpoint|api\s*key|token|url|http|switch\s+model)\b/iu,
+  /\b(?:unsafe|prohibited|sexual|violent|hateful|nudity|nsfw|minor|child)\b/iu,
+];
+
+const nonQualityNegativePatterns: readonly RegExp[] = [
+  /\b(?:different|wrong|missing)\s+(?:character|identity|hair|eye|eyes|cat\s*ears?|tail)\b/iu,
+  /\b(?:character|identity|persona|age)\s+(?:change|drift|replacement)\b/iu,
+  /\b(?:real|photographed|photorealistic)\s+person\b/iu,
+];
+
+export function sanitizeVisualGuidance(value: string, field: "artDirection" | "negative"): string {
+  if (!value.trim()) return "";
+  const cleaned = cleanCabiScene(value, 600);
+  if (nonVisualGuidancePatterns.some((pattern) => pattern.test(value))) {
+    throw new Error("VISUAL_GUIDANCE_ONLY");
+  }
+  // Negative guidance is intentionally a quality list, not a policy or
+  // identity list. The same visual sanitizer is used for both fields so an old
+  // stored value can never leak provider-control text back into a prompt.
+  if (field === "negative" && /\b(?:do not|don't|never|avoid)\b/iu.test(cleaned)) {
+    throw new Error("VISUAL_GUIDANCE_ONLY");
+  }
+  if (field === "negative" && nonQualityNegativePatterns.some((pattern) => pattern.test(cleaned))) {
+    throw new Error("VISUAL_GUIDANCE_ONLY");
+  }
+  return cleaned;
+}
+
 export const cabiCharacterBibleTtlMs = 30_000;
 
 const bibleCache = createTtlCache<CabiCharacterBible>(cabiCharacterBibleTtlMs, 4);
@@ -55,8 +88,14 @@ export function invalidateCabiCharacterBibleCache() {
 export function parseCabiCharacterBible(value: unknown, fallback: CabiCharacterBible = cabiCharacterBibleDefaults): CabiCharacterBible {
   const parsed = cabiCharacterBibleSchema.partial().safeParse(value ?? {});
   if (!parsed.success) return fallback;
-  const artDirection = (parsed.data.artDirection ?? fallback.artDirection).trim();
-  const negative = (parsed.data.negative ?? fallback.negative).trim();
+  let artDirection = fallback.artDirection;
+  let negative = fallback.negative;
+  try {
+    if (parsed.data.artDirection !== undefined) artDirection = sanitizeVisualGuidance(parsed.data.artDirection, "artDirection");
+    if (parsed.data.negative !== undefined) negative = sanitizeVisualGuidance(parsed.data.negative, "negative");
+  } catch {
+    return fallback;
+  }
   return { artDirection, negative, customized: artDirection.length > 0 || negative.length > 0 };
 }
 
@@ -89,7 +128,13 @@ export async function writeCabiCharacterBible(input: { artDirection: string; neg
     artDirection: input.artDirection ?? "",
     negative: input.negative ?? "",
   });
-  const value = parseCabiCharacterBible(parsed);
+  const artDirection = sanitizeVisualGuidance(parsed.artDirection, "artDirection");
+  const negative = sanitizeVisualGuidance(parsed.negative, "negative");
+  const value: CabiCharacterBible = {
+    artDirection,
+    negative,
+    customized: artDirection.length > 0 || negative.length > 0,
+  };
   const { error } = await db.from("app_settings").upsert(
     { key: cabiCharacterBibleKey, value_json: { artDirection: value.artDirection, negative: value.negative }, updated_by: actor },
     { onConflict: "key" },
@@ -116,7 +161,12 @@ export async function resetCabiCharacterBible(): Promise<CabiCharacterBible> {
  * the layers, and the assembled prompt stays server-side.
  */
 export function cabiIdentityLayers(input: { artDirection?: string } = {}) {
-  const notes = sanitizeScene(input.artDirection ?? "", 600);
+  let notes = "";
+  try {
+    notes = sanitizeVisualGuidance(input.artDirection ?? "", "artDirection");
+  } catch {
+    notes = "";
+  }
   return {
     identity: cabiCanonicalIdentity,
     // Owner art direction is appended to composition, never to identity.

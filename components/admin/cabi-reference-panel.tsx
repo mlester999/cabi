@@ -358,22 +358,22 @@ export function CabiReferencePanel({ selectedProvider, selectedModel, selectedMo
 
         <div className="mt-5 grid gap-4">
           <label className="block">
-            <span className={label}>Art-direction notes</span>
+            <span className={label}>Art direction — visual only</span>
             <textarea
               rows={3}
               value={draft.artDirection}
               onChange={(event) => setDraft((current) => ({ ...current, artDirection: event.target.value }))}
-              placeholder="Optional. Appended to every prompt as composition guidance, e.g. 'soft watercolour finish, warm evening light'."
+              placeholder="Optional visual examples: soft watercolour finish, warm evening light, centred portrait."
               className={`mt-2 ${field}`}
             />
           </label>
           <label className="block">
-            <span className={label}>Negative guidance</span>
+            <span className={label}>Quality avoidance — visual only</span>
             <textarea
               rows={3}
               value={draft.negative}
               onChange={(event) => setDraft((current) => ({ ...current, negative: event.target.value }))}
-              placeholder="Optional. Overrides the shipped negative prompt when set."
+              placeholder="Optional quality terms: blurry, malformed hands, text artifacts, watermark."
               className={`mt-2 ${field}`}
             />
           </label>

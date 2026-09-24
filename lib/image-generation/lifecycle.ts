@@ -151,6 +151,7 @@ export async function markFailed(input: {
   code: string;
   message: string;
   assistantMessageId?: string | null;
+  diagnostics?: Record<string, unknown>;
 }): Promise<boolean> {
   const db = getServiceClient();
   if (!db) return false;
@@ -162,6 +163,7 @@ export async function markFailed(input: {
       failure_message: input.message,
       failed_at: new Date().toISOString(),
       assistant_message_id: input.assistantMessageId ?? null,
+      ...input.diagnostics,
     })
     .eq("id", input.generationId);
   return !error;

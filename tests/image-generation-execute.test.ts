@@ -84,6 +84,51 @@ describe("image execution fallback", () => {
     expect(client.generateCabiImage).toHaveBeenNthCalledWith(2, expect.objectContaining({ referenceImages: undefined }));
   });
 
+  it("retries one Together UNSAFE_PROMPT with the positive minimal prompt", async () => {
+    const client = provider([
+      { ok: false, error: "UNSAFE_PROMPT", message: "Try describing it differently", httpStatus: 400 },
+      imageResult,
+    ]);
+
+    const result = await executeImageGeneration({
+      source: "CHAT_GENERATION",
+      config,
+      provider: client,
+      request: { ...request, negativePrompt: "quality terms" },
+      minimalPrompt: "Cabi is a young adult anime catgirl in a cozy setting.",
+      referenceVersion: 4,
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.promptFallbackUsed).toBe(true);
+    expect(result.referenceFallbackUsed).toBe(false);
+    expect(client.generateCabiImage).toHaveBeenCalledTimes(2);
+    expect(client.generateCabiImage).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      preparedPrompt: "Cabi is a young adult anime catgirl in a cozy setting.",
+      negativePrompt: undefined,
+    }));
+  });
+
+  it("does not make a second safety retry", async () => {
+    const client = provider([
+      { ok: false, error: "UNSAFE_PROMPT", message: "Try describing it differently", httpStatus: 400 },
+      { ok: false, error: "UNSAFE_PROMPT", message: "Try describing it differently", httpStatus: 400 },
+      imageResult,
+    ]);
+
+    const result = await executeImageGeneration({
+      source: "HTTP_GENERATION",
+      config,
+      provider: client,
+      request,
+      minimalPrompt: "Cabi in a cozy setting.",
+      referenceVersion: 0,
+    });
+
+    expect(result.ok).toBe(false);
+    expect(client.generateCabiImage).toHaveBeenCalledTimes(2);
+  });
+
   it.each([
     [401, "NOT_CONFIGURED"],
     [402, "PROVIDER_ERROR"],

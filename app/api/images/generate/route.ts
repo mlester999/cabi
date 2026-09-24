@@ -11,7 +11,7 @@ import { parseCabiSceneRequest } from "@/lib/image-generation/parse-scene";
 import { readLatestGenerationContext } from "@/lib/image-generation/lifecycle";
 import { resolveImageGenerationConfig } from "@/lib/image-generation/settings";
 import { createImagePipelineTrace } from "@/lib/image-generation/pipeline-trace";
-import { logImagePipelineTrace } from "@/lib/image-generation/diagnostics";
+import { imagePipelineDatabaseFields, logImagePipelineTrace } from "@/lib/image-generation/diagnostics";
 import { recordCabiPlanStages, runCabiImagePipeline } from "@/lib/image-generation/pipeline";
 import { assertSameOrigin, clientAddress, jsonError } from "@/lib/security/request";
 import { checkRateLimit } from "@/lib/security/rate-limit";
@@ -137,10 +137,13 @@ export async function POST(request: Request) {
    * holding a knife" is unmistakably about Cabi and still must not be drawn.
    * Checked before the provider so a refusal costs no call and no allowance.
    */
-  const safety = checkImageSafety(extractScene(prompt));
+  const safetyScene = extractScene(prompt);
+  trace.update({ scene: safetyScene });
+  const safety = checkImageSafety(safetyScene);
   if (!safety.safe) {
     // Recorded so the admin view can see what is being asked for, without
     // spending a generation on it.
+    trace.record("FINAL_RESPONSE_RETURNED", { error: "SAFETY_REFUSED", providerErrorCategory: "safety_refused" });
     await db.from("image_generations").insert({
       wallet_account_id: wallet.walletAccountId,
       conversation_id: conversationId ?? null,
@@ -153,6 +156,7 @@ export async function POST(request: Request) {
       safety_code: safetyCodeFor(safety),
       failure_message: safety.message,
       failed_at: new Date().toISOString(),
+      ...imagePipelineDatabaseFields(trace),
     });
     return Response.json(
       { type: "chat_response", verdict: "UNSAFE", message: safety.message },
@@ -257,8 +261,10 @@ export async function POST(request: Request) {
       model: imageConfig.model,
       status: "FAILED",
       failure_code: pipeline.error,
+      failure_message: pipeline.message,
       idempotency_key: idempotencyKey ?? null,
       ...safeMetadata,
+      ...imagePipelineDatabaseFields(trace),
     });
     trace.record("GENERATION_ROW_CREATED", { error: failedInsert.error ? "DATABASE_INSERT_FAILED" : null });
     if (pipeline.path) await deleteGenerationImage(pipeline.path).catch(() => false);
@@ -291,6 +297,7 @@ export async function POST(request: Request) {
       completed_at: new Date().toISOString(),
       idempotency_key: idempotencyKey ?? null,
       ...safeMetadata,
+      ...imagePipelineDatabaseFields(trace),
     })
     .select("id,created_at")
     .maybeSingle();

@@ -19,6 +19,7 @@ import {
 import { Badge as SharedBadge } from "@/components/ui/cabi-primitives";
 
 import { CabiReferencePanel } from "@/components/admin/cabi-reference-panel";
+import { AdminImageErrorsPanel } from "@/components/admin/admin-image-errors-panel";
 import {
   IMAGE_PROVIDER_OPTIONS,
   imageModelFor,
@@ -63,6 +64,7 @@ type FullTestResult = {
   diagnostics?: ImagePipelineDebugDetails;
   referenceConditioned?: boolean;
   referenceFallbackUsed?: boolean;
+  promptFallbackUsed?: boolean;
 };
 
 const emptySettings: Settings = {
@@ -205,6 +207,7 @@ export function AdminImagesPanel() {
           diagnostics: payload.diagnostics,
           referenceConditioned: payload.referenceConditioned,
           referenceFallbackUsed: payload.referenceFallbackUsed,
+          promptFallbackUsed: payload.promptFallbackUsed,
         });
         setNotice({ tone: "success", message: "Full Cabi generation verified." });
       }
@@ -399,7 +402,7 @@ export function AdminImagesPanel() {
               <div className="min-w-0 flex-1">
                 <p className={`text-[12px] font-semibold ${fullTest.ok ? "text-emerald-100" : "text-rose-100"}`}>{fullTest.ok ? "Full generation verified" : "Full generation failed"}</p>
                 <p className={`mt-1 text-[11px] leading-5 ${fullTest.ok ? "text-emerald-100/75" : "text-rose-100/75"}`}>{fullTest.message}</p>
-                {fullTest.ok ? <p className="mt-2 text-[11px] text-emerald-100/80">Reference: {fullTest.referenceConditioned ? "conditioned" : "text only"}{fullTest.referenceFallbackUsed ? " · text-only fallback used" : ""}</p> : null}
+                {fullTest.ok ? <p className="mt-2 text-[11px] text-emerald-100/80">Reference: {fullTest.referenceConditioned ? "conditioned" : "text only"}{fullTest.referenceFallbackUsed ? " · text-only fallback used" : ""}{fullTest.promptFallbackUsed ? " · clean prompt retry used" : ""}</p> : null}
                 {fullTest.diagnostics ? (
                   <details className="mt-3">
                     <summary className="cabi-focus cursor-pointer text-[11px] text-[var(--cabi-text-muted)] transition-colors hover:text-[var(--cabi-text-secondary)]">Debug details</summary>
@@ -408,6 +411,8 @@ export function AdminImagesPanel() {
                       <div><dt className="uppercase tracking-[.1em] text-white/35">Stage</dt><dd>{fullTest.diagnostics.stage ?? fullTest.diagnostics.lastStage ?? "—"}</dd></div>
                       <div><dt className="uppercase tracking-[.1em] text-white/35">Error</dt><dd>{fullTest.diagnostics.error ?? "—"}</dd></div>
                       <div><dt className="uppercase tracking-[.1em] text-white/35">HTTP</dt><dd>{fullTest.diagnostics.httpStatus ?? "—"}</dd></div>
+                      <div><dt className="uppercase tracking-[.1em] text-white/35">Error category</dt><dd>{fullTest.diagnostics.providerErrorCategory ?? "—"}</dd></div>
+                      <div><dt className="uppercase tracking-[.1em] text-white/35">Prompt hash / length</dt><dd className="font-mono">{fullTest.diagnostics.promptHash ?? "—"} · {fullTest.diagnostics.promptLength ?? "—"}</dd></div>
                       <div><dt className="uppercase tracking-[.1em] text-white/35">Model</dt><dd className="break-all">{fullTest.diagnostics.model ?? "—"}</dd></div>
                       <div><dt className="uppercase tracking-[.1em] text-white/35">Reference</dt><dd>{fullTest.diagnostics.referenceAttached ? `v${fullTest.diagnostics.referenceVersion ?? "?"} attached` : "text only"}</dd></div>
                       <div><dt className="uppercase tracking-[.1em] text-white/35">Size</dt><dd>{fullTest.diagnostics.width && fullTest.diagnostics.height ? `${fullTest.diagnostics.width}×${fullTest.diagnostics.height}` : "—"}</dd></div>
@@ -436,6 +441,8 @@ export function AdminImagesPanel() {
         </div>
       </section>
 
+
+      <AdminImageErrorsPanel />
 
       <section className="rounded-2xl border border-[var(--cabi-hairline)] bg-[var(--cabi-surface-1)] p-5">
         <h2 className="text-sm font-bold text-white">Required storage buckets</h2>

@@ -3,6 +3,7 @@ import "server-only";
 import {
   type CabiExpression,
   type CabiOutfit,
+  buildCabiMinimalPrompt,
   buildCabiPromptLayers,
   cabiNegativePrompt,
 } from "@/lib/cabi/image-identity";
@@ -36,6 +37,8 @@ export type CabiGenerationPlan = {
   };
   /** The assembled prompt. Server-only; never returned to a browser. */
   prompt: string;
+  /** Positive-only prompt used for the single controlled safety retry. */
+  minimalPrompt: string;
   negative: string;
   expression: CabiExpression | null;
   outfit: CabiOutfit | null;
@@ -132,12 +135,21 @@ export async function buildCabiGenerationPlan(input: {
     parts.quality,
   ].filter((part): part is string => Boolean(part)).join(" ");
 
+  const minimalPrompt = buildCabiMinimalPrompt({
+    scene: parts.scene,
+    expression: input.expression ?? null,
+    outfit: input.outfit ?? null,
+    outfitNote: input.outfitNote ?? null,
+    sceneNote: input.sceneNote ?? null,
+  });
+
   const referenceImages = referenceImageFor(reference, input.modelSupportsReferenceImages);
   return {
     ok: true,
     plan: {
       parts: { ...parts, composition: layers.composition },
       prompt,
+      minimalPrompt,
       negative: bible.negative || cabiNegativePrompt,
       expression: input.expression ?? null,
       outfit: input.outfit ?? null,
