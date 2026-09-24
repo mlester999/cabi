@@ -23,6 +23,7 @@ import {
   type ImageModelDefinition,
   type ImageProviderOption,
 } from "@/lib/image-generation/registry";
+import type { ImageConnectionDiagnostics } from "@/lib/image-generation/types";
 
 type Settings = {
   enabled: boolean;
@@ -34,6 +35,7 @@ type Settings = {
   allowGuestGeneration: boolean;
   hasApiKey: boolean;
   keyLastFour: string | null;
+  apiKeySource?: "admin" | "environment" | null;
 };
 
 type CatalogPayload = {
@@ -47,6 +49,7 @@ type ConnectionResult = {
   message: string;
   model?: string;
   referenceConditioning?: boolean;
+  diagnostics?: ImageConnectionDiagnostics;
 };
 
 const emptySettings: Settings = {
@@ -59,6 +62,7 @@ const emptySettings: Settings = {
   allowGuestGeneration: false,
   hasApiKey: false,
   keyLastFour: null,
+  apiKeySource: null,
 };
 
 /**
@@ -153,7 +157,7 @@ export function AdminImagesPanel() {
       });
       const payload = await response.json() as CatalogPayload & ConnectionResult & { error?: string };
       if (!response.ok) {
-        if (action === "test") setConnection({ ok: false, message: payload.message ?? payload.error ?? "Connection failed." });
+        if (action === "test") setConnection({ ok: false, message: payload.message ?? payload.error ?? "Connection failed.", diagnostics: payload.diagnostics });
         setNotice({ tone: "error", message: payload.message ?? payload.error ?? "That did not work." });
         return;
       }
@@ -168,6 +172,7 @@ export function AdminImagesPanel() {
           message: payload.message ?? "Connected.",
           model: payload.model,
           referenceConditioning: payload.referenceConditioning,
+          diagnostics: payload.diagnostics,
         });
         setNotice({ tone: "success", message: "Together AI connection verified." });
       }
@@ -287,7 +292,7 @@ export function AdminImagesPanel() {
             <span className="inline-flex items-center gap-1.5 text-[10px] text-[#777180]"><LockKeyhole size={12} aria-hidden="true" /> Encrypted at rest</span>
           </div>
           {settings.hasApiKey && !clearApiKey ? (
-            <p className="mt-2 flex items-center gap-2 text-[12px] text-emerald-200"><CheckCircle2 size={13} aria-hidden="true" /> A key is stored, ending {settings.keyLastFour ?? "----"}</p>
+            <p className="mt-2 flex items-center gap-2 text-[12px] text-emerald-200"><CheckCircle2 size={13} aria-hidden="true" /> {settings.apiKeySource === "environment" ? "An environment key is configured" : "A key is stored"}, ending {settings.keyLastFour ?? "----"}</p>
           ) : (
             <p className="mt-2 flex items-center gap-2 text-[12px] text-[#8e889b]"><XCircle size={13} aria-hidden="true" /> No key stored</p>
           )}
@@ -301,7 +306,7 @@ export function AdminImagesPanel() {
             className={`mt-3 ${field}`}
           />
           <p className="mt-1.5 flex items-start gap-1.5 text-[11px] leading-5 text-[#625d6d]"><Info size={13} className="mt-0.5 shrink-0" aria-hidden="true" /> Only the last four characters are shown after saving. The key is never returned to the browser or logged.</p>
-          {settings.hasApiKey ? (
+          {settings.hasApiKey && settings.apiKeySource !== "environment" ? (
             <button type="button" onClick={() => setClearApiKey((current) => !current)} className={`focus-ring mt-2 inline-flex items-center gap-1.5 text-[11px] ${clearApiKey ? "text-emerald-200" : "text-rose-200"}`}>
               <Trash2 size={12} aria-hidden="true" /> {clearApiKey ? "Keep stored key" : "Remove stored key"}
             </button>
@@ -316,6 +321,15 @@ export function AdminImagesPanel() {
                 <p className={`text-[12px] font-semibold ${connection.ok ? "text-emerald-100" : "text-rose-100"}`}>{connection.ok ? "Connected" : "Connection failed"}</p>
                 <p className={`mt-1 text-[11px] leading-5 ${connection.ok ? "text-emerald-100/75" : "text-rose-100/75"}`}>{connection.message}</p>
                 {connection.ok ? <p className="mt-2 text-[11px] text-emerald-100/80">Model: {imageModelFor(settings.provider, connection.model ?? settings.model)?.label ?? selectedModel?.label ?? settings.model} · Reference conditioning: {connection.referenceConditioning ? "supported" : "not supported"}</p> : null}
+                {connection.diagnostics ? (
+                  <dl className="mt-3 grid gap-x-4 gap-y-1 text-[10px] text-white/60 sm:grid-cols-2">
+                    <div><dt className="uppercase tracking-[.1em] text-white/35">Provider</dt><dd>{connection.diagnostics.provider}</dd></div>
+                    <div><dt className="uppercase tracking-[.1em] text-white/35">Key loaded</dt><dd>{connection.diagnostics.keyLoaded ? "Yes" : "No"}</dd></div>
+                    <div><dt className="uppercase tracking-[.1em] text-white/35">Key suffix</dt><dd>{connection.diagnostics.keySuffix ?? "—"}</dd></div>
+                    <div><dt className="uppercase tracking-[.1em] text-white/35">HTTP status</dt><dd>{connection.diagnostics.httpStatus ?? "—"}</dd></div>
+                    <div className="sm:col-span-2"><dt className="uppercase tracking-[.1em] text-white/35">Endpoint</dt><dd className="break-all">{connection.diagnostics.endpoint}</dd></div>
+                  </dl>
+                ) : null}
               </div>
             </div>
           </div>

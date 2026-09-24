@@ -29,6 +29,28 @@ import { z } from "zod";
 
 export const imageSettingsKey = "image_generation";
 export const imageSecretKey = "image_generation_api_key";
+const imageSecretAad = `cabi:secret_settings:${imageSecretKey}:v1`;
+
+export type ImageApiKeySource = "admin" | "environment";
+
+/** The only masked-key shape the admin UI is allowed to display. */
+const maskedImageApiKeyPattern = /^[•·*…]{4,}[A-Za-z0-9]{4}$/u;
+
+export function isMaskedImageApiKey(value: string): boolean {
+  return maskedImageApiKeyPattern.test(value.trim());
+}
+
+/** Trims a key without changing any other byte. Empty input means "no replacement". */
+export function normalizeImageApiKey(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const normalized = value.trim();
+  return normalized || null;
+}
+
+/** The environment fallback is intentionally empty-string safe. */
+export function resolveEnvironmentTogetherApiKey(): string | null {
+  return normalizeImageApiKey(env("TOGETHER_API_KEY"));
+}
 
 /**
  * This schema still understands legacy provider ids so existing installations
@@ -128,7 +150,15 @@ export function parseImageSettings(value: unknown): ImageSettingsInput {
 /** Settings for a client or an admin screen. Never includes the key itself. */
 export async function readImageSettings(): Promise<ImageGenerationSettings> {
   const db = getServiceClient();
-  if (!db) return { ...defaultImageSettings };
+  if (!db) {
+    const environmentKey = resolveEnvironmentTogetherApiKey();
+    return {
+      ...defaultImageSettings,
+      hasApiKey: Boolean(environmentKey),
+      keyLastFour: environmentKey?.slice(-4) ?? null,
+      apiKeySource: environmentKey ? "environment" : null,
+    };
+  }
   const [{ data: setting }, { data: secret }] = await Promise.all([
     db.from("app_settings").select("value_json").eq("key", imageSettingsKey).maybeSingle(),
     db.from("secret_settings").select("last_four").eq("key", imageSecretKey).maybeSingle(),
@@ -145,10 +175,14 @@ export async function readImageSettings(): Promise<ImageGenerationSettings> {
     }, { onConflict: "key" });
   }
 
+  const storedLastFour = typeof secret?.last_four === "string" && secret.last_four.length > 0 ? secret.last_four : null;
+  const environmentKey = parsed.provider === "together" ? resolveEnvironmentTogetherApiKey() : null;
+
   return {
     ...parsed,
-    hasApiKey: Boolean(secret?.last_four),
-    keyLastFour: (secret?.last_four as string | null) ?? null,
+    hasApiKey: Boolean(storedLastFour || environmentKey),
+    keyLastFour: storedLastFour ?? environmentKey?.slice(-4) ?? null,
+    apiKeySource: storedLastFour ? "admin" : environmentKey ? "environment" : null,
   };
 }
 
@@ -156,10 +190,18 @@ export async function readImageSettings(): Promise<ImageGenerationSettings> {
  * The provider config, including the decrypted key.
  *
  * Server-only and never serialised into a response. Returns null when no key is
- * configured or the app encryption key is missing, which the route reports as
- * "not configured" rather than attempting a call.
+ * configured and falls back to the trimmed TOGETHER_API_KEY environment value
+ * when no decryptable admin key exists. The route reports "not configured"
+ * rather than attempting a call when neither source is available.
  */
-export async function readImageProviderConfig(): Promise<{ settings: ImageSettingsInput; apiKey: string } | null> {
+export type ImageProviderConfig = {
+  settings: ImageSettingsInput;
+  apiKey: string;
+  apiKeySource: ImageApiKeySource;
+};
+
+/** Reads and decrypts the one admin-managed Together/image key, if present. */
+export async function readStoredImageProviderConfig(): Promise<ImageProviderConfig | null> {
   const db = getServiceClient();
   if (!db) return null;
 
@@ -172,9 +214,9 @@ export async function readImageProviderConfig(): Promise<{ settings: ImageSettin
   if (!secret?.encrypted_value || !encryptionKey) return null;
 
   try {
-    const apiKey = await decryptSecret(secret.encrypted_value as SecretEnvelope, encryptionKey, `cabi:secret_settings:${imageSecretKey}:v1`);
-    if (!apiKey) return null;
-    return { settings: resolved, apiKey };
+    const apiKey = normalizeImageApiKey(await decryptSecret(secret.encrypted_value as SecretEnvelope, encryptionKey, imageSecretAad));
+    if (!apiKey || isMaskedImageApiKey(apiKey)) return null;
+    return { settings: resolved, apiKey, apiKeySource: "admin" };
   } catch {
     // A key that cannot be decrypted is treated as absent rather than crashing a
     // request. This happens if APP_ENCRYPTION_KEY was rotated.
@@ -182,9 +224,35 @@ export async function readImageProviderConfig(): Promise<{ settings: ImageSettin
   }
 }
 
+/**
+ * Resolves one runtime key: the decrypted admin key wins, then the environment.
+ * The environment is only a Together fallback and never borrows chat config.
+ */
+export async function readImageProviderConfig(): Promise<ImageProviderConfig | null> {
+  const stored = await readStoredImageProviderConfig();
+  if (stored) return stored;
+
+  const environmentKey = resolveEnvironmentTogetherApiKey();
+  if (!environmentKey) return null;
+
+  const settings = await readImageSettings();
+  if (settings.provider !== "together") return null;
+  return { settings: parseImageSettings(settings), apiKey: environmentKey, apiKeySource: "environment" };
+}
+
 export async function writeImageSettings(input: ImageSettingsInput, actor: string, apiKey?: string) {
   const db = getServiceClient();
   if (!db) throw new Error("DATABASE_NOT_CONFIGURED");
+
+  const normalizedApiKey = apiKey === undefined ? null : normalizeImageApiKey(apiKey);
+  if (normalizedApiKey && isMaskedImageApiKey(normalizedApiKey)) throw new Error("MASKED_API_KEY");
+  const encryptionKey = normalizedApiKey ? env("APP_ENCRYPTION_KEY") : null;
+  if (normalizedApiKey && !encryptionKey) throw new Error("ENCRYPTION_KEY_NOT_CONFIGURED");
+  // Validate and encrypt before changing the non-secret settings row, so an
+  // invalid APP_ENCRYPTION_KEY cannot leave a misleading half-save behind.
+  const envelope = normalizedApiKey && encryptionKey
+    ? await encryptSecret(normalizedApiKey, encryptionKey, imageSecretAad)
+    : null;
 
   const normalized = parseImageSettings(input);
   const { error } = await db
@@ -192,15 +260,12 @@ export async function writeImageSettings(input: ImageSettingsInput, actor: strin
     .upsert({ key: imageSettingsKey, value_json: normalized, updated_by: actor }, { onConflict: "key" });
   if (error) throw new Error("SAVE_FAILED");
 
-  if (apiKey) {
-    const encryptionKey = env("APP_ENCRYPTION_KEY");
-    if (!encryptionKey) throw new Error("ENCRYPTION_KEY_NOT_CONFIGURED");
+  if (normalizedApiKey && envelope) {
     // The AAD binds the ciphertext to this exact record, so a value moved
     // between rows fails to decrypt.
-    const envelope = await encryptSecret(apiKey, encryptionKey, `cabi:secret_settings:${imageSecretKey}:v1`);
     const { error: secretError } = await db
       .from("secret_settings")
-      .upsert({ key: imageSecretKey, encrypted_value: envelope, last_four: apiKey.slice(-4), updated_by: actor }, { onConflict: "key" });
+      .upsert({ key: imageSecretKey, encrypted_value: envelope, last_four: normalizedApiKey.slice(-4), updated_by: actor }, { onConflict: "key" });
     if (secretError) throw new Error("SECRET_SAVE_FAILED");
   }
 }

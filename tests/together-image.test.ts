@@ -2,12 +2,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   defaultTogetherImageModel,
+  classifyTogetherHttpError,
   generateTogetherImage,
   resolveTogetherApiKey,
   resolveTogetherModel,
   sizeForAspectRatio,
   supportsReferenceImages,
   testTogetherConnection,
+  togetherAuthorizationHeader,
   togetherAspectRatios,
   togetherImageEndpoint,
 } from "@/lib/ai/image/together";
@@ -70,10 +72,12 @@ describe("environment configuration", () => {
     expect(resolveTogetherApiKey()).toBe("test-key-not-real");
   });
 
-  it("treats a missing or stub key as not configured", () => {
+  it("trims the environment key and rejects only empty input", () => {
     delete process.env.TOGETHER_API_KEY;
     expect(resolveTogetherApiKey()).toBeNull();
-    process.env.TOGETHER_API_KEY = "short";
+    process.env.TOGETHER_API_KEY = "  short  ";
+    expect(resolveTogetherApiKey()).toBe("short");
+    process.env.TOGETHER_API_KEY = "   ";
     expect(resolveTogetherApiKey()).toBeNull();
   });
 
@@ -146,6 +150,12 @@ describe("request construction", () => {
     await generateTogetherImage({ prompt: "Cabi waving", aspectRatio: "1:1" });
     expect(calls[0].auth).toBe("Bearer test-key-not-real");
     expect(JSON.stringify(calls[0].body)).not.toContain("test-key-not-real");
+  });
+
+  it("never creates a double Bearer prefix", () => {
+    expect(togetherAuthorizationHeader("test-key-not-real")).toBe("Bearer test-key-not-real");
+    expect(togetherAuthorizationHeader("  Bearer test-key-not-real  ")).toBe("Bearer test-key-not-real");
+    expect(togetherAuthorizationHeader("Bearer Bearer test-key-not-real")).toBe("Bearer test-key-not-real");
   });
 
   it("wraps the scene with the canonical identity", async () => {
@@ -248,23 +258,32 @@ describe("response parsing", () => {
 });
 
 describe("error handling", () => {
-  const cases: Array<[number, string]> = [
-    [401, "NOT_CONFIGURED"],
-    [403, "NOT_CONFIGURED"],
-    [402, "PROVIDER_ERROR"],
-    [429, "RATE_LIMITED"],
-    [400, "UNSAFE_PROMPT"],
-    [404, "PROVIDER_ERROR"],
-    [500, "PROVIDER_ERROR"],
-    [503, "PROVIDER_ERROR"],
+  const cases: Array<[number, string, string]> = [
+    [401, "NOT_CONFIGURED", "Authentication failed"],
+    [403, "PROVIDER_ERROR", "Permission or account restriction"],
+    [402, "PROVIDER_ERROR", "Insufficient credits or billing issue"],
+    [429, "RATE_LIMITED", "Rate limited"],
+    [400, "UNSAFE_PROMPT", "I could not draw that one. Try describing it differently?"],
+    [404, "PROVIDER_ERROR", "Model or endpoint unavailable"],
+    [500, "PROVIDER_ERROR", "Together AI service unavailable"],
+    [503, "PROVIDER_ERROR", "Together AI service unavailable"],
   ];
 
-  it.each(cases)("maps HTTP %i to %s", async (status, expected) => {
+  it.each(cases.map(([status, expected, message]) => [status, expected, message] as const))("maps HTTP %i to %s", async (status, expected, message) => {
     stubFetch(() => new Response("provider detail", { status }));
     const result = await generateTogetherImage({ prompt: "Cabi waving", aspectRatio: "1:1" });
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.error).toBe(expected);
+    expect(result.message).toBe(message);
+  });
+
+  it("exposes the same status mapping used by the connection diagnostic", () => {
+    expect(classifyTogetherHttpError(401)).toEqual({ error: "NOT_CONFIGURED", message: "Authentication failed" });
+    expect(classifyTogetherHttpError(402).message).toBe("Insufficient credits or billing issue");
+    expect(classifyTogetherHttpError(404).message).toBe("Model or endpoint unavailable");
+    expect(classifyTogetherHttpError(429).error).toBe("RATE_LIMITED");
+    expect(classifyTogetherHttpError(503).message).toBe("Together AI service unavailable");
   });
 
   it("never forwards the provider's own error text to the caller", async () => {
@@ -274,7 +293,7 @@ describe("error handling", () => {
     if (result.ok) return;
     expect(result.message).not.toContain("sk-abc123");
     expect(result.message).not.toContain("acme");
-    expect(result.message).toBe("Invalid API key");
+    expect(result.message).toBe("Authentication failed");
   });
 
   it("reports a network failure as a provider error", async () => {
@@ -430,21 +449,34 @@ describe("connection test", () => {
     expect(calls).toHaveLength(1);
   });
 
-  it("uses the controlled connection prompt and selected reference-capable model", async () => {
+  it("uses the minimal official Together request and no OpenAI/reference fallback", async () => {
     stubFetch(() => new Response(JSON.stringify({ data: [{ b64_json: pngB64 }] }), { status: 200 }));
     const result = await testTogetherConnection({
       model: "Qwen/Qwen-Image-2.0",
       referenceImages: ["https://app.example/official/cabi-reference.png"],
     });
     expect(result.ok).toBe(true);
+    expect(calls[0].url).toBe(togetherImageEndpoint);
+    expect(calls[0].auth).toBe("Bearer test-key-not-real");
     expect(calls[0].body.model).toBe("Qwen/Qwen-Image-2.0");
-    expect(calls[0].body.prompt).toContain("Cabi smiling in a cozy room wearing her lavender CPU shirt.");
-    expect(calls[0].body.image_url).toBe("https://app.example/official/cabi-reference.png");
+    expect(calls[0].body.prompt).toBe("Cabi connection test");
+    expect(calls[0].body.width).toBe(512);
+    expect(calls[0].body.height).toBe(512);
+    expect(calls[0].body.n).toBe(1);
+    expect(calls[0].body.response_format).toBe("url");
+    expect(calls[0].body).not.toHaveProperty("image_url");
+    expect(calls[0].body).not.toHaveProperty("reference_images");
+    expect(JSON.stringify(result)).not.toContain("test-key-not-real");
+    if (!result.ok) return;
+    expect(result.diagnostics).toMatchObject({ provider: "Together AI", endpoint: togetherImageEndpoint, keyLoaded: true, keySuffix: "real", httpStatus: 200 });
   });
 
   it("fails the test when generation fails", async () => {
     stubFetch(() => new Response("nope", { status: 402 }));
     const result = await testTogetherConnection();
     expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.message).toBe("Insufficient credits or billing issue");
+    expect(result.diagnostics?.httpStatus).toBe(402);
   });
 });

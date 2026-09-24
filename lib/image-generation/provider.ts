@@ -278,13 +278,11 @@ function createTogetherProvider(config: ImageProviderConfig): ImageGenerationPro
       if (result.ok) return result;
       return { ok: false, error: result.error, message: result.message };
     },
-    async testConnection(input) {
+    async testConnection() {
       const { testTogetherConnection } = await import("@/lib/ai/image/together");
       return testTogetherConnection({
         apiKey: config.apiKey,
         model,
-        referenceImages: input?.referenceImages,
-        preparedPrompt: input?.preparedPrompt,
       });
     },
   };

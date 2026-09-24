@@ -88,6 +88,14 @@ export type ImageGenerationResult =
   | { ok: true; image: GeneratedImage }
   | { ok: false; error: ImageGenerationError; message: string };
 
+export type ImageConnectionDiagnostics = {
+  provider: string;
+  endpoint: string;
+  keyLoaded: boolean;
+  keySuffix: string | null;
+  httpStatus: number | null;
+};
+
 export type ImageConnectionTest =
   | {
       ok: true;
@@ -95,8 +103,9 @@ export type ImageConnectionTest =
       message: string;
       capabilities?: ImageProviderCapabilities;
       referenceConditioning?: boolean;
+      diagnostics?: ImageConnectionDiagnostics;
     }
-  | { ok: false; error: ImageGenerationError; message: string };
+  | { ok: false; error: ImageGenerationError; message: string; diagnostics?: ImageConnectionDiagnostics };
 
 export type ImageGenerationSettings = {
   enabled: boolean;
@@ -110,6 +119,8 @@ export type ImageGenerationSettings = {
   /** Whether an API key is stored. The key itself is never returned. */
   hasApiKey: boolean;
   keyLastFour: string | null;
+  /** Safe metadata describing where the configured key came from. */
+  apiKeySource?: "admin" | "environment" | null;
 };
 
 export const defaultImageSettings: ImageGenerationSettings = {
@@ -123,4 +134,5 @@ export const defaultImageSettings: ImageGenerationSettings = {
   allowGuestGeneration: false,
   hasApiKey: false,
   keyLastFour: null,
+  apiKeySource: null,
 };

@@ -2,7 +2,6 @@ import { z } from "zod";
 
 import { auditAdmin } from "@/lib/admin/audit";
 import { adminOrResponse } from "@/lib/admin/auth";
-import { buildCabiGenerationPlan } from "@/lib/image-generation/plan.server";
 import { createImageProvider, imageCapabilitiesFor } from "@/lib/image-generation/provider";
 import {
   IMAGE_PROVIDER_OPTIONS,
@@ -12,9 +11,12 @@ import {
 } from "@/lib/image-generation/registry";
 import {
   imageSettingsKey,
+  isMaskedImageApiKey,
+  normalizeImageApiKey,
   parseImageSettings,
-  readImageProviderConfig,
+  readStoredImageProviderConfig,
   readImageSettings,
+  resolveEnvironmentTogetherApiKey,
   removeImageApiKey,
   writeImageSettings,
 } from "@/lib/image-generation/settings";
@@ -44,6 +46,9 @@ export const imageAdminSaveSchema = z.object({
   }
   if (!isImageModelForProvider(value.provider, value.model)) {
     context.addIssue({ code: z.ZodIssueCode.custom, path: ["model"], message: "Choose a model from the selected provider." });
+  }
+  if (value.apiKey && isMaskedImageApiKey(value.apiKey)) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ["apiKey"], message: "Enter a new API key or leave this field blank." });
   }
 });
 
@@ -77,8 +82,6 @@ export async function GET() {
   return Response.json({ settings: adminSettings(settings), ...catalog() }, { headers: responseHeaders() });
 }
 
-const connectionTestPrompt = "Cabi smiling in a cozy room wearing her lavender CPU shirt.";
-
 export async function POST(request: Request) {
   try { assertSameOrigin(request); } catch { return jsonError("Invalid request.", 403, "INVALID_ORIGIN"); }
   const auth = await adminOrResponse();
@@ -90,37 +93,33 @@ export async function POST(request: Request) {
   const { action, apiKey, clearApiKey, ...settings } = parsed.data;
 
   if (action === "test") {
-    const stored = await readImageProviderConfig();
-    const candidate = apiKey || stored?.apiKey;
+    // A saved encrypted key is authoritative. The browser may omit the key
+    // entirely, and a typed replacement is only used when no saved key exists.
+    const stored = await readStoredImageProviderConfig();
+    const candidate = stored?.apiKey ?? normalizeImageApiKey(apiKey) ?? resolveEnvironmentTogetherApiKey();
     if (!candidate) return jsonError("Add a Together AI API key first.", 400, "NOT_CONFIGURED");
 
-    const capabilities = imageCapabilitiesFor({ provider: settings.provider as "together", model: settings.model });
-    const planned = await buildCabiGenerationPlan({
-      scene: connectionTestPrompt,
-      aspectRatio: "1:1",
-      modelSupportsReferenceImages: capabilities.supportsReferenceImages,
-    });
-    if (!planned.ok) return jsonError(planned.message, 503, planned.reason);
+    const testSettings = parseImageSettings(settings);
+    const capabilities = imageCapabilitiesFor({ provider: "together", model: testSettings.model });
 
     const provider = createImageProvider({
-      provider: settings.provider as "together",
+      provider: "together",
       apiKey: candidate,
-      model: settings.model,
+      baseUrl: testSettings.baseUrl,
+      model: testSettings.model,
       supportsReferenceImage: capabilities.supportsReferenceImages,
       capabilities,
     });
-    const result = await provider.testConnection({
-      referenceImages: planned.plan.referenceImages,
-      preparedPrompt: planned.plan.prompt,
-    });
+    const result = await provider.testConnection();
     await auditAdmin(request, admin.email, "image_settings.test", "image_settings", "singleton", result.ok ? "success" : "failure", {
-      provider: settings.provider,
-      model: settings.model,
-      referenceConditioning: planned.plan.capabilities.referenceConditioning,
+      provider: "together",
+      model: testSettings.model,
+      httpStatus: result.diagnostics?.httpStatus ?? null,
+      keySource: stored ? "admin" : apiKey ? "request" : "environment",
     });
     return Response.json(
       result.ok
-        ? { ...result, capabilities, referenceConditioning: planned.plan.capabilities.referenceConditioning }
+        ? { ...result, capabilities, referenceConditioning: capabilities.supportsReferenceImages }
         : result,
       { status: result.ok ? 200 : 400, headers: responseHeaders() },
     );
@@ -129,7 +128,7 @@ export async function POST(request: Request) {
   try {
     // `parseImageSettings` applies the official Together endpoint internally.
     await writeImageSettings(parseImageSettings(settings), admin.email, apiKey || undefined);
-    if (clearApiKey) await removeImageApiKey();
+    if (clearApiKey && !apiKey) await removeImageApiKey();
   } catch (error) {
     const code = error instanceof Error ? error.message : "SAVE_FAILED";
     if (code === "ENCRYPTION_KEY_NOT_CONFIGURED") return jsonError("APP_ENCRYPTION_KEY is not configured, so the key cannot be stored securely.", 503, code);

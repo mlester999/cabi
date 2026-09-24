@@ -2,7 +2,14 @@ import "server-only";
 
 import { buildCabiImagePrompt } from "@/lib/cabi/image-identity";
 import { imageModelFor, recommendedImageModel } from "@/lib/image-generation/registry";
-import { aspectRatioSizes, type AspectRatio, type ImageGenerationError, type ImageGenerationResult } from "@/lib/image-generation/types";
+import {
+  aspectRatioSizes,
+  type AspectRatio,
+  type ImageConnectionDiagnostics,
+  type ImageConnectionTest,
+  type ImageGenerationError,
+  type ImageGenerationResult,
+} from "@/lib/image-generation/types";
 
 /**
  * Together AI image generation.
@@ -11,9 +18,10 @@ import { aspectRatioSizes, type AspectRatio, type ImageGenerationError, type Ima
  * the request shape is small and stable, and one fewer package in the server
  * bundle is one fewer supply-chain surface for a credential-bearing path.
  *
- * The API key is read from the server environment only. It is never placed in a
- * response, never logged, and never sent to a browser — the error paths below
- * deliberately discard the provider's message text before it can reach a client.
+ * The API key is supplied by the server-side settings resolver or environment
+ * fallback. It is never placed in a response, never logged, and never sent to a
+ * browser — provider response text is deliberately discarded before it can
+ * reach a client.
  */
 
 export const togetherImageEndpoint = "https://api.together.xyz/v1/images/generations";
@@ -69,27 +77,17 @@ export function supportsReferenceImages(model: string): boolean {
 /** How many inference steps to request. Qwen-Image is a step-distilled model. */
 const defaultSteps = 28;
 
-function classifyHttpError(status: number): { error: ImageGenerationError; message: string } {
-  if (status === 401 || status === 403) {
-    return { error: "NOT_CONFIGURED", message: "Invalid API key" };
-  }
-  // 402 is Together's insufficient-balance response.
-  if (status === 402) {
-    return { error: "PROVIDER_ERROR", message: "Insufficient Together credits" };
-  }
-  if (status === 429) {
-    return { error: "RATE_LIMITED", message: "Rate limited" };
-  }
+export function classifyTogetherHttpError(status: number): { error: ImageGenerationError; message: string } {
+  if (status === 401) return { error: "NOT_CONFIGURED", message: "Authentication failed" };
+  if (status === 402) return { error: "PROVIDER_ERROR", message: "Insufficient credits or billing issue" };
+  if (status === 403) return { error: "PROVIDER_ERROR", message: "Permission or account restriction" };
+  if (status === 404) return { error: "PROVIDER_ERROR", message: "Model or endpoint unavailable" };
+  if (status === 429) return { error: "RATE_LIMITED", message: "Rate limited" };
   if (status === 400 || status === 422) {
     return { error: "UNSAFE_PROMPT", message: "I could not draw that one. Try describing it differently?" };
   }
-  if (status === 404) {
-    return { error: "PROVIDER_ERROR", message: "Model unavailable" };
-  }
-  if (status >= 500) {
-    return { error: "PROVIDER_ERROR", message: "Connection failed" };
-  }
-  return { error: "PROVIDER_ERROR", message: "Connection failed" };
+  if (status >= 500) return { error: "PROVIDER_ERROR", message: "Together AI service unavailable" };
+  return { error: "PROVIDER_ERROR", message: "Together AI request failed" };
 }
 
 /**
@@ -135,7 +133,14 @@ function contentTypeOf(bytes: Uint8Array): "image/png" | "image/jpeg" | "image/w
 
 export function resolveTogetherApiKey(): string | null {
   const key = process.env.TOGETHER_API_KEY?.trim();
-  return key && key.length > 8 ? key : null;
+  return key || null;
+}
+
+/** Ensures the wire header has exactly one Bearer prefix without rewriting storage. */
+export function togetherAuthorizationHeader(apiKey: string): string {
+  let key = apiKey.trim();
+  while (/^Bearer\s+/iu.test(key)) key = key.replace(/^Bearer\s+/iu, "");
+  return `Bearer ${key}`;
 }
 
 export function resolveTogetherModel(): string {
@@ -156,7 +161,7 @@ export async function generateTogetherImage(
   request: TogetherRequest,
   config?: Partial<TogetherProviderConfig>,
 ): Promise<ImageGenerationResult> {
-  const apiKey = config?.apiKey ?? resolveTogetherApiKey();
+  const apiKey = config?.apiKey?.trim() || resolveTogetherApiKey();
   if (!apiKey) {
     return { ok: false, error: "NOT_CONFIGURED", message: "Cabi's image generation has not been configured yet." };
   }
@@ -187,7 +192,7 @@ export async function generateTogetherImage(
     const response = await fetch(config?.endpoint ?? togetherImageEndpoint, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${apiKey}`,
+        Authorization: togetherAuthorizationHeader(apiKey),
         "Content-Type": "application/json",
       },
       body: JSON.stringify(body),
@@ -195,11 +200,7 @@ export async function generateTogetherImage(
     });
 
     if (!response.ok) {
-      // The provider's own text is read but never forwarded: it can name the
-      // account, the model, or the key's prefix.
-      const detail = await response.text().catch(() => "");
-      console.error(`[cabi:image] together ${response.status} ${detail.slice(0, 200)}`);
-      const classified = classifyHttpError(response.status);
+      const classified = classifyTogetherHttpError(response.status);
       return { ok: false, ...classified };
     }
 
@@ -240,20 +241,79 @@ export async function generateTogetherImage(
  * would otherwise pass.
  */
 export async function testTogetherConnection(config?: Partial<TogetherProviderConfig>): Promise<
-  { ok: true; model: string; message: string } | { ok: false; error: ImageGenerationError; message: string }
+  ImageConnectionTest
 > {
-  const apiKey = config?.apiKey ?? resolveTogetherApiKey();
-  if (!apiKey) return { ok: false, error: "NOT_CONFIGURED", message: "Add your Together AI API key first." };
+  const endpoint = config?.endpoint ?? togetherImageEndpoint;
+  const apiKey = config?.apiKey?.trim() || resolveTogetherApiKey();
+  const diagnostics = (httpStatus: number | null, loadedKey: string | null): ImageConnectionDiagnostics => ({
+    provider: "Together AI",
+    endpoint,
+    keyLoaded: Boolean(loadedKey),
+    keySuffix: loadedKey ? loadedKey.slice(-4) : null,
+    httpStatus,
+  });
+
+  if (!apiKey) {
+    return {
+      ok: false,
+      error: "NOT_CONFIGURED",
+      message: "Together AI key is not configured",
+      diagnostics: diagnostics(null, null),
+    };
+  }
   const model = config?.model && imageModelFor("together", config.model)?.id
     ? config.model
     : resolveTogetherModel();
 
-  const result = await generateTogetherImage({
-    prompt: "Cabi smiling in a cozy room wearing her lavender CPU shirt.",
-    aspectRatio: "1:1",
-    referenceImages: config?.referenceImages,
-    preparedPrompt: config?.preparedPrompt,
-  }, { ...config, apiKey, model });
-  if (!result.ok) return { ok: false, error: result.error, message: result.message };
-  return { ok: true, model, message: `Connected. ${model} is responding.` };
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), config?.timeoutMs ?? 30_000);
+  try {
+    // This is deliberately a minimal real generation request. It proves the
+    // exact Together key can authenticate and generate without involving the
+    // Cabi reference pipeline or any OpenAI-compatible route.
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        Authorization: togetherAuthorizationHeader(apiKey),
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model,
+        prompt: "Cabi connection test",
+        width: 512,
+        height: 512,
+        n: 1,
+        response_format: "url",
+      }),
+      signal: controller.signal,
+    });
+    const responseDiagnostics = diagnostics(response.status, apiKey);
+    if (!response.ok) {
+      return { ok: false, ...classifyTogetherHttpError(response.status), diagnostics: responseDiagnostics };
+    }
+
+    const payload = await response.json().catch(() => null) as TogetherPayload | null;
+    const first = payload?.data?.[0];
+    if (!first || (typeof first.url !== "string" && typeof first.b64_json !== "string")) {
+      return {
+        ok: false,
+        error: "INVALID_RESPONSE",
+        message: "Together AI sent back an unreadable response",
+        diagnostics: responseDiagnostics,
+      };
+    }
+    return {
+      ok: true,
+      model,
+      message: `Connected. ${model} is responding.`,
+      diagnostics: responseDiagnostics,
+    };
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") {
+      return { ok: false, error: "TIMEOUT", message: "Together AI connection timed out", diagnostics: diagnostics(null, apiKey) };
+    }
+    return { ok: false, error: "PROVIDER_ERROR", message: "Could not reach Together AI", diagnostics: diagnostics(null, apiKey) };
+  } finally {
+    clearTimeout(timeout);
+  }
 }
