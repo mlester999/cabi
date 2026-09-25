@@ -16,7 +16,12 @@ import {
   type ImageGenerationResult,
   type ImageProviderErrorCategory,
 } from "@/lib/image-generation/types";
-import type { ImagePipelineTrace } from "@/lib/image-generation/pipeline-trace";
+import type {
+  ImagePipelineTrace,
+  SafeTogetherProviderError,
+  TogetherRequestComparison,
+  TogetherRequestShape,
+} from "@/lib/image-generation/pipeline-trace";
 
 /**
  * Together AI image generation.
@@ -108,6 +113,137 @@ function isUnsafePromptResponse(value: unknown): boolean {
   return /\b(?:unsafe[_ -]prompt|prompt.{0,60}(?:unsafe|blocked|rejected)|(?:safety|moderation|content[_ -]?policy).{0,60}(?:reject(?:ed)?|block(?:ed)?|fail(?:ed)?|violat(?:e|ed|ion))|(?:reject(?:ed)?|block(?:ed)?|fail(?:ed)?|violat(?:e|ed|ion)).{0,60}(?:safety|moderation|content[_ -]?policy|prompt))\b/iu.test(text);
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function safeProviderText(value: unknown, sensitiveValues: readonly string[] = []): string | null {
+  if (typeof value !== "string") return null;
+  let safe = value;
+  for (const secret of sensitiveValues) {
+    if (secret.length >= 4) safe = safe.replaceAll(secret, "[redacted]");
+  }
+  safe = safe
+    .replace(/[\u0000-\u001f\u007f]/gu, " ")
+    .replace(/\s+/gu, " ")
+    .replace(/\bBearer\s+\S+/giu, "Bearer [redacted]")
+    .replace(/\b(?:sk|together|supabase)[_-][A-Za-z0-9_-]{8,}\b/giu, "[redacted]")
+    .replace(/(authorization|api[_ -]?key|secret|token)\s*[:=]\s*[^\s,;]+/giu, "$1=[redacted]")
+    .replace(/https?:\/\/[^\s"'<>]+/giu, "[URL redacted]")
+    .trim();
+  return safe ? safe.slice(0, 600) : null;
+}
+
+function safeProviderToken(value: unknown, sensitiveValues: readonly string[] = []): string | null {
+  return safeProviderText(value, sensitiveValues)?.replace(/[^A-Za-z0-9_.:-]/gu, "").slice(0, 96) || null;
+}
+
+/** Extracts only Together's documented error fields; raw bodies are never returned. */
+export function sanitizeTogetherProviderError(
+  value: unknown,
+  sensitiveValues: readonly string[] = [],
+): SafeTogetherProviderError | null {
+  const body = isRecord(value) ? value : null;
+  const nested = body && isRecord(body.error) ? body.error : null;
+  const source = nested ?? body;
+  const messageValue = source?.message ?? (body && typeof body.error === "string" ? body.error : value);
+  const details = {
+    code: safeProviderToken(source?.code ?? body?.code, sensitiveValues),
+    type: safeProviderToken(source?.type ?? body?.type, sensitiveValues),
+    message: safeProviderText(messageValue, sensitiveValues),
+    parameter: safeProviderToken(source?.param ?? source?.parameter ?? body?.param ?? body?.parameter, sensitiveValues),
+  };
+  return Object.values(details).some(Boolean) ? details : null;
+}
+
+function requestShape(body: Record<string, unknown>, aspectRatioInternal: string | null = null): TogetherRequestShape {
+  const numberField = (key: string) => typeof body[key] === "number" && Number.isFinite(body[key]) ? body[key] as number : null;
+  const textField = (key: string) => typeof body[key] === "string" ? body[key] as string : null;
+  return {
+    fields: Object.keys(body),
+    model: textField("model"),
+    promptLength: typeof body.prompt === "string" ? body.prompt.length : null,
+    width: numberField("width"),
+    height: numberField("height"),
+    steps: numberField("steps"),
+    n: numberField("n"),
+    responseFormat: textField("response_format"),
+    seedPresent: Object.hasOwn(body, "seed"),
+    negativePromptPresent: Object.hasOwn(body, "negative_prompt"),
+    qualityPresent: Object.hasOwn(body, "quality"),
+    aspectRatioParameterPresent: Object.hasOwn(body, "aspect_ratio"),
+    aspectRatioInternal,
+    referenceInput: Object.hasOwn(body, "image_url") ? "image_url" : Object.hasOwn(body, "reference_images") ? "reference_images" : null,
+  };
+}
+
+/** Minimal real connection probe used as the safe request-shape baseline. */
+export function buildTogetherConnectionTestBody(model: string): Record<string, unknown> {
+  return {
+    model,
+    prompt: "Cabi connection test",
+    width: 512,
+    height: 512,
+    n: 1,
+    response_format: "url",
+  };
+}
+
+export function compareTogetherRequestBodies(
+  workingBody: Record<string, unknown>,
+  fullBody: Record<string, unknown>,
+  fullAspectRatio: AspectRatio,
+): TogetherRequestComparison {
+  const working = requestShape(workingBody);
+  const full = requestShape(fullBody, fullAspectRatio);
+  return {
+    working,
+    full,
+    onlyInFull: full.fields.filter((field) => !working.fields.includes(field)),
+    onlyInWorking: working.fields.filter((field) => !full.fields.includes(field)),
+  };
+}
+
+function classifyBadRequest(providerBody: unknown): Extract<ImageProviderErrorCategory,
+  "invalid_request" | "invalid_parameter" | "unsupported_parameter" | "invalid_dimensions" | "model_error" | "provider_error"> {
+  const details = sanitizeTogetherProviderError(providerBody);
+  const code = details?.code?.toLowerCase() ?? "";
+  const type = details?.type?.toLowerCase() ?? "";
+  const parameter = details?.parameter?.toLowerCase() ?? "";
+  const message = details?.message?.toLowerCase() ?? "";
+  const all = `${code} ${type} ${parameter} ${message}`;
+
+  if (/(?:model[_ -]?error|model.{0,30}(?:failed|failure|error))/iu.test(all)) return "model_error";
+  if (/(?:unknown|unsupported|unrecognized|unexpected).{0,40}(?:parameter|field)|(?:parameter|field).{0,40}(?:unknown|unsupported|unrecognized|unexpected)/iu.test(all)) {
+    return "unsupported_parameter";
+  }
+  if (/(?:width|height|dimension|resolution)/iu.test(`${parameter} ${message}`)
+    && /(?:invalid|unsupported|out of range|must be|between)/iu.test(message)) return "invalid_dimensions";
+  if (/(?:invalid[_ -]?request|malformed[_ -]?request|request.{0,30}(?:malformed|invalid))/iu.test(`${code} ${type} ${message}`)) return "invalid_request";
+  if (parameter && /(?:invalid|incorrect|expected|required|must be|wrong)/iu.test(`${code} ${type} ${message}`)) return "invalid_parameter";
+  if (/(?:invalid|incorrect|expected|required|must be|wrong).{0,50}(?:parameter|field|type)|(?:parameter|field|type).{0,50}(?:invalid|incorrect|expected|required|wrong)/iu.test(message)) {
+    return "invalid_parameter";
+  }
+  return "provider_error";
+}
+
+async function postTogetherImageRequest(
+  endpoint: string,
+  apiKey: string,
+  body: Record<string, unknown>,
+  signal: AbortSignal,
+): Promise<Response> {
+  return fetch(endpoint, {
+    method: "POST",
+    headers: {
+      Authorization: togetherAuthorizationHeader(apiKey),
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+    signal,
+  });
+}
+
 function classifyTogether403Reason(providerBody: unknown): Extract<ImageProviderErrorCategory,
   "third_party_data_sharing_required" | "model_access_restricted" | "organization_permission" | "invalid_project" | "other_provider_permission"> {
   const text = providerErrorText(providerBody);
@@ -149,7 +285,7 @@ export function classifyTogetherHttpError(status: number, input: { referenceAtta
         providerErrorCategory: "unsafe_prompt",
       };
     }
-    return { error: "PROVIDER_ERROR", message: "Together rejected the image request", providerErrorCategory: "provider_error" };
+    return { error: "PROVIDER_ERROR", message: "Together rejected the image request", providerErrorCategory: classifyBadRequest(input.providerBody) };
   }
   if (status >= 500) return { error: "PROVIDER_ERROR", message: "Together AI service unavailable" };
   return { error: "PROVIDER_ERROR", message: "Together AI request failed" };
@@ -325,6 +461,10 @@ export async function generateTogetherImage(
     : resolveTogetherModel();
   const selectedModel = modelDefinitionFor(model);
   const { body, width, height } = buildTogetherRequestBody(request, selectedModel.id);
+  const isAdminDiagnostic = request.trace?.snapshot().source === "ADMIN_TEST";
+  const requestComparison = isAdminDiagnostic
+    ? compareTogetherRequestBodies(buildTogetherConnectionTestBody(selectedModel.id), body, request.aspectRatio)
+    : null;
   request.trace?.update({
     provider: "together",
     model,
@@ -344,26 +484,25 @@ export async function generateTogetherImage(
       width,
       height,
       referenceAttached: Boolean(request.referenceImages?.length),
+      ...(requestComparison ? { requestComparison } : {}),
     });
-    const response = await fetch(config?.endpoint ?? togetherImageEndpoint, {
-      method: "POST",
-      headers: {
-        Authorization: togetherAuthorizationHeader(apiKey),
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(body),
-      signal: controller.signal,
-    });
+    const response = await postTogetherImageRequest(config?.endpoint ?? togetherImageEndpoint, apiKey, body, controller.signal);
 
     if (!response.ok) {
       const providerBodyText = (await response.text().catch(() => "")).slice(0, 8_192);
       let providerBody: unknown = providerBodyText;
       try { providerBody = providerBodyText ? JSON.parse(providerBodyText) : null; } catch { /* plain text is still classified by its safe keywords */ }
+      const providerError = sanitizeTogetherProviderError(providerBody, [apiKey, String(body.prompt)]);
       const classified = classifyTogetherHttpError(response.status, {
         referenceAttached: Boolean(request.referenceImages?.length),
         providerBody,
       });
-      request.trace?.record("TOGETHER_RESPONSE_RECEIVED", { httpStatus: response.status, error: classified.error });
+      request.trace?.record("TOGETHER_RESPONSE_RECEIVED", {
+        httpStatus: response.status,
+        error: classified.error,
+        providerErrorCategory: classified.providerErrorCategory ?? null,
+        ...(isAdminDiagnostic ? { providerError, requestComparison } : {}),
+      });
       return { ok: false, ...classified, httpStatus: response.status };
     }
 
@@ -415,8 +554,14 @@ export async function testTogetherConnection(config?: Partial<TogetherProviderCo
   const requestedModel = config?.model?.trim() || resolveTogetherModel();
   const selectedModel = imageModelFor("together", requestedModel);
   const model = selectedModel?.id ?? recommendedImageModel("together").id;
+  const body = buildTogetherConnectionTestBody(model);
+  const minimalRequestShape = requestShape(body);
   let providerRequestStarted = false;
-  const diagnostics = (httpStatus: number | null, loadedKey: string | null): ImageConnectionDiagnostics => ({
+  const diagnostics = (
+    httpStatus: number | null,
+    loadedKey: string | null,
+    providerError: SafeTogetherProviderError | null = null,
+  ): ImageConnectionDiagnostics => ({
     provider: "Together AI",
     providerReceived: "together",
     providerValid: true,
@@ -427,6 +572,8 @@ export async function testTogetherConnection(config?: Partial<TogetherProviderCo
     keyLoaded: Boolean(loadedKey),
     keySuffix: loadedKey ? loadedKey.slice(-4) : null,
     httpStatus,
+    requestShape: minimalRequestShape,
+    providerError,
   });
 
   if (!apiKey) {
@@ -445,34 +592,17 @@ export async function testTogetherConnection(config?: Partial<TogetherProviderCo
     // exact Together key can authenticate and generate without involving the
     // Cabi reference pipeline or any OpenAI-compatible route.
     providerRequestStarted = true;
-    const body: Record<string, unknown> = {
-      // Keep this probe independent from the generation prompt/capability
-      // pipeline: it validates the selected model with the smallest real call.
-      model,
-      prompt: "Cabi connection test",
-      width: 512,
-      height: 512,
-      n: 1,
-      response_format: "url",
-    };
-    const response = await fetch(endpoint, {
-      method: "POST",
-      headers: {
-        Authorization: togetherAuthorizationHeader(apiKey),
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(body),
-      signal: controller.signal,
-    });
+    const response = await postTogetherImageRequest(endpoint, apiKey, body, controller.signal);
     const responseDiagnostics = diagnostics(response.status, apiKey);
     if (!response.ok) {
       const providerBodyText = (await response.text().catch(() => "")).slice(0, 8_192);
       let providerBody: unknown = providerBodyText;
       try { providerBody = providerBodyText ? JSON.parse(providerBodyText) : null; } catch { /* plain text is still classified by its safe keywords */ }
+      const providerError = sanitizeTogetherProviderError(providerBody, [apiKey, String(body.prompt)]);
       return {
         ok: false,
         ...classifyTogetherHttpError(response.status, { providerBody }),
-        diagnostics: responseDiagnostics,
+        diagnostics: diagnostics(response.status, apiKey, providerError),
       };
     }
 

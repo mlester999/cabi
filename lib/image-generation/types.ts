@@ -1,4 +1,5 @@
 import { IMAGE_PROVIDERS } from "@/lib/image-generation/registry";
+import type { SafeTogetherProviderError, TogetherRequestShape } from "@/lib/image-generation/pipeline-trace";
 
 /**
  * Image generation types.
@@ -113,6 +114,11 @@ export type ImageProviderErrorCategory =
   | "other_provider_permission"
   | "provider_outage"
   | "timeout"
+  | "invalid_request"
+  | "invalid_parameter"
+  | "unsupported_parameter"
+  | "invalid_dimensions"
+  | "model_error"
   | "provider_error";
 
 export type ImageGenerationResult =
@@ -141,6 +147,10 @@ export type ImageConnectionDiagnostics = {
   keyLoaded: boolean;
   keySuffix: string | null;
   httpStatus: number | null;
+  /** Safe owner-only request metadata from the minimal connection probe. */
+  requestShape?: TogetherRequestShape;
+  /** Allowlisted and redacted Together error details from an admin probe. */
+  providerError?: SafeTogetherProviderError | null;
 };
 
 export type ImageConnectionTest =

@@ -37,6 +37,39 @@ export type ImagePipelineDebugEvent = {
   error: string | null;
 };
 
+/** Provider error fields allowlisted for owner-only diagnostics. */
+export type SafeTogetherProviderError = {
+  code: string | null;
+  type: string | null;
+  message: string | null;
+  parameter: string | null;
+};
+
+/** Request metadata with field names and non-sensitive values only. */
+export type TogetherRequestShape = {
+  fields: string[];
+  model: string | null;
+  promptLength: number | null;
+  width: number | null;
+  height: number | null;
+  steps: number | null;
+  n: number | null;
+  responseFormat: string | null;
+  seedPresent: boolean;
+  negativePromptPresent: boolean;
+  qualityPresent: boolean;
+  aspectRatioParameterPresent: boolean;
+  aspectRatioInternal: string | null;
+  referenceInput: "image_url" | "reference_images" | null;
+};
+
+export type TogetherRequestComparison = {
+  working: TogetherRequestShape;
+  full: TogetherRequestShape;
+  onlyInFull: string[];
+  onlyInWorking: string[];
+};
+
 export type ImagePipelineDebugDetails = {
   requestId: string;
   source: ImagePipelineSource;
@@ -58,6 +91,10 @@ export type ImagePipelineDebugDetails = {
   byteLength: number | null;
   error: string | null;
   providerErrorCategory: string | null;
+  /** Present only for the admin full-generation probe. */
+  providerError: SafeTogetherProviderError | null;
+  /** Present only for the admin full-generation probe. */
+  requestComparison: TogetherRequestComparison | null;
   promptHash: string | null;
   promptLength: number | null;
   scene: string | null;
@@ -83,6 +120,8 @@ type TraceFields = {
   byteLength?: number | null;
   error?: string | null;
   providerErrorCategory?: string | null;
+  providerError?: SafeTogetherProviderError | null;
+  requestComparison?: TogetherRequestComparison | null;
   promptHash?: string | null;
   promptLength?: number | null;
   scene?: string | null;
@@ -122,6 +161,8 @@ export class ImagePipelineTrace {
     width: number | null;
     height: number | null;
     providerErrorCategory: string | null;
+    providerError: SafeTogetherProviderError | null;
+    requestComparison: TogetherRequestComparison | null;
     promptHash: string | null;
     promptLength: number | null;
     scene: string | null;
@@ -150,6 +191,8 @@ export class ImagePipelineTrace {
       width: null,
       height: null,
       providerErrorCategory: null,
+      providerError: null,
+      requestComparison: null,
       promptHash: null,
       promptLength: null,
       scene: null,
@@ -170,6 +213,19 @@ export class ImagePipelineTrace {
     if (fields.width !== undefined) this.context.width = fields.width;
     if (fields.height !== undefined) this.context.height = fields.height;
     if (fields.providerErrorCategory !== undefined) this.context.providerErrorCategory = fields.providerErrorCategory;
+    if (this.context.source === "ADMIN_TEST" && fields.providerError !== undefined) {
+      this.context.providerError = fields.providerError ? { ...fields.providerError } : null;
+    }
+    if (this.context.source === "ADMIN_TEST" && fields.requestComparison !== undefined) {
+      this.context.requestComparison = fields.requestComparison
+        ? {
+            working: { ...fields.requestComparison.working, fields: [...fields.requestComparison.working.fields] },
+            full: { ...fields.requestComparison.full, fields: [...fields.requestComparison.full.fields] },
+            onlyInFull: [...fields.requestComparison.onlyInFull],
+            onlyInWorking: [...fields.requestComparison.onlyInWorking],
+          }
+        : null;
+    }
     if (fields.promptHash !== undefined) this.context.promptHash = fields.promptHash;
     if (fields.promptLength !== undefined) this.context.promptLength = fields.promptLength;
     if (fields.scene !== undefined) this.context.scene = fields.scene?.slice(0, 400) ?? null;
@@ -203,6 +259,15 @@ export class ImagePipelineTrace {
       contentType: latestContentType,
       byteLength: latestByteLength,
       error: this.failed?.error ?? null,
+      providerError: this.context.providerError ? { ...this.context.providerError } : null,
+      requestComparison: this.context.requestComparison
+        ? {
+            working: { ...this.context.requestComparison.working, fields: [...this.context.requestComparison.working.fields] },
+            full: { ...this.context.requestComparison.full, fields: [...this.context.requestComparison.full.fields] },
+            onlyInFull: [...this.context.requestComparison.onlyInFull],
+            onlyInWorking: [...this.context.requestComparison.onlyInWorking],
+          }
+        : null,
       latencyMs: Math.max(0, Date.now() - this.startedAt),
       events: this.events.map((event) => ({ ...event })),
     };

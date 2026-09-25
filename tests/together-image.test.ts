@@ -3,10 +3,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   defaultTogetherImageModel,
   classifyTogetherHttpError,
+  buildTogetherConnectionTestBody,
   buildTogetherRequestBody,
+  compareTogetherRequestBodies,
   generateTogetherImage,
   resolveTogetherApiKey,
   resolveTogetherModel,
+  sanitizeTogetherProviderError,
   sizeForAspectRatio,
   supportsReferenceImages,
   testTogetherConnection,
@@ -15,6 +18,7 @@ import {
   togetherImageEndpoint,
 } from "@/lib/ai/image/together";
 import { aspectRatioSizes } from "@/lib/image-generation/types";
+import { createImagePipelineTrace } from "@/lib/image-generation/pipeline-trace";
 import {
   buildCabiImagePrompt,
   cabiImageIdentity,
@@ -162,6 +166,74 @@ describe("request construction", () => {
       image_url: "https://storage.example/signed/reference.png",
     });
     expect(body).not.toHaveProperty("reference_images");
+  });
+
+  it("compares the same minimal working probe with the full Cabi request without exposing values", () => {
+    const working = buildTogetherConnectionTestBody("Qwen/Qwen-Image-2.0");
+    const { body: full } = buildTogetherRequestBody({
+      prompt: "Cabi at a desk",
+      aspectRatio: "1:1",
+      negativePrompt: "soft image",
+    }, "Qwen/Qwen-Image-2.0");
+    const comparison = compareTogetherRequestBodies(working, full, "1:1");
+
+    expect(working).toEqual({
+      model: "Qwen/Qwen-Image-2.0",
+      prompt: "Cabi connection test",
+      width: 512,
+      height: 512,
+      n: 1,
+      response_format: "url",
+    });
+    expect(comparison.onlyInFull).toEqual(["steps", "negative_prompt"]);
+    expect(comparison.onlyInWorking).toEqual([]);
+    expect(comparison.full).toMatchObject({ steps: 28, negativePromptPresent: true, aspectRatioInternal: "1:1" });
+    expect(comparison.full).not.toHaveProperty("prompt");
+    expect(comparison.full).not.toHaveProperty("referenceUrl");
+    expect(comparison.full.qualityPresent).toBe(false);
+    expect(comparison.full.aspectRatioParameterPresent).toBe(false);
+  });
+
+  it("sanitizes provider diagnostic fields and redacts prompt, key, and URL values", () => {
+    const safe = sanitizeTogetherProviderError({
+      error: {
+        code: "invalid_parameter",
+        type: "invalid_request_error",
+        param: "negative_prompt",
+        message: "Invalid value in Cabi private scene for test-key-not-real; see https://provider.example/debug?id=secret",
+      },
+    }, ["test-key-not-real", "Cabi private scene"]);
+    expect(safe).toEqual({
+      code: "invalid_parameter",
+      type: "invalid_request_error",
+      parameter: "negative_prompt",
+      message: "Invalid value in [redacted] for [redacted]; see [URL redacted]",
+    });
+    expect(JSON.stringify(safe)).not.toMatch(/private scene|test-key-not-real|provider\.example|secret/u);
+  });
+
+  it("stores real provider details only in the admin trace, never in chat results", async () => {
+    const providerBody = { error: { code: "invalid_parameter", param: "negative_prompt", message: "Invalid value for negative_prompt" } };
+    stubFetch(() => new Response(JSON.stringify(providerBody), { status: 400 }));
+    const adminTrace = createImagePipelineTrace({ source: "ADMIN_TEST", aspectRatio: "1:1" });
+    const adminResult = await generateTogetherImage({ prompt: "Cabi waving", aspectRatio: "1:1", negativePrompt: "soft image", trace: adminTrace });
+    expect(adminResult.ok).toBe(false);
+    expect(adminTrace.snapshot()).toMatchObject({
+      providerError: { code: "invalid_parameter", parameter: "negative_prompt" },
+      requestComparison: { onlyInFull: ["steps", "negative_prompt"], onlyInWorking: [] },
+    });
+
+    const chatTrace = createImagePipelineTrace({ source: "CHAT_GENERATION", aspectRatio: "1:1" });
+    const chatResult = await generateTogetherImage({ prompt: "Cabi waving", aspectRatio: "1:1", negativePrompt: "soft image", trace: chatTrace });
+    expect(chatTrace.snapshot()).toMatchObject({ providerError: null, requestComparison: null });
+    expect(JSON.stringify(chatResult)).not.toContain("negative_prompt");
+    expect(JSON.stringify(chatResult)).not.toContain("Invalid value");
+  });
+
+  it("does not forward internal quality or aspect-ratio controls as provider fields", () => {
+    const { body } = buildTogetherRequestBody({ prompt: "Cabi at a desk", aspectRatio: "16:9" }, "Qwen/Qwen-Image-2.0");
+    expect(body).not.toHaveProperty("quality");
+    expect(body).not.toHaveProperty("aspect_ratio");
   });
 
   it("sends a clean visual prompt and visual-only negative guidance for the harmless cuteness request", () => {
@@ -375,8 +447,23 @@ describe("error handling", () => {
     });
     expect(classifyTogetherHttpError(400, { providerBody: { error: { message: "Invalid width parameter" } } })).toMatchObject({
       error: "PROVIDER_ERROR",
-      providerErrorCategory: "provider_error",
+      providerErrorCategory: "invalid_dimensions",
     });
+  });
+
+  it("uses explicit provider evidence for actionable bad-request categories", () => {
+    expect(classifyTogetherHttpError(400, { providerBody: { error: { code: "unknown_parameter", param: "quality", message: "Unknown parameter: quality" } } }))
+      .toMatchObject({ providerErrorCategory: "unsupported_parameter" });
+    expect(classifyTogetherHttpError(400, { providerBody: { error: { code: "invalid_parameter", param: "negative_prompt", message: "Invalid value for negative_prompt" } } }))
+      .toMatchObject({ providerErrorCategory: "invalid_parameter" });
+    expect(classifyTogetherHttpError(400, { providerBody: { error: { message: "Image dimensions must be between 512 and 2048" } } }))
+      .toMatchObject({ providerErrorCategory: "invalid_dimensions" });
+    expect(classifyTogetherHttpError(400, { providerBody: { error: { message: "Request malformed" } } }))
+      .toMatchObject({ providerErrorCategory: "invalid_request" });
+    expect(classifyTogetherHttpError(400, { providerBody: { error: { message: "model failed to render" } } }))
+      .toMatchObject({ providerErrorCategory: "model_error" });
+    expect(classifyTogetherHttpError(400, { providerBody: { error: { message: "Bad request" } } }))
+      .toMatchObject({ providerErrorCategory: "provider_error" });
   });
 
   it.each([

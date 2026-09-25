@@ -67,6 +67,68 @@ type FullTestResult = {
   promptFallbackUsed?: boolean;
 };
 
+type DiagnosticStepState = "PASS" | "FAILED" | "SKIPPED";
+
+function formatSafeProviderError(error: ImageConnectionDiagnostics["providerError"]): string {
+  if (!error) return "No safe provider error details returned.";
+  return [
+    error.message,
+    error.parameter ? `parameter: ${error.parameter}` : null,
+    error.code ? `code: ${error.code}` : null,
+    error.type ? `type: ${error.type}` : null,
+  ].filter((value): value is string => Boolean(value)).join(" · ") || "No safe provider error details returned.";
+}
+
+function displayPipelineStage(stage: string | null | undefined): string {
+  if (!stage) return "—";
+  if (stage === "TOGETHER_RESPONSE_RECEIVED") return "Together Request";
+  if (stage === "PROVIDER_IMAGE_FETCHED") return "Image Download";
+  if (stage === "SUPABASE_UPLOAD_STARTED" || stage === "SUPABASE_UPLOAD_COMPLETED") return "Supabase Storage";
+  return stage.replaceAll("_", " ").toLowerCase().replace(/\b\w/gu, (character) => character.toUpperCase());
+}
+
+function formatTogetherRequestShape(shape: NonNullable<ImagePipelineDebugDetails["requestComparison"]>["full"]): string {
+  const size = shape.width && shape.height ? `${shape.width}×${shape.height}` : "size omitted";
+  return [
+    shape.model,
+    size,
+    `steps ${shape.steps ?? "omitted"}`,
+    `seed ${shape.seedPresent ? "included" : "omitted"}`,
+    `negative_prompt ${shape.negativePromptPresent ? "included" : "omitted"}`,
+    `quality ${shape.qualityPresent ? "included" : "omitted"}`,
+    `aspect_ratio ${shape.aspectRatioParameterPresent ? "included" : "omitted"}${shape.aspectRatioInternal ? ` (internal ${shape.aspectRatioInternal})` : ""}`,
+    `reference ${shape.referenceInput ?? "none"}`,
+    `prompt ${shape.promptLength ?? "?"} chars`,
+  ].filter(Boolean).join(" · ");
+}
+
+function pipelineCheckState(
+  diagnostics: ImagePipelineDebugDetails,
+  stage: ImagePipelineDebugDetails["events"][number]["stage"],
+): DiagnosticStepState {
+  const event = diagnostics.events.find((entry) => entry.stage === stage);
+  if (event) return event.error ? "FAILED" : "PASS";
+  return diagnostics.stage === stage ? "FAILED" : "SKIPPED";
+}
+
+function diagnosticSteps(diagnostics: ImagePipelineDebugDetails) {
+  return [
+    { label: "Configuration", state: pipelineCheckState(diagnostics, "IMAGE_CONFIG_RESOLVED") },
+    { label: "API key", state: pipelineCheckState(diagnostics, "TOGETHER_REQUEST_STARTED") },
+    { label: "Prompt", state: pipelineCheckState(diagnostics, "PROMPT_BUILT") },
+    { label: "Together request", state: pipelineCheckState(diagnostics, "TOGETHER_RESPONSE_RECEIVED") },
+    { label: "Image download", state: pipelineCheckState(diagnostics, "PROVIDER_IMAGE_FETCHED") },
+    { label: "Supabase Storage", state: pipelineCheckState(diagnostics, "SUPABASE_UPLOAD_COMPLETED") },
+    { label: "Database persistence", state: "SKIPPED" as const },
+  ];
+}
+
+function diagnosticTone(state: DiagnosticStepState): string {
+  if (state === "PASS") return "text-emerald-200";
+  if (state === "FAILED") return "text-rose-200";
+  return "text-[var(--cabi-text-muted)]";
+}
+
 const emptySettings: Settings = {
   enabled: true,
   provider: "together",
@@ -386,6 +448,8 @@ export function AdminImagesPanel() {
                     <div><dt className="uppercase tracking-[.1em] text-white/35">Key suffix</dt><dd>{connection.diagnostics.keySuffix ?? "—"}</dd></div>
                     <div><dt className="uppercase tracking-[.1em] text-white/35">Request started</dt><dd>{connection.diagnostics.providerRequestStarted === undefined ? "—" : connection.diagnostics.providerRequestStarted ? "Yes" : "No"}</dd></div>
                     <div><dt className="uppercase tracking-[.1em] text-white/35">HTTP status</dt><dd>{connection.diagnostics.httpStatus ?? "—"}</dd></div>
+                    {connection.diagnostics.requestShape ? <div className="sm:col-span-2"><dt className="uppercase tracking-[.1em] text-white/35">Probe request</dt><dd className="break-words">{formatTogetherRequestShape(connection.diagnostics.requestShape)}</dd></div> : null}
+                    {connection.diagnostics.providerError ? <div className="sm:col-span-2"><dt className="uppercase tracking-[.1em] text-white/35">Provider error</dt><dd className="break-words text-rose-200">{formatSafeProviderError(connection.diagnostics.providerError)}</dd></div> : null}
                     <div className="sm:col-span-2"><dt className="uppercase tracking-[.1em] text-white/35">Endpoint</dt><dd className="break-all">{connection.diagnostics.endpoint}</dd></div>
                     </dl>
                   </details>
@@ -404,11 +468,45 @@ export function AdminImagesPanel() {
                 <p className={`mt-1 text-[11px] leading-5 ${fullTest.ok ? "text-emerald-100/75" : "text-rose-100/75"}`}>{fullTest.message}</p>
                 {fullTest.ok ? <p className="mt-2 text-[11px] text-emerald-100/80">Reference: {fullTest.referenceConditioned ? "conditioned" : "text only"}{fullTest.referenceFallbackUsed ? " · text-only fallback used" : ""}{fullTest.promptFallbackUsed ? " · clean prompt retry used" : ""}</p> : null}
                 {fullTest.diagnostics ? (
+                  <div className="mt-3 space-y-3">
+                    <section className="rounded-lg border border-white/[0.08] bg-black/15 p-3" aria-label="Generation diagnosis">
+                      <p className="text-[11px] font-semibold text-white/85">Generation diagnosis</p>
+                      <p className="mt-1 text-[10px] text-[var(--cabi-text-muted)]">
+                        HTTP {fullTest.diagnostics.httpStatus ?? "—"} · {fullTest.diagnostics.provider ?? "Provider unknown"} · {imageModelFor("together", fullTest.diagnostics.model ?? settings.model)?.label ?? fullTest.diagnostics.model ?? settings.model}
+                        {fullTest.diagnostics.stage ? ` · stopped at ${displayPipelineStage(fullTest.diagnostics.stage)}` : ""}
+                      </p>
+                      <div className="mt-2 rounded-md bg-black/15 px-2.5 py-2 text-[10px] leading-4">
+                        <span className="font-semibold text-white/65">Together response: </span>
+                        <span className="break-words text-[var(--cabi-text-secondary)]">{formatSafeProviderError(fullTest.diagnostics.providerError)}</span>
+                      </div>
+                      <ul className="mt-2 grid gap-x-4 gap-y-1 sm:grid-cols-2" aria-label="Generation pipeline checks">
+                        {diagnosticSteps(fullTest.diagnostics).map((check) => (
+                          <li key={check.label} className={`flex items-center justify-between gap-2 text-[10px] ${diagnosticTone(check.state)}`}>
+                            <span>{check.label}{check.label === "Database persistence" ? " (not part of this admin test)" : ""}</span>
+                            <span className="font-semibold tracking-wide">{check.state}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </section>
+                    {fullTest.diagnostics.requestComparison ? (
+                      <section className="rounded-lg border border-white/[0.08] bg-black/15 p-3" aria-label="Together request comparison">
+                        <p className="text-[11px] font-semibold text-white/85">Request comparison</p>
+                        <dl className="mt-2 grid gap-2 text-[10px] leading-4 sm:grid-cols-2">
+                          <div className="min-w-0"><dt className="text-white/45">Working connection test</dt><dd className="mt-0.5 break-words text-[var(--cabi-text-muted)]">{formatTogetherRequestShape(fullTest.diagnostics.requestComparison.working)}</dd></div>
+                          <div className="min-w-0"><dt className="text-white/45">Full Cabi request</dt><dd className="mt-0.5 break-words text-[var(--cabi-text-muted)]">{formatTogetherRequestShape(fullTest.diagnostics.requestComparison.full)}</dd></div>
+                          <div><dt className="text-white/45">Only in full request</dt><dd className="mt-0.5 break-words font-mono text-[var(--cabi-text-secondary)]">{fullTest.diagnostics.requestComparison.onlyInFull.join(", ") || "none"}</dd></div>
+                          <div><dt className="text-white/45">Only in connection test</dt><dd className="mt-0.5 break-words font-mono text-[var(--cabi-text-secondary)]">{fullTest.diagnostics.requestComparison.onlyInWorking.join(", ") || "none"}</dd></div>
+                        </dl>
+                      </section>
+                    ) : null}
+                  </div>
+                ) : null}
+                {fullTest.diagnostics ? (
                   <details className="mt-3">
                     <summary className="cabi-focus cursor-pointer text-[11px] text-[var(--cabi-text-muted)] transition-colors hover:text-[var(--cabi-text-secondary)]">Debug details</summary>
                     <dl className="mt-2 grid gap-x-4 gap-y-1 text-[10px] text-[var(--cabi-text-muted)] sm:grid-cols-2">
                       <div><dt className="uppercase tracking-[.1em] text-white/35">Request</dt><dd className="break-all font-mono">{fullTest.diagnostics.requestId}</dd></div>
-                      <div><dt className="uppercase tracking-[.1em] text-white/35">Stage</dt><dd>{fullTest.diagnostics.stage ?? fullTest.diagnostics.lastStage ?? "—"}</dd></div>
+                      <div><dt className="uppercase tracking-[.1em] text-white/35">Stage</dt><dd>{displayPipelineStage(fullTest.diagnostics.stage ?? fullTest.diagnostics.lastStage)}</dd></div>
                       <div><dt className="uppercase tracking-[.1em] text-white/35">Error</dt><dd>{fullTest.diagnostics.error ?? "—"}</dd></div>
                       <div><dt className="uppercase tracking-[.1em] text-white/35">HTTP</dt><dd>{fullTest.diagnostics.httpStatus ?? "—"}</dd></div>
                       <div><dt className="uppercase tracking-[.1em] text-white/35">Error category</dt><dd>{fullTest.diagnostics.providerErrorCategory ?? "—"}</dd></div>

@@ -79,6 +79,16 @@ and last-four metadata, reference version/input type, dimensions, response
 format, request-started, status, and an error category. Prompts, full keys,
 signed URLs and provider response bodies are never logged.
 
+The owner-only `/admin/images` full test also displays a separately sanitized,
+allowlisted Together error (`code`, `type`, `parameter`, and a redacted, capped
+message), plus the minimal connection request next to the full request's safe
+field/shape summary. This detail is returned only by the admin test endpoint
+and is retained in the trace only for `ADMIN_TEST`; normal chat results and
+chat traces do not expose it. A generic HTTP 400 is not treated as an unsafe
+prompt, and no request field should be removed based on the status alone. Use
+the actual Together message and parameter reported by the Vercel admin test to
+make any provider-payload correction.
+
 ## Verification
 
 - `npm run lint` — passed
