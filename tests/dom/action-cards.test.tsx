@@ -161,9 +161,9 @@ describe("action card rendering", () => {
   it("never renders technical image diagnostics inside a chat card", () => {
     const card = {
       ...noticeCard({
-        title: "Couldn't make that image.",
-        message: "I ran into a problem while making it.",
-        tone: "error",
+        title: "A tiny image hiccup",
+        message: "Want to retry, try a different idea, or simplify the scene with fewer details?",
+        tone: "neutral",
         links: [{ label: "View in Admin", url: "/admin/images#recent-generation-runs", kind: "INTERNAL" }],
       }),
       debugDetails: { requestId: "private-trace-id", httpStatus: 403, provider: "Together AI" },

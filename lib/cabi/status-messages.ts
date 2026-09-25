@@ -95,10 +95,20 @@ export const cabiLongWait = {
 
 export const cabiFailureMessages = {
   CHAT: "My brain tripped for a second.",
-  IMAGE: "That one didn't come out. Want me to try again?",
+  IMAGE: "Ohhh, a tiny image hiccup! 🐾 Try a different idea or simplify the scene with fewer details.",
   WALLET: "I couldn't verify that wallet.",
   MEMORY: "I couldn't pull that memory right now.",
 } as const;
+
+/** Cabi's conversational reply when the image provider cannot finish a request. */
+export const cabiImageFailureReply = [
+  "Ohhh, I couldn't make that image this time—sorry! 🐾",
+  "You can try again in a moment, try a different idea, or simplify the scene with fewer little details.",
+  "Changing my pose, outfit, or background might help too. Want to give it another go?",
+].join(" ");
+
+export const cabiImageFailureCardTitle = "A tiny image hiccup";
+export const cabiImageFailureCardMessage = "Want to retry, try a different idea, or simplify the scene with fewer details?";
 
 export type CabiFailureKind = keyof typeof cabiFailureMessages;
 

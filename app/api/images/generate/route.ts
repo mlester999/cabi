@@ -17,6 +17,7 @@ import { assertSameOrigin, clientAddress, jsonError } from "@/lib/security/reque
 import { checkRateLimit } from "@/lib/security/rate-limit";
 import { guardAppApiCpu } from "@/lib/site/guard";
 import { readWalletAuth } from "@/lib/wallet/session";
+import { cabiImageFailureReply } from "@/lib/cabi/status-messages";
 
 export const dynamic = "force-dynamic";
 
@@ -51,9 +52,6 @@ const requestSchema = z.object({
   /** Optional client key so a double-submit cannot create two generations. */
   idempotencyKey: z.string().trim().min(8).max(80).optional(),
 });
-
-/** The line Cabi uses when a generation genuinely fails, with a retry offered. */
-const imageFailureMessage = "That one didn't come out. Want me to try again?";
 
 export async function POST(request: Request) {
   // Image generation is the most expensive protected action, so eligibility is
@@ -272,7 +270,7 @@ export async function POST(request: Request) {
     // A rate limit is not a failure to report as one: it is Cabi asking for a
     // moment. Anything else leads with her own line and offers a retry; provider
     // details stay in the server-side generation row and diagnostics only.
-    const message = pipeline.error === "RATE_LIMITED" ? "I am still drawing that one. Try again in a moment." : imageFailureMessage;
+    const message = pipeline.error === "RATE_LIMITED" ? "I am still drawing that one. Try again in a moment." : cabiImageFailureReply;
     return Response.json(
       { type: "chat_response", message, retryable: true, retryLabel: "Try Again" },
       { status, headers: { "Cache-Control": "private, no-store" } },

@@ -15,6 +15,7 @@ import { checkRateLimit } from "@/lib/security/rate-limit";
 import { featureGate } from "@/lib/config/feature-gate";
 import { guardAppApiCpu } from "@/lib/site/guard";
 import { readWalletAuth } from "@/lib/wallet/session";
+import { cabiImageFailureReply } from "@/lib/cabi/status-messages";
 import { initialsFor } from "@/lib/profiles/username";
 import { readProfile } from "@/lib/profiles/service";
 
@@ -159,7 +160,7 @@ export async function POST(request: Request) {
       failure_code: generated.error,
       ...generationMetadata,
     });
-    return jsonError(generated.error === "RATE_LIMITED" ? "I am still drawing that one. Try again in a moment." : "That one didn't come out. Want me to try again?", generated.error === "RATE_LIMITED" ? 429 : 502, "IMAGE_GENERATION_FAILED");
+    return jsonError(generated.error === "RATE_LIMITED" ? "I am still drawing that one. Try again in a moment." : cabiImageFailureReply, generated.error === "RATE_LIMITED" ? 429 : 502, "IMAGE_GENERATION_FAILED");
   }
 
   const generationId = crypto.randomUUID();
@@ -169,7 +170,7 @@ export async function POST(request: Request) {
     bytes: generated.image.bytes,
     contentType: generated.image.contentType,
   });
-  if (!uploaded.ok) return jsonError(uploaded.message, 503, "STORAGE_FAILED");
+  if (!uploaded.ok) return jsonError(cabiImageFailureReply, 503, "STORAGE_FAILED");
 
   const { data: row } = await db
     .from("image_generations")

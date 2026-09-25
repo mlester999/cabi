@@ -330,7 +330,8 @@ describe("provider failure", () => {
     // Failure is a transition on the row that was already QUEUED, so the
     // lifecycle has one row moving through states rather than two rows.
     expect(lifecycle.markFailed).toHaveBeenCalledWith(expect.objectContaining({ code: "PROVIDER_ERROR" }));
-    expect(result.reply).toBe("");
+    expect(result.reply).toMatch(/Ohhh, I couldn't make that image/i);
+    expect(result.reply).toMatch(/different idea|simplify the scene|fewer little details/i);
     expect((result.card as Record<string, unknown>).message).not.toContain("I could not draw that one just now");
     expect((result.card as Record<string, unknown>).retry).toMatchObject({ label: "Try Again", prompt: "Generate a picture of you at the beach" });
     const queued = mocks.inserted.filter((row) => row.status === "QUEUED");
@@ -357,7 +358,7 @@ describe("provider failure", () => {
     expect(result.usedProvider).toBe(false);
     expect(mocks.generated).toHaveLength(0);
     expect(lifecycle.markGenerating).not.toHaveBeenCalled();
-    expect(result.card).toMatchObject({ title: "Couldn't make that image.", message: "I ran into a problem while making it.", retry: { label: "Try Again" } });
+    expect(result.card).toMatchObject({ title: "A tiny image hiccup", message: "Want to retry, try a different idea, or simplify the scene with fewer details?", retry: { label: "Try Again" } });
   });
 
   it("stops before the paid provider request when QUEUED-to-GENERATING fails", async () => {

@@ -16,6 +16,7 @@ import { createImagePipelineTrace, type ImagePipelineTrace } from "@/lib/image-g
 import { imagePipelineDatabaseFields, logImageDatabaseFailure, logImagePipelineTrace, persistImageDatabaseFailure } from "@/lib/image-generation/diagnostics";
 import { recordCabiPlanStages, runCabiImagePipeline } from "@/lib/image-generation/pipeline";
 import { deleteGenerationImage } from "@/lib/image-generation/storage";
+import { cabiImageFailureCardMessage, cabiImageFailureCardTitle, cabiImageFailureReply } from "@/lib/cabi/status-messages";
 
 /**
  * Chat-driven Cabi image generation.
@@ -25,8 +26,8 @@ import { deleteGenerationImage } from "@/lib/image-generation/storage";
  * the HTTP endpoint, so the two can never disagree about what is allowed or how
  * much a user has left.
  *
- * Every refusal is a rendered card rather than an error page, because the brief
- * asks Cabi to redirect an off-topic request in her own voice.
+ * Refusals and provider failures are rendered as Cabi replies with a useful
+ * action card, rather than exposing a provider error page.
  */
 
 export type ChatImageOptions = {
@@ -68,9 +69,9 @@ export function isImageRequest(message: string): boolean {
 
 function imageFailureCard(message: string, ownerPreview: boolean, parentGenerationId?: string): ActionCard {
   return noticeCard({
-    title: "Couldn't make that image.",
-    message: "I ran into a problem while making it.",
-    tone: "error",
+    title: cabiImageFailureCardTitle,
+    message: cabiImageFailureCardMessage,
+    tone: "neutral",
     retry: { label: "Try Again", prompt: message, ...(parentGenerationId ? { parentGenerationId } : {}) },
     links: ownerPreview ? [{ label: "View in Admin", url: "/admin/images#recent-generation-runs", kind: "INTERNAL" }] : [],
   });
@@ -97,7 +98,7 @@ export async function generateChatImage(message: string, options: ChatImageOptio
     return {
       handled: true,
       usedProvider: false,
-      reply: "",
+      reply: cabiImageFailureReply,
       card: imageFailureCard(message, Boolean(options.ownerPreview)),
     };
   }
@@ -307,21 +308,21 @@ async function generateChatImageInternal(message: string, options: ChatImageOpti
       trace.record("GENERATION_ROW_CREATED", { error: "DATABASE_INSERT_FAILED" });
       logImageDatabaseFailure({ requestId: trace.requestId, operation: "insert", error: insertResult.error });
       await persistImageDatabaseFailure({ requestId: trace.requestId, operation: "insert", error: insertResult.error, walletAccountId: options.walletAccountId });
-      return { handled: true, usedProvider: false, reply: "", card: imageFailureCard(message, Boolean(options.ownerPreview)) };
+      return { handled: true, usedProvider: false, reply: cabiImageFailureReply, card: imageFailureCard(message, Boolean(options.ownerPreview)) };
     }
     trace.record("GENERATION_ROW_CREATED");
   } catch (error) {
     trace.record("GENERATION_ROW_CREATED", { error: "DATABASE_INSERT_FAILED" });
     logImageDatabaseFailure({ requestId: trace.requestId, operation: "insert", error });
     await persistImageDatabaseFailure({ requestId: trace.requestId, operation: "insert", error, walletAccountId: options.walletAccountId });
-    return { handled: true, usedProvider: false, reply: "", card: imageFailureCard(message, Boolean(options.ownerPreview)) };
+    return { handled: true, usedProvider: false, reply: cabiImageFailureReply, card: imageFailureCard(message, Boolean(options.ownerPreview)) };
   }
   // QUEUED -> GENERATING, recorded before the request leaves the process so a
   // refresh mid-flight recovers to "still working" rather than to a placeholder.
   const markedGenerating = await markGenerating(generationId);
   if (!markedGenerating) {
     trace.record("GENERATION_ROW_UPDATED", { error: "DATABASE_UPDATE_FAILED" });
-    return { handled: true, usedProvider: false, reply: "", card: imageFailureCard(message, Boolean(options.ownerPreview)) };
+    return { handled: true, usedProvider: false, reply: cabiImageFailureReply, card: imageFailureCard(message, Boolean(options.ownerPreview)) };
   }
   trace.record("GENERATION_ROW_UPDATED");
   const pipeline = await runCabiImagePipeline({
@@ -346,7 +347,7 @@ async function generateChatImageInternal(message: string, options: ChatImageOpti
     return {
       handled: true,
       usedProvider: true,
-      reply: "",
+      reply: cabiImageFailureReply,
       card: imageFailureCard(message, Boolean(options.ownerPreview), generationId),
     };
   }
@@ -373,7 +374,7 @@ async function generateChatImageInternal(message: string, options: ChatImageOpti
       message: "The image could not be saved.",
       diagnostics: imagePipelineDatabaseFields(trace),
     });
-    return { handled: true, usedProvider: true, reply: "", card: imageFailureCard(message, Boolean(options.ownerPreview), generationId) };
+    return { handled: true, usedProvider: true, reply: cabiImageFailureReply, card: imageFailureCard(message, Boolean(options.ownerPreview), generationId) };
   }
   trace.record("GENERATION_ROW_UPDATED");
   const row = { id: generationId, created_at: queuedAt };

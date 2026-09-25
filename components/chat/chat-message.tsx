@@ -47,9 +47,8 @@ type Props = {
  * one is aligned to. The only differences are what they should be — alignment,
  * and Cabi's soft lavender tint against the user's neutral elevated surface.
  *
- * There is exactly ONE error surface per failed reply. The failure line is the
- * shared Cabi copy from `lib/cabi/status-messages.ts`, with the shared "Try Again"
- * label, so a failed chat reads the same here as a failed image.
+ * Image generation failures arrive as a normal Cabi reply with a retry action;
+ * failed text replies keep their compact shared failure line and retry button.
  */
 export function ChatMessage({ message, onRetry, onDelete, onEdit, onShare, onReact, onRegenerateImage, onRetryPrompt, onUseImageAsAvatar, statusMessages }: Props) {
   const [copied, setCopied] = useState(false);

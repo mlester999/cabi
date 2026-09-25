@@ -182,7 +182,7 @@ describe("no fake progress anywhere", () => {
 describe("failure lines", () => {
   it("matches the product wording for each failure", () => {
     expect(cabiFailureMessages.CHAT).toBe("My brain tripped for a second.");
-    expect(cabiFailureMessages.IMAGE).toBe("That one didn't come out. Want me to try again?");
+    expect(cabiFailureMessages.IMAGE).toBe("Ohhh, a tiny image hiccup! 🐾 Try a different idea or simplify the scene with fewer details.");
     expect(cabiFailureMessages.WALLET).toBe("I couldn't verify that wallet.");
     expect(cabiFailureMessages.MEMORY).toBe("I couldn't pull that memory right now.");
     expect(cabiRetryLabel).toBe("Try Again");

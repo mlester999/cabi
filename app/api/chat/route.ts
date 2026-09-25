@@ -26,6 +26,7 @@ import { recordChatTurnSocial } from "@/lib/chat/social";
 import { achievementCopy } from "@/lib/ranking/achievements";
 import { noticeCard } from "@/lib/actions/cards";
 import { generateChatImage, isImageRequest } from "@/lib/image-generation/chat";
+import { cabiImageFailureCardMessage, cabiImageFailureCardTitle, cabiImageFailureReply } from "@/lib/cabi/status-messages";
 import { markFailed, persistChatImageAttachment, readGeneration, readLatestGenerationContext } from "@/lib/image-generation/lifecycle";
 import { createImagePipelineTrace } from "@/lib/image-generation/pipeline-trace";
 import { imagePipelineDatabaseFields, logImagePipelineTrace, persistImageDatabaseFailure } from "@/lib/image-generation/diagnostics";
@@ -255,7 +256,7 @@ export async function POST(request: Request) {
   // Deterministic answers (wallet reads, token lookups, slash commands) are
   // produced entirely by trusted code, so the model is not called at all.
   let card = image.handled ? image.card : action.card;
-  const imageReply = image.handled ? image.reply : null;
+  let imageReply = image.handled ? image.reply : null;
   let imageMessagePersisted = false;
   if (card?.kind === "IMAGE" && db && walletAccountId && profileId) {
     const persisted = await persistChatImageAttachment({
@@ -284,10 +285,11 @@ export async function POST(request: Request) {
       const retryLink = ownerPreview
         ? [{ label: "View in Admin", url: "/admin/images#recent-generation-runs", kind: "INTERNAL" as const }]
         : [];
+      imageReply = cabiImageFailureReply;
       card = noticeCard({
-        title: "Couldn't make that image.",
-        message: "I ran into a problem while making it.",
-        tone: "error",
+        title: cabiImageFailureCardTitle,
+        message: cabiImageFailureCardMessage,
+        tone: "neutral",
         retry: { label: "Try Again", prompt: parsed.data.message, parentGenerationId: card.generationId },
         links: retryLink,
       });

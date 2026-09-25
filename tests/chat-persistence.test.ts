@@ -244,12 +244,12 @@ describe("chat persistence boundary", () => {
     const response = await chat(request(true, "Generate an image of Cabi"));
     const body = await response.text();
     expect(response.status).toBe(200);
-    expect(body).toContain("Couldn't make that image.");
+    expect(body).toContain("A tiny image hiccup");
     expect(body).not.toContain("https://storage.example.com/signed/gen.png");
     const generationLink = mocks.writes.find((write) => write.table === "image_generations" && write.operation === "update");
     expect(generationLink?.value).toEqual({ assistant_message_id: expect.any(String) });
     const assistantUpdate = mocks.writes.find((write) => write.table === "messages" && write.operation === "update" && typeof write.value === "object" && write.value !== null && "metadata_json" in write.value) as { value?: { metadata_json?: { actionCard?: { kind?: string; title?: string } } } } | undefined;
-    expect(assistantUpdate?.value?.metadata_json?.actionCard).toMatchObject({ kind: "NOTICE", title: "Couldn't make that image." });
+    expect(assistantUpdate?.value?.metadata_json?.actionCard).toMatchObject({ kind: "NOTICE", title: "A tiny image hiccup" });
   });
 
   it("returns 503 instead of silently downgrading when wallet authentication storage fails", async () => {
