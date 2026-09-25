@@ -2,6 +2,7 @@ import { readLeaderboard, readStanding } from "@/lib/ranking/service";
 import { featureGate } from "@/lib/config/feature-gate";
 import { guardAppApiCpu } from "@/lib/site/guard";
 import { readWalletAuth } from "@/lib/wallet/session";
+import { readProfile } from "@/lib/profiles/service";
 
 export const dynamic = "force-dynamic";
 
@@ -26,9 +27,10 @@ export async function GET(request: Request) {
   let wallet = null;
   try { wallet = await readWalletAuth(); } catch { wallet = null; }
 
-  const [{ season, entries, available }, standing] = await Promise.all([
+  const [{ season, entries, available }, standing, profile] = await Promise.all([
     readLeaderboard(type, { walletAccountId: wallet?.walletAccountId ?? null, limit: 100 }),
     wallet ? readStanding(wallet.walletAccountId, type) : Promise.resolve(null),
+    wallet ? readProfile(wallet.walletAccountId) : Promise.resolve(null),
   ]);
 
   return Response.json(
@@ -40,6 +42,7 @@ export async function GET(request: Request) {
       available,
       entries,
       standing,
+      currentUser: wallet ? { username: profile?.username ?? null, displayName: profile?.displayName ?? null } : null,
       // The signed-in user is always included, even outside the top 100.
       you: entries.find((entry) => entry.isCurrentUser) ?? null,
     },

@@ -9,7 +9,7 @@ export default function AdminRankingPage() {
       <header className="mb-6">
         <h1 className="text-xl font-bold tracking-[-0.02em]">Ranking</h1>
         <p className="mt-1.5 text-xs leading-6 text-[#8e889b]">
-          Seasonal XP, leaderboards, manual adjustments, and the reward workflow. Rank is earned from product activity and never from token ownership.
+          Lifetime rank progression, weekly and monthly boards, manual adjustments, and reward tracking. Rank is earned from product activity and never from token ownership.
         </p>
       </header>
       <AdminRankingPanel />

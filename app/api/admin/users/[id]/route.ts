@@ -4,8 +4,8 @@ import { getServiceClient } from "@/lib/db/supabase";
 import { readBondProfile } from "@/lib/bond-profile";
 import { readAchievements } from "@/lib/ranking/achievements";
 import { countWalletMessages } from "@/lib/ranking/message-count";
-import { readSeason, readSeasonHistory, readStanding } from "@/lib/ranking/service";
-import { tierByNumber } from "@/lib/ranking/tiers";
+import { readRankThresholds, readSeason, readSeasonHistory, readStanding } from "@/lib/ranking/service";
+import { rankProgress, tierByNumber } from "@/lib/ranking/tiers";
 import { assertSameOrigin, jsonError } from "@/lib/security/request";
 import { guardAppApiCpu } from "@/lib/site/guard";
 import { z } from "zod";
@@ -47,7 +47,7 @@ export async function GET(request: Request, { params }: Params) {
   const row = profile as Record<string, unknown>;
   const profileId = String(row.id);
 
-  const [wallet, weekly, monthly, history, bond, achievements, messages, images, xpEvents, rewards, monthlySeason, count] = await Promise.all([
+  const [wallet, weekly, monthly, history, bond, achievements, messages, images, xpEvents, rewards, monthlySeason, count, thresholds] = await Promise.all([
     db.from("wallet_accounts").select("wallet_address,created_at").eq("id", id).maybeSingle(),
     readStanding(id, "WEEKLY"),
     readStanding(id, "MONTHLY"),
@@ -61,7 +61,9 @@ export async function GET(request: Request, { params }: Params) {
     db.from("rank_reward_snapshots").select("id,placement,xp,reward_status,season_id").eq("wallet_account_id", id).order("created_at", { ascending: false }).limit(20),
     readSeason("MONTHLY"),
     db.from("conversations").select("id", { count: "exact", head: true }).eq("wallet_account_id", id),
+    readRankThresholds(),
   ]);
+  const lifetimeXp = Number(row.lifetime_xp ?? 0);
 
   const walletRow = wallet.data as { wallet_address?: string } | null;
 
@@ -82,7 +84,8 @@ export async function GET(request: Request, { params }: Params) {
       rank: {
         monthly: monthly ? { xp: monthly.xp, placement: monthly.placement, participants: monthly.participants, tier: monthly.tier, seasonLabel: monthlySeason?.label ?? null } : null,
         weekly: weekly ? { xp: weekly.xp, placement: weekly.placement, participants: weekly.participants, tier: weekly.tier } : null,
-        lifetimeXp: Number(row.lifetime_xp ?? 0),
+        lifetimeXp,
+        progress: rankProgress(lifetimeXp, thresholds),
         bestTier: row.best_rank_tier == null ? null : tierByNumber(Number(row.best_rank_tier)),
         bestPlacement: row.best_leaderboard_position == null ? null : Number(row.best_leaderboard_position),
       },
@@ -107,7 +110,7 @@ export async function GET(request: Request, { params }: Params) {
 
 const patchSchema = z.object({ rankingStatus: z.enum(["NORMAL", "REVIEW", "INELIGIBLE"]) });
 
-/** Eligibility flag. A flagged account keeps chatting; it only leaves the board. */
+/** Eligibility flag. A flagged account keeps chat access; INELIGIBLE also blocks automatic XP. */
 export async function PATCH(request: Request, { params }: Params) {
   const blocked = await guardAppApiCpu();
   if (blocked) return blocked;

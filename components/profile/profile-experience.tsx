@@ -47,7 +47,7 @@ export function ProfileExperience({ rankingEnabled = true, achievementsEnabled =
   const [profileOnly, setProfileOnly] = useState<ProfileOnlyPayload["profile"]>(null);
   const [phase, setPhase] = useState<"loading" | "ready" | "error">("loading");
   const profileRoadmapPreviews = cabiRoadmapFeatures
-    .filter((feature) => (feature.id === "ranks" && !rankingEnabled) || (feature.id === "achievements" && !achievementsEnabled))
+    .filter((feature) => feature.id === "achievements" && !achievementsEnabled)
     .map((feature) => feature.flag)
     .filter((flag): flag is Exclude<typeof flag, null> => flag !== null);
 
@@ -93,8 +93,8 @@ export function ProfileExperience({ rankingEnabled = true, achievementsEnabled =
 
           <section className="glass rounded-[22px] p-5 sm:p-6">
             <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[.16em] text-[#777180]"><Lock size={12} aria-hidden="true" /> Community progression</div>
-            <h2 className="mt-3 text-base font-semibold text-white">Ranks and achievements are still taking shape.</h2>
-            <p className="mt-2 text-sm leading-6 text-[#a8a3b3]">Nothing is faked here: there is no placeholder rank, score, or leaderboard row while those features are being built.</p>
+            <h2 className="mt-3 text-base font-semibold text-white">Rank progress is temporarily unavailable.</h2>
+            <p className="mt-2 text-sm leading-6 text-[#a8a3b3]">There is no placeholder rank, score, or leaderboard row while progression is unavailable.</p>
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
               {profileRoadmapPreviews.map((flag) => <LockedFeatureCard key={flag} flagKey={flag} />)}
             </div>
@@ -140,8 +140,7 @@ export function ProfileExperience({ rankingEnabled = true, achievementsEnabled =
               <ShareRankCard input={{
                 username: identity.username,
                 tier: progress.current,
-                seasonXp: monthly?.xp ?? 0,
-                seasonLabel: monthly?.seasonLabel ?? null,
+                lifetimeXp: lifetime.xp,
                 weeklyPlacement: weekly?.placement ?? null,
               }} />
             ) : null}
@@ -154,14 +153,14 @@ export function ProfileExperience({ rankingEnabled = true, achievementsEnabled =
         <div className="mt-6">
           <div className="flex items-end justify-between gap-3">
             <div>
-              <p className="text-[10px] font-semibold uppercase tracking-[.16em] text-violet-300">This month</p>
-              <p className="mt-1 font-mono text-2xl font-bold text-white">{(monthly?.xp ?? 0).toLocaleString()} XP</p>
+              <p className="text-[10px] font-semibold uppercase tracking-[.16em] text-violet-300">Lifetime rank</p>
+              <p className="mt-1 font-mono text-2xl font-bold text-white">{lifetime.xp.toLocaleString()} XP</p>
             </div>
             {progress.next ? (
               <p className="text-right text-[11px] leading-5 text-[#a8a3b3]">
                 Next: <span className="font-semibold text-white">{progress.next.label}</span>
                 <br />
-                {progress.toNext.toLocaleString()} XP to go
+                {progress.toNext.toLocaleString()} XP to {progress.next.label} · {progress.xp.toLocaleString()} / {progress.next.threshold.toLocaleString()} XP
               </p>
             ) : (
               <p className="text-right text-[11px] text-amber-200">Top tier reached</p>
@@ -181,14 +180,10 @@ export function ProfileExperience({ rankingEnabled = true, achievementsEnabled =
           <Link href="/leaderboard" className="focus-ring mt-3 inline-block text-[11px] font-semibold text-violet-200 hover:text-white">View leaderboard</Link>
         </div>
         <div className="glass rounded-[22px] p-5">
-          <p className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[.16em] text-[#777180]"><Sparkles size={12} aria-hidden="true" /> Lifetime</p>
-          <p className="mt-2 font-mono text-xl font-bold text-white">{lifetime.xp.toLocaleString()} XP</p>
-          <p className="mt-1 text-[11px] text-[#a8a3b3]">
-            {lifetime.messages.toLocaleString()} messages - {lifetime.seasons} season{lifetime.seasons === 1 ? "" : "s"}
-          </p>
-          {lifetime.bestPlacement ? (
-            <p className="mt-1 text-[11px] text-[#777180]">Best placement #{lifetime.bestPlacement}</p>
-          ) : null}
+          <p className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[.16em] text-[#777180]"><Sparkles size={12} aria-hidden="true" /> Monthly board</p>
+          <p className="mt-2 font-mono text-xl font-bold text-white">{(monthly?.xp ?? 0).toLocaleString()} XP</p>
+          <p className="mt-1 text-[11px] text-[#a8a3b3]">{monthly?.placement ? `#${monthly.placement} of ${monthly.participants}` : "Not placed yet this month"}</p>
+          <Link href="/leaderboard" className="focus-ring mt-3 inline-block text-[11px] font-semibold text-violet-200 hover:text-white">View leaderboard</Link>
         </div>
       </section>
 
@@ -216,7 +211,7 @@ export function ProfileExperience({ rankingEnabled = true, achievementsEnabled =
             ))}
           </ul>
           {/* Permanent, unlike rank. */}
-          <p className="mt-3 text-[11px] text-[#625d6d]">Achievements are kept forever. Rank resets each season.</p>
+          <p className="mt-3 text-[11px] text-[#625d6d]">Achievements are kept forever. Weekly and monthly XP reset; lifetime XP and rank stay with you.</p>
         </section>
       ) : null}
 

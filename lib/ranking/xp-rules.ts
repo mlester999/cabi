@@ -50,6 +50,7 @@ export type XpReasonCode =
 export type XpDecision = {
   eventType: XpEventType;
   xp: number;
+  quality: "LOW" | "NORMAL" | "GOOD" | "GREAT";
   reasonCode: XpReasonCode;
   /** Short, safe, user-facing label. Never internal reasoning. */
   label: string | null;
@@ -69,7 +70,7 @@ export const xpRules = {
   /** First image of the day only. Repeated generation earns nothing. */
   firstImageOfDay: 5,
   /** Daily ceiling on positive automatic XP. */
-  dailyCap: 500,
+  dailyCap: 300,
   /** Image-generation awards per day that can carry XP. */
   imageXpPerDay: 1,
   /** A duplicate of a recent message: zero, never a reward. */
@@ -168,13 +169,13 @@ export function evaluateChatXp(signals: ChatSignals): XpDecision {
   // 1. Unambiguous flooding: many messages in a very short window.
   const recentBurst = signals.recentTimestamps.filter((at) => signals.now - at <= xpRules.floodWindowMs).length;
   if (recentBurst >= xpRules.floodThreshold) {
-    return { eventType: "SPAM_RATE_LIMIT", xp: xpRules.floodPenalty, reasonCode: "FLOODING", label: null };
+    return { eventType: "SPAM_RATE_LIMIT", xp: xpRules.floodPenalty, quality: "LOW", reasonCode: "FLOODING", label: null };
   }
 
   // 2. Exact or near duplicate of a recent message. Zero, never negative: a
   //    person may legitimately repeat themselves, and that must not be punished.
   if (isNearDuplicate(message, signals.recentUserMessages)) {
-    return { eventType: "SPAM_DUPLICATE", xp: xpRules.duplicatePenalty, reasonCode: "DUPLICATE_MESSAGE", label: null };
+    return { eventType: "SPAM_DUPLICATE", xp: xpRules.duplicatePenalty, quality: "LOW", reasonCode: "DUPLICATE_MESSAGE", label: null };
   }
 
   // 3. Too short to be an effort signal on its own. Zero, not negative: "why?",
@@ -183,9 +184,9 @@ export function evaluateChatXp(signals: ChatSignals): XpDecision {
   if (message.length < xpRules.minLength || words.length < 3) {
     // A short message that uses a feature still earns the small feature bonus.
     if (signals.usedFeature) {
-      return { eventType: "FEATURE_DISCOVERY", xp: xpRules.featureBonus, reasonCode: "FEATURE_USE", label: "Feature used" };
+      return { eventType: "FEATURE_DISCOVERY", xp: xpRules.featureBonus, quality: "NORMAL", reasonCode: "FEATURE_USE", label: "Feature used" };
     }
-    return { eventType: "CHAT_MEANINGFUL", xp: 0, reasonCode: "SHORT_QUESTION", label: null };
+    return { eventType: "CHAT_MEANINGFUL", xp: 0, quality: "LOW", reasonCode: "SHORT_QUESTION", label: null };
   }
 
   // 4. A long turn earns the high-quality band. Length alone is capped, so a
@@ -220,14 +221,23 @@ export function evaluateChatXp(signals: ChatSignals): XpDecision {
     reasonCode = "FEATURE_USE";
   }
 
+  const awardedXp = clamp(xp, 0, xpRules.highQualityMax + xpRules.followUpBonus + xpRules.featureBonus);
   return {
     eventType,
-    xp: clamp(xp, 0, xpRules.highQualityMax + xpRules.followUpBonus + xpRules.featureBonus),
+    xp: awardedXp,
+    quality: qualityForXp(awardedXp),
     reasonCode,
     // Only substantial awards are surfaced in chat, so the transcript is not
     // cluttered with a "+3 XP" badge after every message.
     label: xp >= 8 ? reasonLabel(reasonCode) : null,
   };
+}
+
+function qualityForXp(xp: number): XpDecision["quality"] {
+  if (xp >= 11) return "GREAT";
+  if (xp >= 6) return "GOOD";
+  if (xp > 0) return "NORMAL";
+  return "LOW";
 }
 
 function reasonLabel(code: XpReasonCode): string {
@@ -247,9 +257,9 @@ function clamp(value: number, min: number, max: number) {
 /** XP for one image generation. Only the first of the day is worth anything. */
 export function evaluateImageXp(imagesAlreadyRewardedToday: number): XpDecision {
   if (imagesAlreadyRewardedToday >= xpRules.imageXpPerDay) {
-    return { eventType: "IMAGE_GENERATION", xp: 0, reasonCode: "GENERAL", label: null };
+    return { eventType: "IMAGE_GENERATION", xp: 0, quality: "LOW", reasonCode: "GENERAL", label: null };
   }
-  return { eventType: "IMAGE_GENERATION", xp: xpRules.firstImageOfDay, reasonCode: "FIRST_OF_DAY", label: "First image today" };
+  return { eventType: "IMAGE_GENERATION", xp: xpRules.firstImageOfDay, quality: "NORMAL", reasonCode: "FIRST_OF_DAY", label: "First image today" };
 }
 
 /**

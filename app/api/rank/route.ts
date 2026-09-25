@@ -1,5 +1,5 @@
 import { readBondProfile } from "@/lib/bond-profile";
-import { readSeason, readSeasonHistory, readStanding } from "@/lib/ranking/service";
+import { readRankThresholds, readSeason, readSeasonHistory, readStanding } from "@/lib/ranking/service";
 import { rankProgress } from "@/lib/ranking/tiers";
 import { readProfile } from "@/lib/profiles/service";
 import { readAchievements } from "@/lib/ranking/achievements";
@@ -28,7 +28,7 @@ export async function GET() {
   if (!auth.identity) return auth.response;
 
   const walletAccountId = auth.identity.walletAccountId;
-  const [profile, weekly, monthly, history, bond, achievements, monthlySeason] = await Promise.all([
+  const [profile, weekly, monthly, history, bond, achievements, monthlySeason, thresholds] = await Promise.all([
     readProfile(walletAccountId),
     readStanding(walletAccountId, "WEEKLY"),
     readStanding(walletAccountId, "MONTHLY"),
@@ -36,6 +36,7 @@ export async function GET() {
     readBondProfile(walletAccountId, auth.identity.profileId),
     readAchievements(walletAccountId),
     readSeason("MONTHLY"),
+    readRankThresholds(),
   ]);
 
   // Message totals are a lifetime stat. Ownership lives on `conversations`, so
@@ -71,9 +72,8 @@ export async function GET() {
       // Permanent, unlike rank which resets with the season.
       achievements,
       bond: { level: bond.level, label: bond.label, progress: bond.progress, conversationDays: bond.conversationDays, memoryCount: bond.memoryCount },
-      // Progress is recomputed from server XP so a stale client cannot display a
-      // rank the server would not agree with.
-      progress: rankProgress(monthly?.xp ?? 0),
+      // Lifetime XP drives rank. Period XP is shown only on the boards.
+      progress: rankProgress(profile?.lifetimeXp ?? 0, thresholds),
     },
     { headers: { "Cache-Control": "private, no-store" } },
   );

@@ -50,21 +50,19 @@ describe("rank-up celebration trigger", () => {
 
 describe("share rank card content", () => {
   /** Mirrors the strings `drawRankCard` writes onto the canvas. */
-  function cardStrings(input: { username: string; tierLabel: string; seasonXp: number; seasonLabel: string | null; weeklyPlacement: number | null }) {
-    const lines = ["CABI  -  CAT PARTNER UNIT", input.username, input.tierLabel.toUpperCase(), `${input.seasonXp.toLocaleString()} XP`];
-    if (input.seasonLabel) lines.push(input.seasonLabel);
+  function cardStrings(input: { username: string; tierLabel: string; lifetimeXp: number; weeklyPlacement: number | null }) {
+    const lines = ["CABI  -  CAT PARTNER UNIT", input.username, input.tierLabel.toUpperCase(), `${input.lifetimeXp.toLocaleString()} Lifetime XP`];
     if (input.weeklyPlacement) lines.push(`#${input.weeklyPlacement} this week`);
-    lines.push("Rank is earned by real conversation", "never by holding tokens");
+    lines.push("Rank is earned by meaningful Cabi activity", "never by holding tokens");
     return lines.join("\n");
   }
 
   it("shows the handle, tier, XP and placing", () => {
-    const text = cardStrings({ username: "mark", tierLabel: "Elite", seasonXp: 5_420, seasonLabel: "August 2026", weeklyPlacement: 12 });
+    const text = cardStrings({ username: "mark", tierLabel: "Elite", lifetimeXp: 5_420, weeklyPlacement: 12 });
     expect(text).toContain("mark");
     expect(text).toContain("ELITE");
-    expect(text).toContain("5,420 XP");
+    expect(text).toContain("5,420 Lifetime XP");
     expect(text).toContain("#12 this week");
-    expect(text).toContain("August 2026");
   });
 
   it("truncates a very long handle rather than overflowing the card", () => {
@@ -74,17 +72,17 @@ describe("share rank card content", () => {
   });
 
   it("omits the placing line when the user is unranked this week", () => {
-    const text = cardStrings({ username: "mark", tierLabel: "Novice", seasonXp: 0, seasonLabel: null, weeklyPlacement: null });
+    const text = cardStrings({ username: "mark", tierLabel: "Novice", lifetimeXp: 0, weeklyPlacement: null });
     expect(text).not.toContain("this week");
   });
 
   it("never contains a wallet address", () => {
-    const text = cardStrings({ username: "mark", tierLabel: "Elite", seasonXp: 5_420, seasonLabel: "August 2026", weeklyPlacement: 12 });
+    const text = cardStrings({ username: "mark", tierLabel: "Elite", lifetimeXp: 5_420, weeklyPlacement: 12 });
     expect(text).not.toMatch(/0x[0-9a-fA-F]{6,}/);
   });
 
   it("states that rank is not bought", () => {
-    const text = cardStrings({ username: "mark", tierLabel: "Elite", seasonXp: 1, seasonLabel: null, weeklyPlacement: null });
+    const text = cardStrings({ username: "mark", tierLabel: "Elite", lifetimeXp: 1, weeklyPlacement: null });
     expect(text).toMatch(/never by holding tokens/i);
   });
 });

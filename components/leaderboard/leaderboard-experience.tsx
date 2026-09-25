@@ -10,7 +10,7 @@ import { rankTiers, type RankTier } from "@/lib/ranking/tiers";
 type Entry = { placement: number; username: string; avatarPath: string | null; xp: number; tier: RankTier; isCurrentUser: boolean };
 type Season = { id: string; label: string; startsAt: string; endsAt: string; msRemaining: number } | null;
 type Standing = { placement: number | null; xp: number; participants: number; tier: RankTier } | null;
-type Payload = { type: "WEEKLY" | "MONTHLY"; season: Season; available: boolean; entries: Entry[]; standing: Standing; you: Entry | null };
+type Payload = { type: "WEEKLY" | "MONTHLY"; season: Season; available: boolean; entries: Entry[]; standing: Standing; you: Entry | null; currentUser?: { username: string | null; displayName: string | null } | null };
 
 /**
  * Weekly and monthly leaderboards.
@@ -25,7 +25,7 @@ export function LeaderboardExperience({ wallet }: { wallet: { authenticated: boo
   const [message, setMessage] = useState("");
 
   const load = useCallback(async (type: "WEEKLY" | "MONTHLY") => {
-    setPhase("loading");
+    setPhase((current) => current === "ready" ? "ready" : "loading");
     try {
       const response = await fetch(`/api/leaderboard?type=${type}`, { cache: "no-store" });
       const payload = await response.json() as (Payload & { error?: string });
@@ -40,12 +40,19 @@ export function LeaderboardExperience({ wallet }: { wallet: { authenticated: boo
 
   useEffect(() => {
     const timer = window.setTimeout(() => { void load(tab); }, 0);
-    return () => window.clearTimeout(timer);
+    const poll = window.setInterval(() => void load(tab), 45_000);
+    const refresh = () => void load(tab);
+    window.addEventListener("cabi:xp-awarded", refresh);
+    return () => {
+      window.clearTimeout(timer);
+      window.clearInterval(poll);
+      window.removeEventListener("cabi:xp-awarded", refresh);
+    };
   }, [load, tab]);
 
   const entries = data?.entries ?? [];
   const top = entries.filter((entry) => entry.placement <= 3);
-  const rest = entries.filter((entry) => entry.placement > 3);
+  const rest = entries.filter((entry) => entry.placement > 3 && entry.placement <= 100);
   const you = data?.you ?? null;
 
   return (
@@ -73,13 +80,14 @@ export function LeaderboardExperience({ wallet }: { wallet: { authenticated: boo
         </div>
 
         {/* The signed-in user's own standing, always visible even outside the top 100. */}
-        {wallet.authenticated && data?.standing ? (
+        {wallet.authenticated && data?.standing && (data.standing.placement == null || data.standing.placement > 100) ? (
           <div className="mt-4 rounded-2xl border border-violet-200/[0.14] bg-violet-300/[0.05] p-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-3">
                 <span className="font-mono text-[13px] font-semibold text-violet-200">
                   {data.standing.placement ? `#${data.standing.placement}` : "Unranked"}
                 </span>
+                <span className="text-[12px] text-white">{data.you?.username ?? data.currentUser?.displayName ?? data.currentUser?.username ?? "You"}</span>
                 <RankBadge tier={data.standing.tier} />
                 <span className="text-[12px] text-[#a8a3b3]">{data.standing.participants} competing</span>
               </div>
@@ -90,7 +98,9 @@ export function LeaderboardExperience({ wallet }: { wallet: { authenticated: boo
       </div>
 
       {phase === "loading" ? (
-        <p className="mt-6 text-center text-sm text-[#a8a3b3]" role="status">Loading the board...</p>
+        <div className="glass mt-6 space-y-2 rounded-[22px] p-4" role="status" aria-label="Loading leaderboard">
+          {Array.from({ length: 7 }, (_, index) => <div key={index} className="flex h-10 items-center gap-3"><span className="h-3 w-8 animate-pulse rounded bg-white/[0.06]" /><span className="h-8 w-8 animate-pulse rounded-full bg-white/[0.06]" /><span className="h-3 flex-1 animate-pulse rounded bg-white/[0.06]" /><span className="h-3 w-16 animate-pulse rounded bg-white/[0.06]" /></div>)}
+        </div>
       ) : null}
 
       {phase === "error" ? (
@@ -110,9 +120,9 @@ export function LeaderboardExperience({ wallet }: { wallet: { authenticated: boo
 
       {phase === "ready" && data?.available !== false && entries.length === 0 ? (
         <div className="glass mt-6 rounded-[26px] p-8 text-center">
-          <p className="text-sm font-semibold text-white">Nobody is on the board yet.</p>
+          <p className="text-sm font-semibold text-white">No one&apos;s on the board yet.</p>
           <p className="mx-auto mt-2 max-w-sm text-xs leading-6 text-[#a8a3b3]">
-            Rank is earned by having real conversations, so the first meaningful chat takes the top spot.
+            Chat with Cabi and be the first.
           </p>
         </div>
       ) : null}
@@ -122,7 +132,7 @@ export function LeaderboardExperience({ wallet }: { wallet: { authenticated: boo
           {top.map((entry) => (
             <li
               key={entry.username}
-              className={`glass rounded-[22px] p-4 text-center ${entry.isCurrentUser ? "ring-1 ring-violet-300/40" : ""}`}
+              className={`glass rounded-[22px] p-4 text-center ${entry.isCurrentUser ? "ring-1 ring-violet-300/40" : entry.placement === 1 ? "border-amber-200/[0.15]" : entry.placement === 2 ? "border-slate-200/[0.13]" : "border-orange-200/[0.13]"}`}
             >
               <p className="font-mono text-[11px] font-semibold uppercase tracking-[.16em] text-[#777180]">#{entry.placement}</p>
               <div className="mt-3 flex justify-center">
@@ -162,9 +172,12 @@ export function LeaderboardExperience({ wallet }: { wallet: { authenticated: boo
         </div>
       ) : null}
 
-      <p className="mt-6 text-center text-[11px] leading-6 text-[#625d6d]">
-        Rank measures product activity only. Owning or trading $CPU never affects XP or placement.
-      </p>
+      <section className="glass mt-6 rounded-[22px] p-5">
+        <h2 className="text-sm font-semibold text-white">How it works</h2>
+        <p className="mt-2 text-[12px] leading-6 text-[#a8a3b3]">Earn XP by actually spending time with Cabi. Meaningful chats, memories and other Cabi interactions can earn XP. Spam and repeated messages don&apos;t.</p>
+        <p className="mt-2 text-[12px] leading-6 text-[#a8a3b3]">Weekly and monthly boards reset, but your lifetime XP and rank stay with you.</p>
+        <p className="mt-2 text-[11px] leading-5 text-[#777180]">Leaderboard rewards are handled manually by the Cabi team.</p>
+      </section>
     </section>
   );
 }

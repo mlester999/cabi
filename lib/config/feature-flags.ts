@@ -58,8 +58,8 @@ export const CABI_FEATURES = [
   { id: "memory", label: "Memory", description: "Keep the moments you want Cabi to remember.", icon: "brain", flag: "memory_enabled", surface: "active", route: "/settings/memory" },
   { id: "cpu", label: "$CPU", description: "The Cat Partner Unit access page.", icon: "cpu", flag: null, surface: "active", route: "/cpu" },
 
-  { id: "leaderboard", label: "Leaderboard", description: "Weekly and monthly rankings.", icon: "trophy", flag: "leaderboard_enabled", surface: "roadmap", route: "/leaderboard" },
-  { id: "ranks", label: "Ranks", description: "Seasonal progress and tiers.", icon: "medal", flag: "ranking_enabled", surface: "roadmap", route: "/profile" },
+  { id: "leaderboard", label: "Leaderboard", description: "Weekly and monthly rankings.", icon: "trophy", flag: "leaderboard_enabled", surface: "active", route: "/leaderboard" },
+  { id: "ranks", label: "Ranks", description: "Lifetime progress through six Cabi ranks.", icon: "medal", flag: "ranking_enabled", surface: "active", route: "/profile" },
   { id: "portfolio", label: "Portfolio", description: "See your wallet through Cabi.", icon: "briefcase-business", flag: "portfolio_enabled", surface: "roadmap", route: "/portfolio" },
   { id: "automated-trading", label: "Automated Trading", description: "Tell Cabi what you want to trade.", icon: "bot", flag: "direct_trading_enabled", surface: "roadmap", route: "/trading" },
   { id: "rewards", label: "Rewards", description: "Community rewards for real activity.", icon: "gift", flag: "rewards_enabled", surface: "roadmap", route: "/rewards" },
@@ -80,9 +80,8 @@ export function cabiFeatureForFlag(flag: FeatureFlagKey): CabiFeatureDefinition 
 /**
  * What ships in this phase.
  *
- * The core chat, image, wallet, profile, memory, and CPU surfaces are on.
- * Everything that is half-built is off, and the UI presents those as
- * intentionally unreleased rather than broken.
+ * The core Cabi experience, rank progression, and leaderboards are on.
+ * Future wallet and reward surfaces remain off and are shown in Cabi Lab.
  */
 export const defaultFeatureFlags: FeatureFlags = {
   // Core experience.
@@ -92,9 +91,9 @@ export const defaultFeatureFlags: FeatureFlags = {
   memory_enabled: true,
   profile_enabled: true,
 
-  // Not ready. Architecture is preserved; the flows are closed.
-  ranking_enabled: false,
-  leaderboard_enabled: false,
+  // Active progression features.
+  ranking_enabled: true,
+  leaderboard_enabled: true,
   portfolio_enabled: false,
   direct_trading_enabled: false,
   rewards_enabled: false,

@@ -10,6 +10,7 @@ import {
   lockedFeatureCopy,
   lockedFeatureOrder,
   parseFeatureFlags,
+  roadmapFeatureCount,
 } from "@/lib/config/feature-flags";
 
 const root = join(__dirname, "..");
@@ -23,12 +24,12 @@ const read = (path: string) => readFileSync(join(root, path), "utf8");
  * is reachable, and nothing unfinished is described as working.
  */
 
-const coreFlags = ["chat_enabled", "image_generation_enabled", "wallet_auth_enabled", "memory_enabled", "profile_enabled"] as const;
-const lockedFlags = ["ranking_enabled", "leaderboard_enabled", "portfolio_enabled", "direct_trading_enabled", "rewards_enabled", "achievements_enabled", "gallery_enabled"] as const;
+const activeFlags = ["chat_enabled", "image_generation_enabled", "wallet_auth_enabled", "memory_enabled", "profile_enabled", "ranking_enabled", "leaderboard_enabled"] as const;
+const lockedFlags = ["portfolio_enabled", "direct_trading_enabled", "rewards_enabled", "achievements_enabled", "gallery_enabled"] as const;
 
 describe("default flags match what this phase ships", () => {
-  it("enables exactly the five core surfaces", () => {
-    for (const key of coreFlags) expect(defaultFeatureFlags[key]).toBe(true);
+  it("enables the core experience, ranks, and leaderboards", () => {
+    for (const key of activeFlags) expect(defaultFeatureFlags[key]).toBe(true);
   });
 
   it("leaves every unfinished feature off", () => {
@@ -36,17 +37,17 @@ describe("default flags match what this phase ships", () => {
   });
 
   it("declares a flag for every documented key", () => {
-    expect(featureFlagKeys).toHaveLength(coreFlags.length + lockedFlags.length);
-    for (const key of [...coreFlags, ...lockedFlags]) expect(featureFlagKeys).toContain(key);
+    expect(featureFlagKeys).toHaveLength(activeFlags.length + lockedFlags.length);
+    for (const key of [...activeFlags, ...lockedFlags]) expect(featureFlagKeys).toContain(key);
   });
 });
 
 describe("flags cannot be turned on by malformed settings", () => {
   it("ignores a string that looks like a boolean", () => {
-    // A hand-edited settings row must not unlock a feature.
+    // A hand-edited settings row must not override the server default.
     const flags = parseFeatureFlags({ ranking_enabled: "false", leaderboard_enabled: "true" });
-    expect(flags.ranking_enabled).toBe(false);
-    expect(flags.leaderboard_enabled).toBe(false);
+    expect(flags.ranking_enabled).toBe(true);
+    expect(flags.leaderboard_enabled).toBe(true);
   });
 
   it("ignores null, numbers and objects", () => {
@@ -69,10 +70,8 @@ describe("flags cannot be turned on by malformed settings", () => {
 
 describe("locked routes cannot be bypassed", () => {
   const gated: Array<[string, string]> = [
-    ["app/leaderboard/page.tsx", "leaderboard_enabled"],
     ["app/portfolio/page.tsx", "portfolio_enabled"],
     ["app/gallery/page.tsx", "gallery_enabled"],
-    ["app/u/[username]/page.tsx", "leaderboard_enabled"],
   ];
 
   it.each(gated)("%s is closed on its flag before anything else", (file, flag) => {
@@ -226,11 +225,9 @@ describe("the app passes resolved flags to the chat shell", () => {
     expect(lab).toContain("In the works");
   });
 
-  it("keeps the six roadmap cards in one canonical registry", () => {
-    expect(cabiRoadmapFeatures).toHaveLength(6);
+  it("keeps the four remaining future cards in one canonical registry", () => {
+    expect(cabiRoadmapFeatures).toHaveLength(4);
     expect(cabiRoadmapFeatures.map((feature) => feature.label)).toEqual([
-      "Leaderboard",
-      "Ranks",
       "Portfolio",
       "Automated Trading",
       "Rewards",
@@ -247,5 +244,13 @@ describe("the app passes resolved flags to the chat shell", () => {
     expect(primary).not.toContain('href="/leaderboard"');
     expect(primary).not.toContain('href="/gallery"');
     expect(primary).not.toContain('href="/portfolio"');
+  });
+
+  it("shows only future work in Cabi Lab and updates the sidebar count from the registry", () => {
+    expect(roadmapFeatureCount).toBe(4);
+    const shell = read("components/cabi/cabi-experience.tsx");
+    expect(shell).toContain("{roadmapFeatureCount} things in the works");
+    expect(shell).toContain('href="/leaderboard"');
+    expect(shell).toContain("<Trophy");
   });
 });

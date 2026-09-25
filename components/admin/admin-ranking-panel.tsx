@@ -11,6 +11,8 @@ type Summary = { participants: number; totalXp: number; topUsername: string | nu
 type TopEntry = { placement: number; username: string; xp: number; tier: { tier: number } };
 type Reward = { id: string; placement: number; xp: number; username: string | null; walletAddress: string | null; status: string; note: string | null; seasonType: string | null; seasonLabel: string | null };
 type Flagged = { wallet_account_id: string; username: string | null; ranking_status: string };
+type Suspicious = { wallet_account_id: string; username: string | null; message_events: number; duplicate_events: number; cap_hits: number; rapid_events: number; last_event_at: string };
+type RecentEvent = { id: number; walletAccountId: string; username: string | null; delta: number; eventType: string; reasonCode: string; qualityScore: number | null; createdAt: string };
 type Tuning = {
   thresholds: Record<string, number>;
   daily_xp_cap: number;
@@ -24,6 +26,8 @@ type Payload = {
   monthly: { season: Season; summary: Summary; top: TopEntry[] };
   rewards: Reward[];
   flagged: Flagged[];
+  suspicious: Suspicious[];
+  recentEvents: RecentEvent[];
 };
 
 /**
@@ -41,7 +45,7 @@ export function AdminRankingPanel() {
   const [busy, setBusy] = useState(false);
   const [adjust, setAdjust] = useState({ walletAccountId: "", delta: "", reason: "" });
   // Local mirror of the tuning form, seeded from the server on load.
-  const [tuningForm, setTuning] = useState<{ EXPLORER: string; COMPANION: string; ELITE: string; MASTER: string; LEGEND: string; dailyXpCap: string; imageXpPerDay: string; rewardPlacements: string } | null>(null);
+  const [tuningForm, setTuning] = useState<{ FAMILIAR: string; COMPANION: string; ELITE: string; MASTER: string; LEGEND: string; dailyXpCap: string; imageXpPerDay: string; rewardPlacements: string } | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -52,12 +56,12 @@ export function AdminRankingPanel() {
       // Seed the form once, so an in-progress edit is not clobbered by a refresh.
       if (payload.tuning) {
         setTuning((current) => current ?? {
-          EXPLORER: String(payload.tuning!.thresholds.EXPLORER ?? 500),
-          COMPANION: String(payload.tuning!.thresholds.COMPANION ?? 1500),
-          ELITE: String(payload.tuning!.thresholds.ELITE ?? 4000),
-          MASTER: String(payload.tuning!.thresholds.MASTER ?? 9000),
-          LEGEND: String(payload.tuning!.thresholds.LEGEND ?? 18000),
-          dailyXpCap: String(payload.tuning!.daily_xp_cap ?? 500),
+          FAMILIAR: String(payload.tuning!.thresholds.FAMILIAR ?? 500),
+          COMPANION: String(payload.tuning!.thresholds.COMPANION ?? 2000),
+          ELITE: String(payload.tuning!.thresholds.ELITE ?? 6000),
+          MASTER: String(payload.tuning!.thresholds.MASTER ?? 15000),
+          LEGEND: String(payload.tuning!.thresholds.LEGEND ?? 35000),
+          dailyXpCap: String(payload.tuning!.daily_xp_cap ?? 300),
           imageXpPerDay: String(payload.tuning!.image_xp_per_day ?? 1),
           rewardPlacements: String(payload.tuning!.max_weekly_placement ?? 100),
         });
@@ -121,19 +125,22 @@ export function AdminRankingPanel() {
       <div className="mt-4">
         {confirming === type ? (
           <div className="rounded-2xl border border-amber-200/[0.22] bg-amber-200/[0.05] p-4">
-            <p className="text-[13px] font-semibold text-amber-50">Reset {type === "WEEKLY" ? "the weekly leaderboard" : "the monthly season"}?</p>
+            <p className="text-[13px] font-semibold text-amber-50">End this leaderboard period now?</p>
             <p className="mt-1.5 text-[11px] leading-5 text-[#d5d0de]">
-              This closes the current period and opens a new one. The closed period keeps its stats, final placements, and reward snapshots - nothing is deleted.
+              This closes the current period, snapshots its results, and starts a new period. Historical XP remains intact.
             </p>
             <div className="mt-3 flex gap-2">
               <button type="button" onClick={() => setConfirming(null)} className="focus-ring h-9 rounded-xl border border-white/[0.1] px-3.5 text-[11px] font-semibold text-[#d5d0de]">Cancel</button>
-              <button type="button" disabled={busy} onClick={() => void act({ action: "reset", type }, "Period closed and a new one started.")} className="focus-ring h-9 rounded-xl bg-amber-200 px-3.5 text-[11px] font-bold text-[#241a05] disabled:opacity-40">Reset</button>
+              <button type="button" disabled={busy} onClick={() => void act({ action: "reset", type }, "Period finalized and a new one started.")} className="focus-ring h-9 rounded-xl bg-amber-200 px-3.5 text-[11px] font-bold text-[#241a05] disabled:opacity-40">End period</button>
             </div>
           </div>
         ) : (
-          <button type="button" onClick={() => setConfirming(type)} className="focus-ring inline-flex h-9 items-center gap-2 rounded-xl border border-white/[0.1] px-3.5 text-[11px] font-semibold text-[#d5d0de] hover:bg-white/[0.04]">
-            <RotateCcw size={12} aria-hidden="true" /> Reset &amp; start new period
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button type="button" disabled={!season || season.status !== "ACTIVE" || busy} onClick={() => void act({ action: "recalculate", periodId: season!.id }, "Active-period totals recalculated from the XP ledger.")} className="focus-ring inline-flex h-9 items-center gap-2 rounded-xl border border-white/[0.1] px-3.5 text-[11px] font-semibold text-[#d5d0de] hover:bg-white/[0.04] disabled:opacity-40">Recalculate</button>
+            <button type="button" onClick={() => setConfirming(type)} className="focus-ring inline-flex h-9 items-center gap-2 rounded-xl border border-white/[0.1] px-3.5 text-[11px] font-semibold text-[#d5d0de] hover:bg-white/[0.04]">
+              <RotateCcw size={12} aria-hidden="true" /> End current period
+            </button>
+          </div>
         )}
       </div>
     </section>
@@ -148,15 +155,15 @@ export function AdminRankingPanel() {
         {seasonCard("Current monthly season", "MONTHLY", data.monthly.season, data.monthly.summary, data.monthly.top)}
       </div>
 
-      {/* Rank tuning. Thresholds are frozen per season, and that is stated plainly. */}
+      {/* Rank thresholds apply to lifetime XP. Board totals stay period-based. */}
       {tuningForm ? (
         <section className="rounded-[22px] border border-white/[0.07] bg-white/[0.02] p-5">
           <h2 className="text-sm font-bold text-white">Rank thresholds and caps</h2>
           <p className="mt-1.5 text-[11px] leading-5 text-[#777180]">
-            Each tier must cost more than the one before it. A season freezes the thresholds in force when it was created, so changes here apply from the <span className="text-violet-200">next</span> season rather than rewriting the board currently being raced.
+            Rank is based on lifetime XP. Changing thresholds updates rank labels without changing weekly or monthly XP totals.
           </p>
           <div className="mt-4 grid gap-3 sm:grid-cols-3">
-            {([["EXPLORER", "Explorer"], ["COMPANION", "Companion"], ["ELITE", "Elite"], ["MASTER", "Master"], ["LEGEND", "Legend"], ["dailyXpCap", "Daily XP cap"], ["imageXpPerDay", "Image XP per day"], ["rewardPlacements", "Reward placements"]] as const).map(([key, label]) => (
+            {([["FAMILIAR", "Familiar"], ["COMPANION", "Companion"], ["ELITE", "Elite"], ["MASTER", "Master"], ["LEGEND", "Legend"], ["dailyXpCap", "Daily XP cap"], ["imageXpPerDay", "Image XP per day"], ["rewardPlacements", "Reward placements"]] as const).map(([key, label]) => (
               <label key={key} className="block">
                 <span className="text-[10px] font-semibold uppercase tracking-[.14em] text-[#777180]">{label}</span>
                 <input
@@ -176,7 +183,7 @@ export function AdminRankingPanel() {
             onClick={() => void act({
               action: "tuning",
               thresholds: {
-                EXPLORER: Number(tuningForm.EXPLORER),
+                FAMILIAR: Number(tuningForm.FAMILIAR),
                 COMPANION: Number(tuningForm.COMPANION),
                 ELITE: Number(tuningForm.ELITE),
                 MASTER: Number(tuningForm.MASTER),
@@ -185,7 +192,7 @@ export function AdminRankingPanel() {
               dailyXpCap: Number(tuningForm.dailyXpCap),
               imageXpPerDay: Number(tuningForm.imageXpPerDay),
               rewardPlacements: Number(tuningForm.rewardPlacements),
-            }, "Tuning saved. It applies from the next season.")}
+            }, "Rank thresholds and XP caps saved.")}
             className="focus-ring mt-3 h-10 rounded-xl bg-violet-300 px-4 text-[11px] font-bold text-[#160f22] disabled:opacity-40"
           >
             Save tuning
@@ -250,13 +257,51 @@ export function AdminRankingPanel() {
                 <span className="min-w-0 flex-1 truncate text-[12px] text-[#d5d0de]">{row.username ?? row.wallet_account_id}</span>
                 <span className="text-[10px] uppercase tracking-[.12em] text-amber-100">{row.ranking_status}</span>
                 <button type="button" disabled={busy} onClick={() => void act({ action: "eligibility", walletAccountId: row.wallet_account_id, status: "NORMAL" }, "Restored to the leaderboard.")} className="focus-ring h-8 rounded-lg border border-white/[0.1] px-2.5 text-[10px] font-semibold text-[#d5d0de] disabled:opacity-40">Restore</button>
-                <button type="button" disabled={busy} onClick={() => void act({ action: "eligibility", walletAccountId: row.wallet_account_id, status: "INELIGIBLE" }, "Marked ineligible.")} className="focus-ring h-8 rounded-lg border border-white/[0.1] px-2.5 text-[10px] font-semibold text-[#8e889b] disabled:opacity-40">Mark ineligible</button>
+                <button type="button" disabled={busy} onClick={() => void act({ action: "eligibility", walletAccountId: row.wallet_account_id, status: "INELIGIBLE" }, "New automatic XP is blocked.")} className="focus-ring h-8 rounded-lg border border-white/[0.1] px-2.5 text-[10px] font-semibold text-[#8e889b] disabled:opacity-40">Block XP</button>
               </li>
             ))}
           </ul>
-          <p className="mt-3 text-[11px] text-[#625d6d]">A flagged account keeps full chat access. It only drops off the reward leaderboard.</p>
+          <p className="mt-3 text-[11px] text-[#625d6d]">Review hides an account from standings while it can continue earning. Block XP stops automatic awards; chat remains available, and manual admin adjustments stay audited.</p>
         </section>
       ) : null}
+
+      <section className="rounded-[22px] border border-white/[0.07] bg-white/[0.02] p-5">
+        <h2 className="text-sm font-bold text-white">Recent XP events</h2>
+        <p className="mt-1.5 text-[11px] leading-5 text-[#777180]">Latest 30 ledger entries. XP events are append-only; message contents are never shown here.</p>
+        {data.recentEvents.length === 0 ? <p className="mt-4 text-[11px] text-[#625d6d]">No XP events yet.</p> : (
+          <ol className="mt-3 divide-y divide-white/[0.05] rounded-2xl border border-white/[0.05]">
+            {data.recentEvents.map((event) => (
+              <li key={event.id} className="flex flex-wrap items-center gap-3 px-3 py-2.5">
+                <span className="min-w-0 flex-1 truncate text-[11px] text-white">{event.username ?? event.walletAccountId.slice(0, 8)}</span>
+                <span className="font-mono text-[11px] text-violet-200">{event.delta > 0 ? "+" : ""}{event.delta} XP</span>
+                <span className="rounded-full border border-white/[0.07] px-2 py-0.5 text-[9px] uppercase tracking-[.1em] text-[#a8a3b3]">{event.qualityScore == null ? "N/A" : (["Low", "Normal", "Good", "Great"] as const)[event.qualityScore] ?? "Unknown"}</span>
+                <span className="text-[10px] text-[#a8a3b3]">{event.eventType}</span>
+                <span className="text-[10px] text-[#777180]">{event.reasonCode}</span>
+                <time className="text-[10px] text-[#625d6d]" dateTime={event.createdAt}>{new Date(event.createdAt).toLocaleString()}</time>
+              </li>
+            ))}
+          </ol>
+        )}
+      </section>
+
+      <section className="rounded-[22px] border border-white/[0.07] bg-white/[0.02] p-5">
+        <h2 className="text-sm font-bold text-white">Activity for review</h2>
+        <p className="mt-1.5 text-[11px] leading-5 text-[#777180]">Signals are prompts for a human review, not automatic accusations or penalties. Data covers the last 24 hours.</p>
+        {data.suspicious.length === 0 ? <p className="mt-4 text-[11px] text-[#625d6d]">No unusual activity to review.</p> : (
+          <ul className="mt-3 divide-y divide-white/[0.05] rounded-2xl border border-white/[0.05]">
+            {data.suspicious.map((row) => (
+              <li key={row.wallet_account_id} className="flex flex-wrap items-center gap-3 px-3 py-3">
+                <span className="min-w-0 flex-1 truncate text-[12px] text-white">{row.username ?? row.wallet_account_id.slice(0, 8)}</span>
+                <span className="text-[10px] text-[#a8a3b3]">{row.message_events} messages</span>
+                <span className="text-[10px] text-[#a8a3b3]">{row.duplicate_events} repeats</span>
+                <span className="text-[10px] text-[#a8a3b3]">{row.cap_hits} cap hits</span>
+                <span className="text-[10px] text-[#a8a3b3]">{row.rapid_events} rapid</span>
+                <button type="button" disabled={busy} onClick={() => void act({ action: "eligibility", walletAccountId: row.wallet_account_id, status: "REVIEW" }, "Account marked for review; no XP was removed.")} className="focus-ring h-8 rounded-lg border border-amber-200/[0.2] px-2.5 text-[10px] font-semibold text-amber-100 disabled:opacity-40">Mark for review</button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
     </div>
   );
 }

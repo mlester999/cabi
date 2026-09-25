@@ -89,6 +89,22 @@ export async function readSeason(type: "WEEKLY" | "MONTHLY"): Promise<SeasonView
   return row ? toSeasonView(row) : null;
 }
 
+/** Current server-managed rank thresholds, used for lifetime progression UI. */
+export async function readRankThresholds(): Promise<Partial<Record<RankTierKey, number>>> {
+  const db = getServiceClient();
+  if (!db) return defaultRankThresholds;
+  const { data, error } = await db.rpc("rank_tuning_view");
+  if (error || !data) return defaultRankThresholds;
+  const row = (Array.isArray(data) ? data[0] : data) as { thresholds?: Record<string, number> } | undefined;
+  if (!row?.thresholds) return defaultRankThresholds;
+  const result: Partial<Record<RankTierKey, number>> = {};
+  for (const key of ["FAMILIAR", "COMPANION", "ELITE", "MASTER", "LEGEND"] as const) {
+    const value = Number(row.thresholds[key]);
+    if (Number.isFinite(value) && value > 0) result[key] = Math.floor(value);
+  }
+  return Object.keys(result).length === 5 ? result : defaultRankThresholds;
+}
+
 export async function readStanding(walletAccountId: string, type: "WEEKLY" | "MONTHLY"): Promise<Standing | null> {
   const db = getServiceClient();
   if (!db) return null;
@@ -182,6 +198,7 @@ async function award(input: {
   contentFingerprint?: string | null;
   dailyCap?: number;
   imageDailyCap?: number;
+  qualityScore?: number;
 }): Promise<AwardResult | null> {
   const db = getServiceClient();
   if (!db) return null;
@@ -195,6 +212,7 @@ async function award(input: {
     p_content_fingerprint: input.contentFingerprint ?? null,
     p_daily_cap: input.dailyCap ?? undefined,
     p_image_daily_cap: input.imageDailyCap ?? undefined,
+    p_quality_score: input.qualityScore ?? 0,
   });
   if (error || !data) return null;
   const row = (Array.isArray(data) ? data[0] : data) as {
@@ -253,13 +271,21 @@ export async function awardChatXp(input: {
   const capped = applyDailyCap(decision, 0, input.dailyCap);
   const xp = capped.xp;
 
-  // Nothing to record and nothing to say.
+  // Keep a body-free audit row for every server-rated turn, including ordinary
+  // low-effort zero-XP messages. Message retries remain idempotent in SQL.
   if (xp === 0 && decision.xp >= 0) {
-    return {
-      xpAwarded: 0, seasonXp: 0, lifetimeXp: 0,
-      tier: tierByNumber(1), previousTier: tierByNumber(1), rankedUp: false,
-      capped: capped.capped, reasonCode: decision.reasonCode, label: null, seasonId: null,
-    };
+    const result = await award({
+      walletAccountId: input.walletAccountId,
+      xp: 0,
+      eventType: decision.eventType,
+      reasonCode: decision.reasonCode,
+      conversationId: input.conversationId,
+      messageId: input.messageId,
+      contentFingerprint: fingerprint(input.message),
+      dailyCap: input.dailyCap,
+      qualityScore: qualityScoreNumber(decision.quality),
+    });
+    return result ? { ...result, label: null } : null;
   }
 
   const result = await award({
@@ -271,6 +297,7 @@ export async function awardChatXp(input: {
     messageId: input.messageId,
     contentFingerprint: fingerprint(input.message),
     dailyCap: input.dailyCap,
+    qualityScore: qualityScoreNumber(decision.quality),
   });
   return result ? { ...result, label: decision.label } : null;
 }
@@ -303,12 +330,23 @@ export async function awardImageXp(input: {
   conversationId?: string | null;
 }): Promise<AwardResult | null> {
   const decision = evaluateImageXp(input.imagesRewardedToday);
-  if (decision.xp <= 0) return null;
+  if (decision.xp <= 0) {
+    const result = await award({
+      walletAccountId: input.walletAccountId,
+      xp: 0,
+      eventType: decision.eventType,
+      reasonCode: decision.reasonCode,
+      conversationId: input.conversationId ?? null,
+      qualityScore: qualityScoreNumber(decision.quality),
+    });
+    return result ? { ...result, label: null } : null;
+  }
   const result = await award({
     walletAccountId: input.walletAccountId,
     xp: decision.xp,
     eventType: decision.eventType,
     reasonCode: decision.reasonCode,
+    qualityScore: qualityScoreNumber(decision.quality),
     conversationId: input.conversationId ?? null,
   });
   return result ? { ...result, label: decision.label } : null;
@@ -329,6 +367,10 @@ export async function adjustXp(input: {
 }
 
 export const rankThresholds = defaultRankThresholds;
+
+function qualityScoreNumber(quality: "LOW" | "NORMAL" | "GOOD" | "GREAT") {
+  return quality === "LOW" ? 0 : quality === "NORMAL" ? 1 : quality === "GOOD" ? 2 : 3;
+}
 
 /** Clears any client-held notion of rank by simply not having one. */
 export type { RankTier };

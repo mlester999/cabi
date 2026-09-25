@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 /**
  * Season countdown.
@@ -10,20 +10,26 @@ import { useEffect, useState } from "react";
  * is hidden from assistive technology; a static, descriptive alternative is
  * exposed instead, so a screen reader is not re-announced every second.
  */
-export function SeasonCountdown({ endsAt, onElapsed }: { endsAt: string; onElapsed?: () => void }) {
+export function SeasonCountdown({ endsAt, onElapsed, compact = false }: { endsAt: string; onElapsed?: () => void; compact?: boolean }) {
   const deadline = new Date(endsAt).getTime();
   const [remaining, setRemaining] = useState(() => Math.max(0, deadline - Date.now()));
+  const onElapsedRef = useRef(onElapsed);
+  useEffect(() => { onElapsedRef.current = onElapsed; }, [onElapsed]);
 
   useEffect(() => {
+    let notified = false;
     const tick = () => {
       const next = Math.max(0, deadline - Date.now());
       setRemaining(next);
-      if (next === 0) onElapsed?.();
+      if (next === 0 && !notified) {
+        notified = true;
+        onElapsedRef.current?.();
+      }
     };
     tick();
     const timer = window.setInterval(tick, 1_000);
     return () => window.clearInterval(timer);
-  }, [deadline, onElapsed]);
+  }, [deadline]);
 
   const totalSeconds = Math.floor(remaining / 1_000);
   const days = Math.floor(totalSeconds / 86_400);
@@ -41,8 +47,8 @@ export function SeasonCountdown({ endsAt, onElapsed }: { endsAt: string; onElaps
   }
 
   const text = days > 0
-    ? `${days}D ${pad(hours)}H ${pad(minutes)}M ${pad(seconds)}S`
-    : `${pad(hours)}H ${pad(minutes)}M ${pad(seconds)}S`;
+    ? `${days}D ${pad(hours)}H ${pad(minutes)}M${compact ? "" : ` ${pad(seconds)}S`}`
+    : `${pad(hours)}H ${pad(minutes)}M${compact ? "" : ` ${pad(seconds)}S`}`;
 
   return (
     <span className="font-mono text-[12px] font-semibold tabular-nums text-violet-200">

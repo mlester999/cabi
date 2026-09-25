@@ -8,7 +8,7 @@ import type { RankTier } from "@/lib/ranking/tiers";
 /**
  * Shareable progression card.
  *
- * Drawn on a canvas in the browser: the rank, the season XP, and the weekly
+ * Drawn on a canvas in the browser: the lifetime rank, XP, and weekly
  * placing, branded as Cabi. A wallet address is never drawn, so a shared card
  * cannot leak one even if the user crops it badly.
  *
@@ -17,8 +17,7 @@ import type { RankTier } from "@/lib/ranking/tiers";
 export type RankCardInput = {
   username: string;
   tier: RankTier;
-  seasonXp: number;
-  seasonLabel: string | null;
+  lifetimeXp: number;
   weeklyPlacement: number | null;
 };
 
@@ -64,16 +63,10 @@ export function drawRankCard(input: RankCardInput): string | null {
   context.font = "800 112px system-ui";
   context.fillText(input.tier.label.toUpperCase(), 100, 460);
 
-  // Season XP.
+  // Lifetime XP is what earned this rank.
   context.fillStyle = "#ffffff";
   context.font = "700 64px system-ui";
-  context.fillText(`${input.seasonXp.toLocaleString()} XP`, 100, 600);
-
-  if (input.seasonLabel) {
-    context.fillStyle = "#a8a3b3";
-    context.font = "500 32px system-ui";
-    context.fillText(input.seasonLabel, 100, 655);
-  }
+  context.fillText(`${input.lifetimeXp.toLocaleString()} Lifetime XP`, 100, 600);
 
   if (input.weeklyPlacement) {
     context.fillStyle = "#c4b5fd";
@@ -83,7 +76,7 @@ export function drawRankCard(input: RankCardInput): string | null {
 
   context.fillStyle = "#777180";
   context.font = "500 28px system-ui";
-  context.fillText("Rank is earned by real conversation", 100, size - 150);
+  context.fillText("Rank is earned by meaningful Cabi activity", 100, size - 150);
   context.fillText("never by holding tokens", 100, size - 108);
 
   return canvas.toDataURL("image/png");

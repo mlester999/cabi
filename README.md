@@ -138,7 +138,7 @@ PRELAUNCH and the holder gate are separate layers: while the site is in `PRELAUN
 - `/leaderboard` — weekly and monthly rankings, public, username-only
 - `/profile` — your rank, lifetime progress, season history, and bond
 - `/gallery` — the Cabi images you have generated, with download, regenerate and use-as-picture
-- `/u/[username]` — a public profile: rank, season XP and achievements, never a wallet
+- `/u/[username]` — a public profile: lifetime rank, monthly XP and achievements, never a wallet
 - `/cpu` — safe prelaunch/live `$CPU` card
 - `/api/chat` — guest or authenticated stream (model plus the deterministic action layer)
 - `/api/wallet/nonce`, `/verify`, `/session`, `/logout`
@@ -198,8 +198,8 @@ than to "everything on".
 | `wallet_auth_enabled` | on | EVM wallet connection and sign-in |
 | `memory_enabled` | on | Cross-conversation memory |
 | `profile_enabled` | on | Name and profile photo |
-| `ranking_enabled` | **off** | Rank tiers and progression |
-| `leaderboard_enabled` | **off** | Weekly and monthly boards, public profiles |
+| `ranking_enabled` | **on** | Lifetime rank tiers and progression |
+| `leaderboard_enabled` | **on** | Weekly and monthly boards, public profiles |
 | `portfolio_enabled` | **off** | Wallet portfolio view |
 | `direct_trading_enabled` | **off** | Trade intents from chat |
 | `rewards_enabled` | **off** | Community rewards |
@@ -216,22 +216,22 @@ Locked surfaces appear as "In the works" cards — dark overlay, reduced opacity
 icon, no data of any kind, and no link into the unfinished interface. Activating one
 shows a short acknowledgement and returns the user to chat. Grep-verified: the locked
 card component contains no `href` and no `router.push`.
-## Rank and seasons
+## Lifetime rank and period leaderboards
 
-Rank is **separate from bond**. Bond is the relationship with Cabi and never resets; rank
-is competitive, monthly, and resets with the season.
+Rank is **separate from bond and leaderboard placement**. Bond is the relationship with
+Cabi and never resets. Rank advances on lifetime XP and survives weekly and monthly board
+resets.
 
-Six tiers, with default monthly thresholds. Each season freezes the thresholds in force
-when it was created, so a later admin edit never rewrites history.
+Six lifetime tiers. The admin can tune the thresholds; the defaults are:
 
-| Tier | Key | Monthly XP |
+| Tier | Key | Lifetime XP |
 | --- | --- | --- |
 | 1 | Novice | 0 |
-| 2 | Explorer | 500 |
-| 3 | Companion | 1,500 |
-| 4 | Elite | 4,000 |
-| 5 | Master | 9,000 |
-| 6 | Legend | 18,000 |
+| 2 | Familiar | 500 |
+| 3 | Companion | 2,000 |
+| 4 | Elite | 6,000 |
+| 5 | Master | 15,000 |
+| 6 | Legend | 35,000 |
 
 **Rank is never tied to wealth.** No input to the XP evaluator comes from token
 ownership, wallet balance, trading volume, or spend. A test asserts that no
@@ -241,7 +241,8 @@ writes XP accepts only server-computed activity signals.
 ### How XP is earned
 
 XP is decided by a deterministic, server-side evaluator (`lib/ranking/xp-rules.ts`).
-The browser never sends an XP amount, a tier, or a score.
+The browser never sends an XP amount, a tier, or a score. Quality bands are recorded
+without message bodies; manual adjustments and legacy events are marked as not scored.
 
 | Signal | XP |
 | --- | --- |
@@ -254,18 +255,19 @@ The browser never sends an XP amount, a tier, or a score.
 | Near-duplicate of a recent message | 0 |
 | Flooding (≥5 messages in 20s) | −2 |
 | First Cabi image of the day | +5, then 0 |
-| Daily ceiling | 500 (configurable) |
+| Daily ceiling | 300 (configurable) |
 
 Negative XP is reserved for unambiguous flooding. Short questions, typos, a second
 language, emotional conversations, sensitive topics, and disagreeing with Cabi are
 explicitly **not** penalised — several are rewarded, because they are the conversations
 that matter. When a signal is ambiguous the answer is zero, not a penalty.
 
-Reaching Legend requires **at least 30 days at the daily cap**, which a test asserts.
+Reaching Legend requires **at least 117 days at the daily cap** at the default settings.
 
 ### Seasons without a cron job
 
-`rank_seasons` holds both weekly and monthly periods. A partial unique index
+`rank_seasons` holds both weekly and monthly periods, with XP totals kept separate from
+lifetime XP. A partial unique index
 (`one ACTIVE row per type`) plus `pg_advisory_xact_lock` means two concurrent requests
 cannot both create the next period. Reading the leaderboard finalizes any expired period
 first, and finalization is idempotent, so the first read after a deadline rolls the

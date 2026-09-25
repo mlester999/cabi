@@ -10,6 +10,7 @@ import { achievementCopy, type AchievementCode } from "@/lib/ranking/achievement
 import { rankProgress, tierByNumber } from "@/lib/ranking/tiers";
 import { readPublicProfile } from "@/lib/profiles/service";
 import { readFeatureFlags } from "@/lib/config/feature-flags.server";
+import { readRankThresholds } from "@/lib/ranking/service";
 import { getAppAccess } from "@/lib/site/guard";
 
 export const dynamic = "force-dynamic";
@@ -19,7 +20,7 @@ type Params = { params: Promise<{ username: string }> };
 /**
  * Public profile.
  *
- * Shows the safe projection only: handle, avatar, rank, season XP, placement,
+ * Shows the safe projection only: handle, avatar, lifetime rank, monthly XP, placement,
  * lifetime totals, and permanent achievements. No wallet address, no memories,
  * no conversations, no admin fields - the projection is defined in SQL so this
  * page cannot widen it by accident.
@@ -52,7 +53,7 @@ export default async function PublicProfilePage({ params }: Params) {
   if (!profile) notFound();
 
   const tier = tierByNumber(profile.tier);
-  const progress = rankProgress(profile.seasonXp);
+  const progress = rankProgress(profile.lifetimeXp, await readRankThresholds());
 
   return (
     <main className="cabi-noise min-h-[100dvh] overflow-x-hidden bg-transparent text-white">
@@ -79,8 +80,8 @@ export default async function PublicProfilePage({ params }: Params) {
           <div className="mt-6">
             <div className="flex items-end justify-between gap-3">
               <div>
-                <p className="text-[10px] font-semibold uppercase tracking-[.16em] text-violet-300">This season</p>
-                <p className="mt-1 font-mono text-2xl font-bold text-white">{profile.seasonXp.toLocaleString()} XP</p>
+                <p className="text-[10px] font-semibold uppercase tracking-[.16em] text-violet-300">Lifetime XP</p>
+                <p className="mt-1 font-mono text-2xl font-bold text-white">{profile.lifetimeXp.toLocaleString()} XP</p>
               </div>
               <p className="text-right text-[11px] leading-5 text-[#a8a3b3]">
                 {profile.placement ? <><span className="font-mono text-white">#{profile.placement}</span><br /></> : null}
@@ -95,8 +96,9 @@ export default async function PublicProfilePage({ params }: Params) {
 
         <section className="mt-4 grid gap-3 sm:grid-cols-2">
           <div className="glass rounded-[22px] p-5">
-            <p className="text-[10px] font-semibold uppercase tracking-[.16em] text-[#777180]">Lifetime</p>
-            <p className="mt-2 font-mono text-xl font-bold text-white">{profile.lifetimeXp.toLocaleString()} XP</p>
+            <p className="text-[10px] font-semibold uppercase tracking-[.16em] text-[#777180]">This month</p>
+            <p className="mt-2 font-mono text-xl font-bold text-white">{profile.seasonXp.toLocaleString()} XP</p>
+            {profile.seasonLabel ? <p className="mt-1 text-[11px] text-[#8e889b]">{profile.seasonLabel}</p> : null}
             {profile.bestLeaderboardPosition ? (
               <p className="mt-1 text-[11px] text-[#a8a3b3]">Best finish #{profile.bestLeaderboardPosition}</p>
             ) : null}

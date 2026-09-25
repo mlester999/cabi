@@ -67,7 +67,7 @@ describe("admin navigation is complete", () => {
   const shell = read("components/admin/admin-shell.tsx");
 
   it("links every required admin surface", () => {
-    for (const href of ["/admin", "/admin/ai", "/admin/images", "/admin/personality", "/admin/knowledge", "/admin/ranking", "/admin/users", "/admin/conversations", "/admin/memories", "/admin/branding", "/admin/cpu", "/admin/settings", "/admin/audit"]) {
+    for (const href of ["/admin", "/admin/ai", "/admin/images", "/admin/personality", "/admin/knowledge", "/admin/leaderboard", "/admin/users", "/admin/conversations", "/admin/memories", "/admin/branding", "/admin/cpu", "/admin/settings", "/admin/audit"]) {
       expect(shell).toContain(`"${href}"`);
     }
   });

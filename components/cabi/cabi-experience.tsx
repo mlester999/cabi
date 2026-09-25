@@ -11,6 +11,7 @@ import { SlashCommandPalette } from "@/components/chat/slash-command-palette";
 import { InitialsAvatar } from "@/components/ranking/rank-badge";
 import { ProfileSetupModal } from "@/components/profile/profile-setup-modal";
 import { RankUpCelebration } from "@/components/ranking/rank-up-celebration";
+import { WeeklyCompactLeaderboard } from "@/components/leaderboard/weekly-compact-leaderboard";
 import { tierByNumber, type RankTier } from "@/lib/ranking/tiers";
 import { celebrationFor } from "@/lib/ranking/progression-frame";
 import { readEventStream } from "@/lib/client/sse";
@@ -36,6 +37,7 @@ import {
   Sparkles,
   Square,
   Trash2,
+  Trophy,
   UserRound,
   X,
 } from "lucide-react";
@@ -67,7 +69,7 @@ const groupOrder = ["Pinned", "Today", "Yesterday", "Previous 7 Days", "Older"] 
 function PresenceArt({ mood, speaking = false, authenticated, className = "" }: { mood: string; speaking?: boolean; authenticated: boolean; className?: string }) {
   const [failed, setFailed] = useState(false);
   return (
-    <div className={`relative flex min-h-0 ${className || "h-[clamp(300px,42vh,500px)]"} flex-none items-end justify-center overflow-hidden rounded-2xl border border-violet-200/[0.10] bg-[#0d0b15]`}>
+    <div className={`relative flex min-h-0 ${className || "h-[clamp(220px,32vh,380px)]"} flex-none items-end justify-center overflow-hidden rounded-2xl border border-violet-200/[0.10] bg-[#0d0b15]`}>
       <div className={`absolute left-1/2 top-[43%] h-[420px] w-[420px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-violet-500/[0.15] blur-[75px] transition duration-700 ${speaking ? "scale-110 opacity-100" : "scale-100 opacity-70"}`} />
       <div className="cabi-orbit absolute left-1/2 top-[42%] h-[330px] w-[330px] -translate-x-1/2 -translate-y-1/2 rounded-full border border-dashed border-violet-300/[0.14]" />
       <div className="absolute left-1/2 top-[42%] h-[250px] w-[250px] -translate-x-1/2 -translate-y-1/2 rounded-full border border-violet-300/[0.10] shadow-[0_0_80px_rgba(167,139,250,.1)]" />
@@ -405,6 +407,7 @@ export function CabiExperience({ flags = defaultFeatureFlags, viewport = "full",
         if (item.event === "action" && data.card) setMessages((current) => current.map((entry) => (entry.id === assistantId || entry.id === assistantServerIdRef.current || entry.id === data.assistantMessageId) && entry.role === "assistant" ? { ...entry, actionCard: data.card } : entry));
         if (item.event === "done") {
           setMessages((current) => current.map((entry) => entry.role === "assistant" && entry.status === "streaming" ? { ...entry, status: "complete", sources: data.sources ?? entry.sources } : entry));
+          window.dispatchEvent(new Event("cabi:xp-awarded"));
           // Scenario 7: the server decides a rank-up happened; the client only
           // renders it. Nothing here can award a tier.
           //
@@ -527,7 +530,12 @@ export function CabiExperience({ flags = defaultFeatureFlags, viewport = "full",
             </div>
           </> : <div className="mt-5 flex min-h-0 flex-1 flex-col"><button onClick={wallet.openConnect} className="focus-ring flex flex-1 flex-col items-center justify-center rounded-2xl border border-dashed border-white/[0.08] bg-white/[0.015] p-5 text-center hover:border-violet-200/20 hover:bg-violet-300/[0.025]"><span className="grid h-11 w-11 place-items-center rounded-full bg-white/[0.04] text-[#777180]"><Lock size={18} /></span><span className="mt-4 text-[13px] font-semibold text-[#d5d0de]">Connect your wallet to save your chats.</span><span className="mt-2 text-[11px] leading-5 text-[#706a7d]">Recent chats, memory, and settings unlock after a free login signature.</span><span className="mt-5 rounded-xl border border-white/[0.1] bg-white/[0.04] px-4 py-2.5 text-xs font-semibold text-white">Connect Wallet</span></button></div>}
 
-          <Link href="/lab" className="focus-ring mt-3 flex min-h-11 items-center gap-3 rounded-xl border border-violet-200/[0.08] bg-violet-300/[0.035] px-3 text-left transition hover:border-violet-200/[0.18] hover:bg-violet-300/[0.06]">
+          <Link href="/leaderboard" onClick={() => setSidebarOpen(false)} className="focus-ring mt-3 flex min-h-10 items-center gap-3 rounded-xl px-3 text-left text-[#a8a3b3] transition hover:bg-white/[0.035] hover:text-white">
+            <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-amber-200/[0.06] text-amber-100"><Trophy size={14} aria-hidden="true" /></span>
+            <span className="text-xs font-semibold">Leaderboard</span>
+          </Link>
+
+          <Link href="/lab" className="focus-ring mt-1 flex min-h-11 items-center gap-3 rounded-xl border border-violet-200/[0.08] bg-violet-300/[0.035] px-3 text-left transition hover:border-violet-200/[0.18] hover:bg-violet-300/[0.06]">
             <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-violet-300/[0.08] text-violet-200"><FlaskConical size={14} aria-hidden="true" /></span>
             <span className="min-w-0 flex-1"><span className="block text-xs font-semibold text-[#d5d0de]">Cabi Lab</span><span className="mt-0.5 block text-[10px] text-[#777180]">{roadmapFeatureCount} things in the works</span></span>
             <Lock size={13} className="shrink-0 text-[#777180]" aria-hidden="true" />
@@ -570,7 +578,7 @@ export function CabiExperience({ flags = defaultFeatureFlags, viewport = "full",
                     </button>{sending ? <button type="button" onClick={() => controllerRef.current?.abort()} className="focus-ring grid h-9 w-10 place-items-center rounded-lg bg-white text-[#160f27]" aria-label="Stop generating"><Square size={15} fill="currentColor" /></button> : <button type="submit" disabled={!composer.trim()} className="focus-ring grid h-9 w-10 place-items-center rounded-lg bg-gradient-to-br from-violet-200 to-violet-400 text-[#160f27] shadow-[0_8px_24px_rgba(139,92,246,.24)] hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-35" aria-label="Send message"><ArrowUp size={18} strokeWidth={2.4} /></button>}</div></div></div>{wallet.authenticated && !temporaryChat ? <p className="mt-2 text-center text-[10px] text-[#625d6d]">Saved with your Cabi profile</p> : null}</form></div>
         </section>
 
-        <aside className="scrollbar-cabi flex min-h-0 flex-col gap-3 overflow-y-auto border-l border-white/[0.06] p-3 max-lg:hidden" aria-label="Cabi presence"><PresenceArt mood="cozy" speaking={sending} authenticated={wallet.authenticated} /><p className="px-2 text-[11px] leading-5 text-white/45">A calm place to think, make, and chat.</p></aside>
+        <aside className="scrollbar-cabi flex min-h-0 flex-col gap-3 overflow-y-auto border-l border-white/[0.06] p-3 max-lg:hidden" aria-label="Cabi presence"><PresenceArt mood="cozy" speaking={sending} authenticated={wallet.authenticated} /><WeeklyCompactLeaderboard authenticated={wallet.authenticated} /></aside>
       </div>
 
       {sidebarOpen && <button className="fixed inset-0 z-40 bg-black/65 backdrop-blur-sm md:hidden" onClick={() => setSidebarOpen(false)} aria-label="Close menu" />}

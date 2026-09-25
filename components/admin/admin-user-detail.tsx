@@ -6,7 +6,7 @@ import { ArrowLeft, ShieldAlert } from "lucide-react";
 
 import { InitialsAvatar, RankBadge, RankProgressBar } from "@/components/ranking/rank-badge";
 import { initialsFor } from "@/lib/profiles/username";
-import { tierByNumber, type RankTier } from "@/lib/ranking/tiers";
+import { tierByNumber, type RankProgress, type RankTier } from "@/lib/ranking/tiers";
 
 type Payload = {
   account: {
@@ -17,6 +17,7 @@ type Payload = {
     monthly: { xp: number; placement: number | null; participants: number; tier: RankTier; seasonLabel: string | null } | null;
     weekly: { xp: number; placement: number | null; participants: number; tier: RankTier } | null;
     lifetimeXp: number;
+    progress: RankProgress;
     bestTier: RankTier | null;
     bestPlacement: number | null;
   };
@@ -102,7 +103,7 @@ export function AdminUserDetail({ walletAccountId }: { walletAccountId: string }
           <p className="mt-1 font-mono text-[11px] text-[#777180]">{account.walletAddress ?? account.walletAccountId}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {rank.monthly ? <RankBadge tier={rank.monthly.tier} /> : null}
+          <RankBadge tier={rank.progress.current} />
           <span className={`rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[.12em] ${account.rankingStatus === "NORMAL" ? "bg-emerald-300/[0.12] text-emerald-200" : "bg-amber-200/[0.14] text-amber-100"}`}>
             {account.rankingStatus}
           </span>
@@ -125,17 +126,21 @@ export function AdminUserDetail({ walletAccountId }: { walletAccountId: string }
       </section>
 
       <section className="mt-6 rounded-[22px] border border-white/[0.07] bg-white/[0.02] p-5">
-        <h2 className="text-sm font-bold text-white">Season progress</h2>
-        <p className="mt-1.5 text-[11px] text-[#777180]">{rank.monthly?.seasonLabel ?? "No active season"}</p>
+        <h2 className="text-sm font-bold text-white">Lifetime rank progress</h2>
+        <p className="mt-1.5 text-[11px] text-[#777180]">
+          {rank.progress.next
+            ? `${rank.progress.xp.toLocaleString()} / ${rank.progress.next.threshold.toLocaleString()} XP · ${rank.progress.toNext.toLocaleString()} to ${rank.progress.next.label}`
+            : `${rank.progress.xp.toLocaleString()} lifetime XP · highest rank reached`}
+        </p>
         <div className="mt-3">
-          <RankProgressBar percent={rank.monthly ? Math.min(100, Math.round((rank.monthly.xp / Math.max(1, rank.monthly.xp + 1)) * 100)) : 0} accent={rank.monthly?.tier.accent ?? "#a1a1aa"} label="Season progress" />
+          <RankProgressBar percent={rank.progress.percent} accent={rank.progress.current.accent} label="Lifetime rank progress" />
         </div>
       </section>
 
       <section className="mt-4 rounded-[22px] border border-white/[0.07] bg-white/[0.02] p-5">
         <h2 className="flex items-center gap-2 text-sm font-bold text-white"><ShieldAlert size={15} className="text-amber-200" aria-hidden="true" /> Leaderboard eligibility</h2>
         <p className="mt-1.5 text-[11px] leading-5 text-[#777180]">
-          A flagged account keeps full chat access. It only stops appearing on the reward leaderboard. Every change is audited.
+          Review hides an account from public standings while it can continue earning. Ineligible accounts keep chat access but stop earning automatic XP. Manual corrections remain audited.
         </p>
         <div className="mt-3 flex flex-wrap gap-2">
           {(["NORMAL", "REVIEW", "INELIGIBLE"] as const).map((status) => (

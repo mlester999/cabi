@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { achievementCodes, achievementCopy, qualifiedAchievements } from "@/lib/ranking/achievements";
 
 /**
- * Achievements are permanent, unlike rank which resets monthly. These tests pin
+ * Achievements are permanent, like lifetime rank. These tests pin
  * the qualification rules, which are the only thing standing between a client
  * and a self-awarded badge.
  */

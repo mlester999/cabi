@@ -78,6 +78,12 @@ describe("chat xp: rewarding real conversation", () => {
     expect(featured.xp).toBeGreaterThan(plain.xp);
   });
 
+  it("assigns quality bands from server-evaluated effort", () => {
+    expect(evaluateChatXp(signals({ message: "ok" })).quality).toBe("LOW");
+    expect(evaluateChatXp(signals({ message: "I have been reading about how bonding curves work, can you explain the difference?" })).quality).toBe("NORMAL");
+    expect(evaluateChatXp(signals({ message: "a real sentence about my project. ".repeat(8) })).quality).toBe("GREAT");
+  });
+
   it("does not reward a wall of text without limit", () => {
     const short = evaluateChatXp(signals({ message: "Tell me how memory retrieval works in Cabi, please." }));
     const huge = evaluateChatXp(signals({ message: "x".repeat(9_000) }));
@@ -177,24 +183,24 @@ describe("chat xp: anti-farming", () => {
 
 describe("daily cap", () => {
   it("lets a normal award through untouched", () => {
-    expect(applyDailyCap({ eventType: "CHAT_MEANINGFUL", xp: 8, reasonCode: "MEANINGFUL_MESSAGE", label: null }, 0)).toEqual({ xp: 8, capped: false });
+    expect(applyDailyCap({ eventType: "CHAT_MEANINGFUL", xp: 8, quality: "GOOD", reasonCode: "MEANINGFUL_MESSAGE", label: null }, 0)).toEqual({ xp: 8, capped: false });
   });
 
   it("truncates an award that would exceed the cap", () => {
-    expect(applyDailyCap({ eventType: "CHAT_MEANINGFUL", xp: 8, reasonCode: "MEANINGFUL_MESSAGE", label: null }, 496)).toEqual({ xp: 4, capped: true });
+    expect(applyDailyCap({ eventType: "CHAT_MEANINGFUL", xp: 8, quality: "GOOD", reasonCode: "MEANINGFUL_MESSAGE", label: null }, 296)).toEqual({ xp: 4, capped: true });
   });
 
   it("blocks awards once the cap is reached", () => {
-    expect(applyDailyCap({ eventType: "CHAT_MEANINGFUL", xp: 8, reasonCode: "MEANINGFUL_MESSAGE", label: null }, xpRules.dailyCap)).toEqual({ xp: 0, capped: true });
+    expect(applyDailyCap({ eventType: "CHAT_MEANINGFUL", xp: 8, quality: "GOOD", reasonCode: "MEANINGFUL_MESSAGE", label: null }, xpRules.dailyCap)).toEqual({ xp: 0, capped: true });
   });
 
   it("never inflates a penalty through the cap", () => {
-    expect(applyDailyCap({ eventType: "SPAM_RATE_LIMIT", xp: -2, reasonCode: "FLOODING", label: null }, 500)).toEqual({ xp: -2, capped: false });
+    expect(applyDailyCap({ eventType: "SPAM_RATE_LIMIT", xp: -2, quality: "LOW", reasonCode: "FLOODING", label: null }, 500)).toEqual({ xp: -2, capped: false });
   });
 
   it("cannot reach the top tier in a single day", () => {
     const daysToLegend = Math.ceil(defaultRankThresholds.LEGEND / xpRules.dailyCap);
-    expect(daysToLegend).toBeGreaterThanOrEqual(30);
+    expect(daysToLegend).toBeGreaterThanOrEqual(117);
   });
 });
 
@@ -209,44 +215,44 @@ describe("image xp", () => {
 describe("rank tiers", () => {
   it("defines exactly six tiers in order", () => {
     expect(rankTiers).toHaveLength(6);
-    expect(rankTiers.map((tier) => tier.key)).toEqual(["NOVICE", "EXPLORER", "COMPANION", "ELITE", "MASTER", "LEGEND"]);
+    expect(rankTiers.map((tier) => tier.key)).toEqual(["NOVICE", "FAMILIAR", "COMPANION", "ELITE", "MASTER", "LEGEND"]);
     expect(rankTiers.map((tier) => tier.tier)).toEqual([1, 2, 3, 4, 5, 6]);
   });
 
   it("uses the documented default thresholds", () => {
-    expect(rankTiers.map((tier) => tier.threshold)).toEqual([0, 500, 1_500, 4_000, 9_000, 18_000]);
+    expect(rankTiers.map((tier) => tier.threshold)).toEqual([0, 500, 2_000, 6_000, 15_000, 35_000]);
   });
 
   it("maps xp to the right tier at every boundary", () => {
     expect(tierForXp(0).key).toBe("NOVICE");
     expect(tierForXp(499).key).toBe("NOVICE");
-    expect(tierForXp(500).key).toBe("EXPLORER");
-    expect(tierForXp(1_499).key).toBe("EXPLORER");
-    expect(tierForXp(1_500).key).toBe("COMPANION");
-    expect(tierForXp(4_000).key).toBe("ELITE");
-    expect(tierForXp(9_000).key).toBe("MASTER");
-    expect(tierForXp(17_999).key).toBe("MASTER");
-    expect(tierForXp(18_000).key).toBe("LEGEND");
+    expect(tierForXp(500).key).toBe("FAMILIAR");
+    expect(tierForXp(1_999).key).toBe("FAMILIAR");
+    expect(tierForXp(2_000).key).toBe("COMPANION");
+    expect(tierForXp(6_000).key).toBe("ELITE");
+    expect(tierForXp(15_000).key).toBe("MASTER");
+    expect(tierForXp(34_999).key).toBe("MASTER");
+    expect(tierForXp(35_000).key).toBe("LEGEND");
     expect(tierForXp(999_999).key).toBe("LEGEND");
   });
 
   it("honours season-specific thresholds", () => {
-    expect(tierForXp(600, { EXPLORER: 1_000 }).key).toBe("NOVICE");
-    expect(tierForXp(1_000, { EXPLORER: 1_000 }).key).toBe("EXPLORER");
+    expect(tierForXp(600, { FAMILIAR: 1_000 }).key).toBe("NOVICE");
+    expect(tierForXp(1_000, { FAMILIAR: 1_000 }).key).toBe("FAMILIAR");
   });
 
   it("does not make Legend easy", () => {
-    expect(defaultRankThresholds.LEGEND).toBeGreaterThanOrEqual(18_000);
-    // A very active day at the cap still takes weeks.
-    expect(Math.ceil(defaultRankThresholds.LEGEND / xpRules.dailyCap)).toBeGreaterThanOrEqual(30);
+    expect(defaultRankThresholds.LEGEND).toBe(35_000);
+    // A very active day at the cap still takes months.
+    expect(Math.ceil(defaultRankThresholds.LEGEND / xpRules.dailyCap)).toBe(117);
   });
 
   it("reports progress within the current band", () => {
     const mid = rankProgress(1_000);
-    expect(mid.current.key).toBe("EXPLORER");
+    expect(mid.current.key).toBe("FAMILIAR");
     expect(mid.next?.key).toBe("COMPANION");
-    expect(mid.toNext).toBe(500);
-    expect(mid.percent).toBe(50);
+    expect(mid.toNext).toBe(1_000);
+    expect(mid.percent).toBe(33);
 
     const top = rankProgress(50_000);
     expect(top.next).toBeNull();
