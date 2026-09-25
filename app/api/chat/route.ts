@@ -3,7 +3,7 @@ import { getProviderConfig } from "@/lib/ai/config";
 import { buildSystemMessages } from "@/lib/ai/prompts";
 import type { ProviderConfig, TokenUsage } from "@/lib/ai/provider";
 import { runAction, type ActionRunResult } from "@/lib/actions/runtime";
-import { stripActionCardDebugDetails } from "@/lib/actions/guards";
+import { stripActionCardTransientData } from "@/lib/actions/guards";
 import { bondFromPoints, recordConversationBond } from "@/lib/bond";
 import { getServiceClient } from "@/lib/db/supabase";
 import { getCabiRuntimeConfig } from "@/lib/config/runtime";
@@ -26,9 +26,9 @@ import { recordChatTurnSocial } from "@/lib/chat/social";
 import { achievementCopy } from "@/lib/ranking/achievements";
 import { noticeCard } from "@/lib/actions/cards";
 import { generateChatImage, isImageRequest } from "@/lib/image-generation/chat";
-import { linkGenerationToMessage, markFailed, readGeneration, readLatestGenerationContext } from "@/lib/image-generation/lifecycle";
+import { markFailed, persistChatImageAttachment, readGeneration, readLatestGenerationContext } from "@/lib/image-generation/lifecycle";
 import { createImagePipelineTrace } from "@/lib/image-generation/pipeline-trace";
-import { imagePipelineDatabaseFields, logImagePipelineTrace } from "@/lib/image-generation/diagnostics";
+import { imagePipelineDatabaseFields, logImagePipelineTrace, persistImageDatabaseFailure } from "@/lib/image-generation/diagnostics";
 import { deleteGenerationImage } from "@/lib/image-generation/storage";
 
 export const dynamic = "force-dynamic";
@@ -103,12 +103,17 @@ export async function POST(request: Request) {
     } else {
       const title = parsed.data.message.replace(/\s+/gu, " ").slice(0, 54) || "New chat";
       const { data: conversation, error } = await db.from("conversations").insert({ id: conversationId, wallet_account_id: walletAccountId, title }).select("id").single();
-      if (error || !conversation) return jsonError("Cabi couldn't start a new chat.", 503, "CONVERSATION_CREATE_FAILED");
+      if (error || !conversation) {
+        imageTrace?.record("CHAT_MESSAGE_CREATED", { error: "DATABASE_INSERT_FAILED" });
+        if (imageTrace && error) await persistImageDatabaseFailure({ requestId: imageTrace.requestId, operation: "chat_conversation", table: "conversations", error, walletAccountId });
+        return jsonError("Cabi couldn't start a new chat.", 503, "CONVERSATION_CREATE_FAILED");
+      }
       conversationId = conversation.id;
       createdConversation = true;
       if (parsed.data.onboardingName) {
         const { error: onboardingError } = await db.from("messages").insert({ conversation_id: conversationId, role: "assistant", content: "Hii! What should I call you? 💜", status: "complete", metadata_json: { onboarding: true } });
         if (onboardingError) {
+          if (imageTrace) await persistImageDatabaseFailure({ requestId: imageTrace.requestId, operation: "chat_message_create", table: "messages", error: onboardingError, walletAccountId });
           await db.from("conversations").delete().eq("id", conversationId).eq("wallet_account_id", walletAccountId);
           return jsonError("Cabi couldn't save the start of that chat.", 503, "MESSAGE_SAVE_FAILED");
         }
@@ -142,6 +147,8 @@ export async function POST(request: Request) {
     } else {
       const { data: insertedUser, error: userError } = await db.from("messages").insert({ id: userMessageId, conversation_id: conversationId, role: "user", content: parsed.data.message, status: "complete", client_request_id: parsed.data.clientRequestId ?? crypto.randomUUID() }).select("id").single();
       if (userError || !insertedUser) {
+        imageTrace?.record("CHAT_MESSAGE_CREATED", { error: "DATABASE_INSERT_FAILED" });
+        if (imageTrace && userError) await persistImageDatabaseFailure({ requestId: imageTrace.requestId, operation: "chat_message_create", table: "messages", error: userError, walletAccountId });
         if (createdConversation) await db.from("conversations").delete().eq("id", conversationId).eq("wallet_account_id", walletAccountId);
         return jsonError("Cabi couldn't save your message.", 503, "MESSAGE_SAVE_FAILED");
       }
@@ -149,6 +156,8 @@ export async function POST(request: Request) {
     }
     const { data: insertedAssistant, error: assistantError } = await db.from("messages").insert({ id: assistantMessageId, conversation_id: conversationId, role: "assistant", content: "", status: "streaming", retry_of_message_id: parsed.data.retryOfMessageId ?? null }).select("id").single();
     if (assistantError || !insertedAssistant) {
+      imageTrace?.record("CHAT_MESSAGE_CREATED", { error: "DATABASE_INSERT_FAILED" });
+      if (imageTrace && assistantError) await persistImageDatabaseFailure({ requestId: imageTrace.requestId, operation: "chat_message_create", table: "messages", error: assistantError, walletAccountId });
       if (createdConversation) await db.from("conversations").delete().eq("id", conversationId).eq("wallet_account_id", walletAccountId);
       else if (!isRetry) await db.from("messages").delete().eq("id", userMessageId).eq("conversation_id", conversationId);
       return jsonError("Cabi couldn't reserve the reply in your saved chat.", 503, "MESSAGE_SAVE_FAILED");
@@ -246,10 +255,21 @@ export async function POST(request: Request) {
   // Deterministic answers (wallet reads, token lookups, slash commands) are
   // produced entirely by trusted code, so the model is not called at all.
   let card = image.handled ? image.card : action.card;
+  const imageReply = image.handled ? image.reply : null;
+  let imageMessagePersisted = false;
   if (card?.kind === "IMAGE" && db && walletAccountId && profileId) {
-    const linked = await linkGenerationToMessage(card.generationId, assistantMessageId).catch(() => false);
-    if (!linked) {
-      imageTrace?.record("GENERATION_ROW_UPDATED", { error: "DATABASE_UPDATE_FAILED" });
+    const persisted = await persistChatImageAttachment({
+      walletAccountId,
+      conversationId,
+      assistantMessageId,
+      generationId: card.generationId,
+      card,
+      content: imageReply ?? "",
+      metadata: { sources: rag.sources, mood },
+      trace: imageTrace ?? undefined,
+    }).catch(() => false);
+    if (!persisted) {
+      imageTrace?.record("CHAT_MESSAGE_PERSISTED", { error: "DATABASE_PERSISTENCE_FAILED" });
       const generation = await readGeneration(walletAccountId, card.generationId).catch(() => null);
       if (generation?.imagePath) {
         const removed = await deleteGenerationImage(generation.imagePath).catch(() => false);
@@ -271,12 +291,13 @@ export async function POST(request: Request) {
         retry: { label: "Try Again", prompt: parsed.data.message, parentGenerationId: card.generationId },
         links: retryLink,
       });
+    } else {
+      imageMessagePersisted = true;
     }
   }
-  const persistedCard = card ? stripActionCardDebugDetails(card) : null;
+  const persistedCard = card ? stripActionCardTransientData(card) : null;
   // An image request is fully answered by the pipeline: the reply is the short
   // deterministic line that accompanies the picture, so the model is not called.
-  const imageReply = image.handled ? image.reply : null;
   const deterministicReply = imageReply ?? (action.skipModel && action.reply ? action.reply : null);
   const isDeterministic = image.handled || Boolean(action.skipModel && action.reply);
   // Only a request that actually needs the model requires a configured provider.
@@ -315,18 +336,34 @@ export async function POST(request: Request) {
           }
         }
         if (db && walletAccountId && profileId) {
-          const [messageWrite, conversationWrite] = await Promise.all([
-            db.from("messages").update({
+          let messageWriteError: unknown = null;
+          if (!imageMessagePersisted) {
+            const messageWrite = await db.from("messages").update({
               content: text,
               status: "complete",
-              // The card travels with the saved message so a reloaded
-              // conversation renders exactly what the user saw.
+              // The durable card stores only the generation id; reload mints a
+              // fresh URL from the wallet-scoped private storage path.
               metadata_json: { sources: rag.sources, ...(persistedCard ? { actionCard: persistedCard } : {}), mood },
               updated_at: new Date().toISOString(),
-            }).eq("id", assistantMessageId).eq("conversation_id", conversationId),
-            db.from("conversations").update({ updated_at: new Date().toISOString() }).eq("id", conversationId).eq("wallet_account_id", walletAccountId),
-          ]);
-          if (messageWrite.error || conversationWrite.error) throw new Error("PERSISTENCE_WRITE_FAILED");
+            }).eq("id", assistantMessageId).eq("conversation_id", conversationId);
+            messageWriteError = messageWrite.error;
+            if (messageWrite.error && imageTrace) await persistImageDatabaseFailure({
+              requestId: imageTrace.requestId,
+              operation: "chat_message",
+              table: "messages",
+              error: messageWrite.error,
+              walletAccountId,
+            });
+          }
+          const conversationWrite = await db.from("conversations").update({ updated_at: new Date().toISOString() }).eq("id", conversationId).eq("wallet_account_id", walletAccountId);
+          if (conversationWrite.error && imageTrace) await persistImageDatabaseFailure({
+            requestId: imageTrace.requestId,
+            operation: "chat_conversation",
+            table: "conversations",
+            error: conversationWrite.error,
+            walletAccountId,
+          });
+          if (messageWriteError || conversationWrite.error) throw new Error("PERSISTENCE_WRITE_FAILED");
           imageTrace?.record("CHAT_MESSAGE_PERSISTED");
           // Usage logging is telemetry, not conversation durability. A logging
           // outage must not turn a correctly saved reply into a failed chat.

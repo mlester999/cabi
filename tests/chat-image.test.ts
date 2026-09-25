@@ -24,6 +24,9 @@ const mocks = {
   xpGrantedToday: 0,
   /** Mirrors `xpRules.imageXpPerDay`. */
   imageXpPerDay: 1,
+  quotaCalls: 0,
+  xpCountCalls: 0,
+  xpAwards: 0,
 };
 
 /*
@@ -136,19 +139,20 @@ vi.mock("@/lib/db/supabase", () => ({
         return mocks.insertError ? { error: mocks.insertError } : { error: null };
       },
     }),
-    rpc: async () => ({ data: [{ allowed: mocks.quotaAllowed, remaining: mocks.quotaAllowed ? 4 : 0 }], error: null }),
+    rpc: async () => { mocks.quotaCalls += 1; return { data: [{ allowed: mocks.quotaAllowed, remaining: mocks.quotaAllowed ? 4 : 0 }], error: null }; },
   }),
 }));
 
 vi.mock("@/lib/ranking/service", () => ({
   // The "first image of the day only" rule reads this, so it must be mocked too.
-  countImageXpToday: vi.fn(async () => mocks.xpGrantedToday),
+  countImageXpToday: vi.fn(async () => { mocks.xpCountCalls += 1; return mocks.xpGrantedToday; }),
   /*
    * Faithful to the real rule: the bonus is granted only for the first image of
    * the day. A mock that always returned 5 could not have caught the defect
    * where the caller passed a constant instead of counting the ledger.
    */
   awardImageXp: vi.fn(async (input: { imagesRewardedToday: number }) => {
+    mocks.xpAwards += 1;
     if (input.imagesRewardedToday >= mocks.imageXpPerDay) {
       return { xpAwarded: 0, seasonXp: 0, lifetimeXp: 0, tier: { tier: 1 }, previousTier: { tier: 1 }, rankedUp: false, capped: false, reasonCode: "GENERAL", label: null, seasonId: null };
     }
@@ -176,6 +180,9 @@ beforeEach(() => {
   mocks.generated = [];
   mocks.deletedObjects = [];
   mocks.xpGrantedToday = 0;
+  mocks.quotaCalls = 0;
+  mocks.xpCountCalls = 0;
+  mocks.xpAwards = 0;
   lifecycle.markGenerating.mockClear();
   lifecycle.markCompleted.mockClear();
   lifecycle.markFailed.mockClear();
@@ -386,6 +393,33 @@ describe("successful generation", () => {
     expect(String(queued?.user_prompt)).toContain("coffee");
     expect(String(queued?.user_prompt)).not.toContain("ash-gray");
     expect(lifecycle.markCompleted).toHaveBeenCalledTimes(1);
+  });
+
+  it("queues every current-schema field before provider spend and persists a storage path on completion", async () => {
+    await generateChatImage("Generate a picture of you drinking coffee.", {
+      ...wallet,
+      conversationId: "33333333-3333-4333-8333-333333333333",
+      messageId: "44444444-4444-4444-8444-444444444444",
+    });
+    const queued = mocks.inserted.find((row) => row.table === "image_generations" && row.status === "QUEUED");
+    expect(queued).toMatchObject({
+      wallet_account_id: wallet.walletAccountId,
+      conversation_id: "33333333-3333-4333-8333-333333333333",
+      message_id: "44444444-4444-4444-8444-444444444444",
+      reference_conditioned: expect.any(Boolean),
+      status: "QUEUED",
+    });
+    expect(queued).toHaveProperty("pipeline_request_id");
+    expect(queued).toHaveProperty("diagnostic_stage");
+    expect(lifecycle.markGenerating.mock.invocationCallOrder[0]).toBeLessThan(lifecycle.markCompleted.mock.invocationCallOrder[0]);
+    expect(lifecycle.markCompleted).toHaveBeenCalledWith(expect.objectContaining({ imagePath: "wallet/gen.png", diagnostics: expect.objectContaining({ pipeline_request_id: expect.any(String) }) }));
+  });
+
+  it("keeps the admin full-chat test out of user quota and XP accounting", async () => {
+    await generateChatImage("Generate a picture of you drinking coffee.", { ...wallet, adminPipelineTest: true, ownerPreview: true });
+    expect(mocks.quotaCalls).toBe(0);
+    expect(mocks.xpCountCalls).toBe(0);
+    expect(mocks.xpAwards).toBe(0);
   });
 
   it("does not return an image card if the completion update fails, and cleans up the upload", async () => {

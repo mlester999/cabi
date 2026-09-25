@@ -38,7 +38,7 @@ export async function GET(_request: Request, context: Context) {
    * still running or that failed is rendered as its state rather than as a
    * broken image.
    */
-  const refreshed = await refreshStoredCards(shaped).catch(() => shaped);
+  const refreshed = await refreshStoredCards(shaped, auth.identity.walletAccountId).catch(() => shaped);
   return Response.json({ conversation, messages: refreshed }, { headers: { "Cache-Control": "private, no-store" } });
 }
 

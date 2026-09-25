@@ -13,7 +13,7 @@ import { checkImageSafety } from "@/lib/image-generation/safety";
 import { noticeCard, imageCard } from "@/lib/actions/cards";
 import type { ActionCard } from "@/lib/actions/types";
 import { createImagePipelineTrace, type ImagePipelineTrace } from "@/lib/image-generation/pipeline-trace";
-import { imagePipelineDatabaseFields, logImageDatabaseFailure, logImagePipelineTrace } from "@/lib/image-generation/diagnostics";
+import { imagePipelineDatabaseFields, logImageDatabaseFailure, logImagePipelineTrace, persistImageDatabaseFailure } from "@/lib/image-generation/diagnostics";
 import { recordCabiPlanStages, runCabiImagePipeline } from "@/lib/image-generation/pipeline";
 import { deleteGenerationImage } from "@/lib/image-generation/storage";
 
@@ -53,6 +53,8 @@ export type ChatImageOptions = {
   trace?: ImagePipelineTrace;
   /** True only for an explicitly authorized owner/admin preview request. */
   ownerPreview?: boolean;
+  /** Internal owner-admin test only: avoid charging normal user quota or XP. */
+  adminPipelineTest?: boolean;
 };
 
 export type ChatImageResult =
@@ -216,7 +218,7 @@ async function generateChatImageInternal(message: string, options: ChatImageOpti
 
   // Quota is counted in the database so two concurrent chats cannot both take
   // the final slot.
-  if (options.walletAccountId) {
+  if (options.walletAccountId && !options.adminPipelineTest) {
     const { data: quotaData, error: quotaError } = await db.rpc("image_generation_quota", {
       p_wallet_account_id: walletAccountId,
       p_daily_limit: settings.dailyLimit,
@@ -304,12 +306,14 @@ async function generateChatImageInternal(message: string, options: ChatImageOpti
     if (insertResult?.error) {
       trace.record("GENERATION_ROW_CREATED", { error: "DATABASE_INSERT_FAILED" });
       logImageDatabaseFailure({ requestId: trace.requestId, operation: "insert", error: insertResult.error });
+      await persistImageDatabaseFailure({ requestId: trace.requestId, operation: "insert", error: insertResult.error, walletAccountId: options.walletAccountId });
       return { handled: true, usedProvider: false, reply: "", card: imageFailureCard(message, Boolean(options.ownerPreview)) };
     }
     trace.record("GENERATION_ROW_CREATED");
   } catch (error) {
     trace.record("GENERATION_ROW_CREATED", { error: "DATABASE_INSERT_FAILED" });
     logImageDatabaseFailure({ requestId: trace.requestId, operation: "insert", error });
+    await persistImageDatabaseFailure({ requestId: trace.requestId, operation: "insert", error, walletAccountId: options.walletAccountId });
     return { handled: true, usedProvider: false, reply: "", card: imageFailureCard(message, Boolean(options.ownerPreview)) };
   }
   // QUEUED -> GENERATING, recorded before the request leaves the process so a
@@ -357,6 +361,7 @@ async function generateChatImageInternal(message: string, options: ChatImageOpti
     provider: generated.image.provider,
     model: generated.image.model,
     referenceConditioned: generated.referenceConditioned,
+    diagnostics: imagePipelineDatabaseFields(trace),
   });
   if (!markedCompleted) {
     trace.record("GENERATION_ROW_UPDATED", { error: "DATABASE_UPDATE_FAILED" });
@@ -375,10 +380,10 @@ async function generateChatImageInternal(message: string, options: ChatImageOpti
 
   // First image of the day only, capped hard so paid API calls can never become
   // a route up the leaderboard.
-  const xp = options.walletAccountId
+  const xp = options.walletAccountId && !options.adminPipelineTest
     ? await awardImageXp({ walletAccountId, imagesRewardedToday: await countImageXpToday(walletAccountId), conversationId: options.conversationId }).catch(() => null)
     : null;
-  const profile = options.walletAccountId ? await readProfile(walletAccountId) : null;
+  const profile = options.walletAccountId && !options.adminPipelineTest ? await readProfile(walletAccountId) : null;
 
   // The scene is echoed because the user wrote it; the identity layers and the
   // reference path are never returned.

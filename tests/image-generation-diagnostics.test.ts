@@ -1,10 +1,19 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { imageDiagnosticErrorCategory, logImageDatabaseFailure, sanitizeImageDatabaseError } from "@/lib/image-generation/diagnostics";
+const mocks = vi.hoisted(() => ({ auditRows: [] as Array<Record<string, unknown>> }));
+
+vi.mock("@/lib/db/supabase", () => ({
+  getServiceClient: () => ({
+    from: () => ({ insert: async (row: Record<string, unknown>) => { mocks.auditRows.push(row); return { error: null }; } }),
+  }),
+}));
+
+import { imageDiagnosticErrorCategory, logImageDatabaseFailure, persistImageDatabaseFailure, sanitizeImageDatabaseError } from "@/lib/image-generation/diagnostics";
 
 describe("safe image database diagnostics", () => {
   afterEach(() => {
     delete process.env.IMAGE_GENERATION_DIAGNOSTICS;
+    mocks.auditRows.length = 0;
     vi.restoreAllMocks();
   });
 
@@ -51,6 +60,30 @@ describe("safe image database diagnostics", () => {
     expect(logged).toContain("23503");
     expect(logged).toContain("foreign_key_violation");
     expect(logged).not.toContain("private wallet contents");
+  });
+
+  it("stores structured DB diagnostics without raw database text", async () => {
+    await persistImageDatabaseFailure({
+      requestId: "trace-safe-id",
+      operation: "insert",
+      error: {
+        code: "PGRST204",
+        message: "Could not find the 'pipeline_request_id' column of 'image_generations' in the schema cache; prompt PRIVATE_PROMPT and key sk-secret",
+      },
+      walletAccountId: "wallet-safe-id",
+    });
+
+    expect(mocks.auditRows).toHaveLength(1);
+    expect(mocks.auditRows[0]).toMatchObject({
+      action: "image_generation.database_failure",
+      request_id: "trace-safe-id",
+      target_type: "image_generations",
+      metadata_json: {
+        operation: "insert",
+        database: { code: "PGRST204", table: "image_generations", column: "pipeline_request_id", reason: "missing_column_or_schema_cache" },
+      },
+    });
+    expect(JSON.stringify(mocks.auditRows)).not.toMatch(/PRIVATE_PROMPT|sk-secret/u);
   });
 });
 

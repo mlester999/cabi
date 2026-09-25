@@ -67,6 +67,13 @@ type FullTestResult = {
   promptFallbackUsed?: boolean;
 };
 
+type ChatFullTestResult = {
+  ok: boolean;
+  message: string;
+  checks?: Array<{ label: string; state: "PASS" | "FAILED" | "SKIPPED" }>;
+  diagnostics?: ImagePipelineDebugDetails;
+};
+
 type DiagnosticStepState = "PASS" | "FAILED" | "SKIPPED";
 
 function formatSafeProviderError(error: ImageConnectionDiagnostics["providerError"]): string {
@@ -159,7 +166,8 @@ export function AdminImagesPanel() {
   const [notice, setNotice] = useState<{ tone: "success" | "error" | "info"; message: string } | null>(null);
   const [connection, setConnection] = useState<ConnectionResult | null>(null);
   const [fullTest, setFullTest] = useState<FullTestResult | null>(null);
-  const [busy, setBusy] = useState<"save" | "test" | "test-full" | null>(null);
+  const [chatFullTest, setChatFullTest] = useState<ChatFullTestResult | null>(null);
+  const [busy, setBusy] = useState<"save" | "test" | "test-full" | "test-chat-full" | null>(null);
 
   const applyCatalog = useCallback((payload: CatalogPayload) => {
     const nextProviders = payload.providers?.length ? payload.providers : [...IMAGE_PROVIDER_OPTIONS];
@@ -215,15 +223,16 @@ export function AdminImagesPanel() {
     setNotice(null);
   };
 
-  const submit = async (action: "save" | "test" | "test-full") => {
+  const submit = async (action: "save" | "test" | "test-full" | "test-chat-full") => {
     setBusy(action);
     setNotice(null);
     if (action === "test") setConnection(null);
     if (action === "test-full") setFullTest(null);
+    if (action === "test-chat-full") setChatFullTest(null);
     const { hasApiKey: _hasApiKey, keyLastFour: _keyLastFour, ...editableSettings } = settings;
     void _hasApiKey;
     void _keyLastFour;
-    const body = action === "test-full"
+    const body = action === "test-full" || action === "test-chat-full"
       ? { action }
       : action === "test"
       // Testing is a read-only operation: the server resolves the stored key
@@ -241,10 +250,11 @@ export function AdminImagesPanel() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
-      const payload = await response.json() as CatalogPayload & ConnectionResult & FullTestResult & { error?: string };
+      const payload = await response.json() as CatalogPayload & ConnectionResult & FullTestResult & ChatFullTestResult & { error?: string };
       if (!response.ok) {
         if (action === "test") setConnection({ ok: false, message: payload.message ?? payload.error ?? "Connection failed.", diagnostics: payload.diagnostics });
         if (action === "test-full") setFullTest({ ok: false, message: payload.message ?? payload.error ?? "Full generation failed.", diagnostics: payload.diagnostics });
+        if (action === "test-chat-full") setChatFullTest({ ok: false, message: payload.message ?? payload.error ?? "Full chat image test failed.", checks: payload.checks, diagnostics: payload.diagnostics });
         setNotice({ tone: "error", message: payload.message ?? payload.error ?? "That did not work." });
         return;
       }
@@ -262,7 +272,7 @@ export function AdminImagesPanel() {
           diagnostics: payload.diagnostics,
         });
         setNotice({ tone: "success", message: "Together AI connection verified." });
-      } else {
+      } else if (action === "test-full") {
         setFullTest({
           ok: payload.ok,
           message: payload.message ?? "Full generation verified.",
@@ -272,11 +282,15 @@ export function AdminImagesPanel() {
           promptFallbackUsed: payload.promptFallbackUsed,
         });
         setNotice({ tone: "success", message: "Full Cabi generation verified." });
+      } else {
+        setChatFullTest({ ok: payload.ok, message: payload.message ?? "Full chat image pipeline finished.", checks: payload.checks, diagnostics: payload.diagnostics });
+        setNotice({ tone: payload.ok ? "success" : "error", message: payload.ok ? "Full chat image pipeline verified." : "Full chat image pipeline did not pass." });
       }
     } catch {
       const message = "That did not work. Check the connection and try again.";
       if (action === "test") setConnection({ ok: false, message });
       if (action === "test-full") setFullTest({ ok: false, message });
+      if (action === "test-chat-full") setChatFullTest({ ok: false, message });
       setNotice({ tone: "error", message });
     } finally {
       setBusy(null);
@@ -536,7 +550,23 @@ export function AdminImagesPanel() {
           <button type="button" disabled={busy !== null} onClick={() => void submit("test-full")} className="focus-ring inline-flex h-11 items-center gap-2 rounded-xl border border-violet-200/[0.22] bg-violet-300/[0.08] px-5 text-sm font-semibold text-violet-100 disabled:opacity-40">
             <ShieldCheck size={15} aria-hidden="true" /> {busy === "test-full" ? "Running full test..." : "Test Full Cabi Generation"}
           </button>
+          <button type="button" disabled={busy !== null} onClick={() => void submit("test-chat-full")} className="focus-ring inline-flex h-11 items-center gap-2 rounded-xl border border-emerald-200/[0.2] bg-emerald-300/[0.06] px-5 text-sm font-semibold text-emerald-100 disabled:opacity-40">
+            <ShieldCheck size={15} aria-hidden="true" /> {busy === "test-chat-full" ? "Testing chat persistence..." : "Test Full Chat Image Pipeline"}
+          </button>
         </div>
+        <p className="mt-2 text-[11px] leading-5 text-[var(--cabi-text-muted)]">The chat test makes one real image request using your signed-in wallet, then removes its temporary conversation, generation row, and image.</p>
+        {chatFullTest ? (
+          <div className={`mt-4 rounded-xl border p-3 ${chatFullTest.ok ? "border-emerald-300/[0.18] bg-emerald-300/[0.06]" : "border-rose-300/[0.2] bg-rose-300/[0.06]"}`} role={chatFullTest.ok ? "status" : "alert"}>
+            <p className={`text-[12px] font-semibold ${chatFullTest.ok ? "text-emerald-100" : "text-rose-100"}`}>{chatFullTest.ok ? "Full chat image pipeline verified" : "Full chat image pipeline failed"}</p>
+            <p className="mt-1 text-[11px] leading-5 text-[var(--cabi-text-secondary)]">{chatFullTest.message}</p>
+            {chatFullTest.checks ? (
+              <ul className="mt-3 grid gap-x-4 gap-y-1 text-[11px] sm:grid-cols-2">
+                {chatFullTest.checks.map((check) => <li key={check.label} className={check.state === "PASS" ? "text-emerald-200" : check.state === "FAILED" ? "text-rose-200" : "text-[var(--cabi-text-muted)]"}>{check.state === "PASS" ? "✓" : check.state === "FAILED" ? "×" : "–"} {check.label}: {check.state.toLowerCase()}</li>)}
+              </ul>
+            ) : null}
+            {chatFullTest.diagnostics ? <p className="mt-2 text-[10px] text-[var(--cabi-text-muted)]">Request {chatFullTest.diagnostics.requestId} · stopped at {displayPipelineStage(chatFullTest.diagnostics.stage ?? chatFullTest.diagnostics.lastStage)}</p> : null}
+          </div>
+        ) : null}
       </section>
 
 

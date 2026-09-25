@@ -23,9 +23,11 @@ import {
 import { imageDiagnosticErrorCategory, logImageDatabaseFailure, logImageGenerationDiagnostic, safeImageKeySuffix } from "@/lib/image-generation/diagnostics";
 import { createImagePipelineTrace } from "@/lib/image-generation/pipeline-trace";
 import { runFullCabiImageTest } from "@/lib/image-generation/full-test";
+import { runFullChatImageTest } from "@/lib/image-generation/full-chat-test";
 import type { ImageGenerationSettings } from "@/lib/image-generation/types";
 import { assertSameOrigin, jsonError } from "@/lib/security/request";
 import { shortAddress } from "@/lib/wallet-data/types";
+import { readWalletAuth } from "@/lib/wallet/session";
 
 export const dynamic = "force-dynamic";
 
@@ -71,6 +73,10 @@ const imageAdminFullTestSchema = z.object({
   action: z.literal("test-full"),
 }).strict();
 
+const imageAdminFullChatTestSchema = z.object({
+  action: z.literal("test-chat-full"),
+}).strict();
+
 function validateImageSelection(value: { provider: string; model: string; apiKey?: string }, context: z.RefinementCtx) {
   if (!isSupportedImageProvider(value.provider)) {
     context.addIssue({ code: z.ZodIssueCode.custom, path: ["provider"], message: "Choose a supported image provider." });
@@ -84,9 +90,9 @@ function validateImageSelection(value: { provider: string; model: string; apiKey
 }
 
 export const imageAdminSaveSchema = z
-  .discriminatedUnion("action", [imageAdminPersistSchema, imageAdminTestSchema, imageAdminFullTestSchema])
+  .discriminatedUnion("action", [imageAdminPersistSchema, imageAdminTestSchema, imageAdminFullTestSchema, imageAdminFullChatTestSchema])
   .superRefine((value, context) => {
-    if (value.action !== "test-full") validateImageSelection(value, context);
+    if (value.action !== "test-full" && value.action !== "test-chat-full") validateImageSelection(value, context);
   });
 
 type AdminImageSettings = Omit<ImageGenerationSettings, "baseUrl">;
@@ -110,6 +116,45 @@ function responseHeaders() {
 
 function safeSelectionValue(value: unknown): string | null {
   return typeof value === "string" ? value.trim().slice(0, 120) || null : null;
+}
+
+function safeDatabaseDiagnostic(value: unknown) {
+  const raw = value && typeof value === "object" ? value as Record<string, unknown> : {};
+  const table = raw.table === "image_generations" || raw.table === "messages" || raw.table === "conversations" || raw.table === "profiles" ? raw.table : null;
+  const code = typeof raw.code === "string" && (/^[0-9A-Z]{5}$/u.test(raw.code) || /^PGRST\d{3}$/u.test(raw.code)) ? raw.code : null;
+  const identifier = (candidate: unknown) => typeof candidate === "string" && /^[A-Za-z_][A-Za-z0-9_$-]{0,127}$/u.test(candidate) ? candidate : null;
+  const allowedReasons = new Set([
+    "missing_column", "missing_column_or_schema_cache", "missing_table", "missing_table_or_schema_cache",
+    "not_null_violation", "foreign_key_violation", "unique_violation", "check_violation", "permission_denied",
+    "database_write_failed", "no_row_updated", "database_not_configured",
+  ]);
+  return {
+    code,
+    table,
+    reason: typeof raw.reason === "string" && allowedReasons.has(raw.reason) ? raw.reason : "database_write_failed",
+    column: identifier(raw.column),
+    constraint: identifier(raw.constraint),
+  };
+}
+
+function auditEventId(value: unknown): string | null {
+  if (typeof value === "string" && /^\d+$/u.test(value)) return value;
+  return typeof value === "number" && Number.isInteger(value) ? String(value) : null;
+}
+
+function databaseOperationStage(value: unknown): string {
+  switch (value) {
+    case "insert": return "GENERATION_ROW_CREATED";
+    case "mark_generating":
+    case "mark_completed":
+    case "mark_failed": return "GENERATION_ROW_UPDATED";
+    case "link_message": return "CHAT_IMAGE_MESSAGE_CREATED";
+    case "chat_message_create": return "CHAT_MESSAGE_CREATED";
+    case "chat_message": return "CHAT_MESSAGE_PERSISTED";
+    case "chat_conversation": return "CHAT_MESSAGE_CREATED";
+    case "chat_profile": return "USER_AUTHORIZED";
+    default: return "DATABASE_PERSISTENCE";
+  }
 }
 
 function selectionDiagnostics(value: unknown) {
@@ -162,19 +207,46 @@ export async function GET(request: Request) {
       logImageDatabaseFailure({ requestId: "admin-image-activity", operation: "admin_activity", error: activityError });
       return jsonError("Recent generation activity could not be loaded.", 503, "DIAGNOSTICS_UNAVAILABLE");
     }
+    let diagnosticEvents: Array<Record<string, unknown>> = [];
+    const diagnosticRead = await db.from("audit_logs")
+      .select("id,occurred_at,request_id,actor_id,target_type,target_id,metadata_json")
+      .in("action", ["image_generation.database_failure", "chat.persistence_failure"])
+      .eq("outcome", "failure")
+      .order("occurred_at", { ascending: false })
+      .limit(50);
+    if (diagnosticRead.error) {
+      detailedDiagnosticsAvailable = false;
+      logImageDatabaseFailure({ requestId: "admin-image-database-diagnostics", operation: "admin_activity", error: diagnosticRead.error });
+    } else {
+      diagnosticEvents = (diagnosticRead.data ?? []) as Array<Record<string, unknown>>;
+    }
+    const matchedEvents = new Set<string>();
     const errors = rows.map((record) => {
       const wallet = typeof record.wallet_account_id === "string" ? record.wallet_account_id : "";
+      const id = typeof record.id === "string" ? record.id : null;
+      const requestId = typeof record.pipeline_request_id === "string" ? record.pipeline_request_id : null;
+      const event = diagnosticEvents.find((candidate) => {
+        const metadata = candidate.metadata_json && typeof candidate.metadata_json === "object" ? candidate.metadata_json as Record<string, unknown> : {};
+        const candidateRequestId = typeof candidate.request_id === "string" ? candidate.request_id : typeof metadata.requestId === "string" ? metadata.requestId : null;
+        const targetId = typeof candidate.target_id === "string" ? candidate.target_id : null;
+        return (id && targetId === id) || (requestId && candidateRequestId === requestId);
+      });
+      const matchedEventId = event ? auditEventId(event.id) : null;
+      if (matchedEventId) matchedEvents.add(matchedEventId);
+      const eventMetadata = event?.metadata_json && typeof event.metadata_json === "object" ? event.metadata_json as Record<string, unknown> : {};
+      const database = event ? safeDatabaseDiagnostic(eventMetadata.database) : null;
       return {
-        id: typeof record.id === "string" ? record.id : null,
+        id,
         time: typeof record.created_at === "string" ? record.created_at : null,
-        requestId: typeof record.pipeline_request_id === "string" ? record.pipeline_request_id : null,
+        requestId: requestId ?? (event && typeof event.request_id === "string" ? event.request_id : null),
         status: typeof record.status === "string" ? record.status : "UNKNOWN",
         user: wallet ? shortAddress(wallet, 8, 4) : "—",
-        stage: typeof record.diagnostic_stage === "string" ? record.diagnostic_stage : null,
+        stage: typeof record.diagnostic_stage === "string" ? record.diagnostic_stage : event ? databaseOperationStage(eventMetadata.operation) : null,
         provider: typeof record.provider === "string" ? record.provider : null,
         model: typeof record.model === "string" ? record.model : null,
         category: typeof record.provider_error_category === "string" ? record.provider_error_category : record.failure_code,
         httpStatus: typeof record.http_status === "number" ? record.http_status : null,
+        database,
         details: {
           message: typeof record.failure_message === "string" ? record.failure_message.slice(0, 500) : null,
           promptHash: typeof record.prompt_hash === "string" ? record.prompt_hash : null,
@@ -187,7 +259,28 @@ export async function GET(request: Request) {
         },
       };
     });
-    return Response.json({ errors, detailedDiagnosticsAvailable }, { headers: responseHeaders() });
+    for (const event of diagnosticEvents) {
+      const eventId = auditEventId(event.id);
+      if (eventId && matchedEvents.has(eventId)) continue;
+      const metadata = event.metadata_json && typeof event.metadata_json === "object" ? event.metadata_json as Record<string, unknown> : {};
+      const wallet = typeof metadata.walletAccountId === "string" ? metadata.walletAccountId : typeof event.actor_id === "string" ? event.actor_id : "";
+      errors.push({
+        id: eventId ? `db-${eventId}` : null,
+        time: typeof event.occurred_at === "string" ? event.occurred_at : null,
+        requestId: typeof event.request_id === "string" ? event.request_id : null,
+        status: "FAILED",
+        user: wallet ? shortAddress(wallet, 8, 4) : "—",
+        stage: databaseOperationStage(metadata.operation),
+        provider: null,
+        model: null,
+        category: "database_write_failed",
+        httpStatus: null,
+        database: safeDatabaseDiagnostic(metadata.database),
+        details: { message: null, promptHash: null, promptLength: null, scene: null, expression: null, outfit: null, promptRetryCount: 0, referenceConditioned: false },
+      });
+    }
+    errors.sort((a, b) => Date.parse(String(b.time ?? "")) - Date.parse(String(a.time ?? "")));
+    return Response.json({ errors: errors.slice(0, 50), detailedDiagnosticsAvailable }, { headers: responseHeaders() });
   }
 
   const settings = await readImageSettings();
@@ -340,6 +433,27 @@ export async function POST(request: Request) {
       referenceFallbackUsed: result.ok ? result.referenceFallbackUsed : false,
       promptFallbackUsed: result.ok ? result.promptFallbackUsed : false,
     }, { status: result.ok ? 200 : 502, headers: responseHeaders() });
+  }
+
+  if (action === "test-chat-full") {
+    let identity: Awaited<ReturnType<typeof readWalletAuth>>;
+    try {
+      identity = await readWalletAuth();
+    } catch {
+      return jsonError("Wallet sign-in is temporarily unavailable.", 503, "WALLET_AUTH_UNAVAILABLE");
+    }
+    if (!identity) return jsonError("Connect and sign in with your wallet before running the chat test.", 401, "WALLET_REQUIRED");
+
+    const result = await runFullChatImageTest({
+      walletAccountId: identity.walletAccountId,
+      profileId: identity.profileId,
+    });
+    await auditAdmin(request, admin.email, "image_settings.test_chat_full", "image_settings", "singleton", result.ok ? "success" : "failure", {
+      requestId: result.diagnostics.requestId,
+      stage: result.diagnostics.stage ?? result.diagnostics.lastStage,
+      checks: result.checks,
+    });
+    return Response.json(result, { status: result.ok ? 200 : 502, headers: responseHeaders() });
   }
 
   const { apiKey, clearApiKey, ...settings } = parsed.data;

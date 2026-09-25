@@ -3,6 +3,7 @@ import "server-only";
 import { createHash } from "node:crypto";
 
 import { envBoolean } from "@/lib/config/env";
+import { getServiceClient } from "@/lib/db/supabase";
 import type {
   ImageGenerationError,
   ImageProviderErrorCategory,
@@ -37,11 +38,23 @@ export type ImageGenerationDiagnostic = {
   stepsPresent?: boolean;
 };
 
-export type ImageDatabaseOperation = "insert" | "mark_generating" | "mark_completed" | "mark_failed" | "link_message" | "admin_activity";
+export type ImageDatabaseOperation =
+  | "insert"
+  | "mark_generating"
+  | "mark_completed"
+  | "mark_failed"
+  | "link_message"
+  | "chat_message_create"
+  | "chat_message"
+  | "chat_conversation"
+  | "chat_profile"
+  | "admin_activity";
+
+export type ImageDatabaseTable = "image_generations" | "messages" | "conversations" | "profiles";
 
 export type SafeImageDatabaseError = {
   code: string | null;
-  table: "image_generations";
+  table: ImageDatabaseTable;
   constraint: string | null;
   column: string | null;
   reason: string;
@@ -66,7 +79,7 @@ function databaseIdentifier(value: unknown): string | null {
 }
 
 /** Extracts only structured, low-risk database identifiers and allowlisted codes. */
-export function sanitizeImageDatabaseError(error: unknown): SafeImageDatabaseError {
+export function sanitizeImageDatabaseError(error: unknown, table: ImageDatabaseTable = "image_generations"): SafeImageDatabaseError {
   const record = error && typeof error === "object" ? error as Record<string, unknown> : {};
   const rawCode = typeof record.code === "string" ? record.code.trim().toUpperCase() : "";
   const code = /^[0-9A-Z]{5}$/u.test(rawCode) || /^PGRST\d{3}$/u.test(rawCode) ? rawCode : null;
@@ -74,7 +87,7 @@ export function sanitizeImageDatabaseError(error: unknown): SafeImageDatabaseErr
     .filter((value): value is string => typeof value === "string")
     .join(" ")
     .slice(0, 2_000);
-  const schemaCacheColumn = safeText.match(/could not find the ['"]([^'"]+)['"] column of ['"]image_generations['"] in the schema cache/iu)?.[1];
+  const schemaCacheColumn = safeText.match(new RegExp(`could not find the ['\"]([^'\"]+)['\"] column of ['\"]${table}['\"] in the schema cache`, "iu"))?.[1];
   const postgresColumn = safeText.match(/\bcolumn\s+(?:"([^"\r\n]+)"|([A-Za-z_][A-Za-z0-9_$]*))(?:\s+of\s+(?:relation|table)\s+(?:"[^"]+"|'[^']+'|[A-Za-z_][A-Za-z0-9_$.]*))?\s+does not exist\b/iu);
   const constraintFromMessage = safeText.match(/\bconstraint\s+["']([^"']+)["']/iu)?.[1];
   const constraint = databaseIdentifier(record.constraint) ?? databaseIdentifier(constraintFromMessage);
@@ -82,11 +95,55 @@ export function sanitizeImageDatabaseError(error: unknown): SafeImageDatabaseErr
 
   return {
     code,
-    table: "image_generations",
+    table,
     constraint,
     column,
     reason: code ? databaseReasons[code] ?? "database_write_failed" : "database_write_failed",
   };
+}
+
+/**
+ * Persist only structured, sanitized database diagnostics for the owner panel.
+ * This audit row is especially important when the generation INSERT itself
+ * fails, because no generation row exists on which to store the error.
+ */
+export async function persistImageDatabaseFailure(input: {
+  requestId: string;
+  operation: ImageDatabaseOperation;
+  table?: ImageDatabaseTable;
+  error?: unknown;
+  reason?: "no_row_updated" | "database_not_configured";
+  walletAccountId?: string | null;
+}): Promise<void> {
+  const table = input.table ?? "image_generations";
+  const safe = input.reason
+    ? { code: null, table, constraint: null, column: null, reason: input.reason }
+    : sanitizeImageDatabaseError(input.error, table);
+  const db = getServiceClient();
+  if (!db) return;
+
+  const action = input.table && input.table !== "image_generations"
+    ? "chat.persistence_failure"
+    : "image_generation.database_failure";
+  try {
+    await db.from("audit_logs").insert({
+      request_id: input.requestId,
+      actor_type: "system",
+      actor_id: null,
+      action,
+      target_type: safe.table,
+      target_id: input.requestId,
+      outcome: "failure",
+      metadata_json: {
+        operation: input.operation,
+        walletAccountId: input.walletAccountId ?? null,
+        database: safe,
+      },
+    });
+  } catch {
+    // Diagnostics must never turn an already-failing persistence path into a
+    // second exception or leak the raw database error into the response.
+  }
 }
 
 /** Emits safe write diagnostics only when explicitly enabled; raw DB errors never leave this function. */

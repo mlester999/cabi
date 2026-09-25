@@ -3,9 +3,10 @@ import "server-only";
 import { getServiceClient } from "@/lib/db/supabase";
 import { generationBucket, signedImageUrl } from "@/lib/image-generation/storage";
 import { imageGenerationTtlMs } from "@/lib/image-generation/cache";
-import { logImageDatabaseFailure } from "@/lib/image-generation/diagnostics";
+import { logImageDatabaseFailure, persistImageDatabaseFailure } from "@/lib/image-generation/diagnostics";
+import type { ImagePipelineTrace } from "@/lib/image-generation/pipeline-trace";
 import type { ActionCard } from "@/lib/actions/types";
-import { parseActionCard } from "@/lib/actions/guards";
+import { parseActionCard, stripActionCardTransientData } from "@/lib/actions/guards";
 
 /**
  * The image generation lifecycle.
@@ -47,20 +48,24 @@ async function trackedGenerationUpdate(
   generationId: string,
   operation: "mark_generating" | "mark_completed" | "mark_failed" | "link_message",
   query: PromiseLike<{ data?: unknown; error?: unknown }>,
+  walletAccountId?: string,
 ): Promise<boolean> {
   try {
     const result = await query;
     if (result.error) {
       logImageDatabaseFailure({ requestId: generationId, operation, error: result.error });
+      await persistImageDatabaseFailure({ requestId: generationId, operation, error: result.error, walletAccountId });
       return false;
     }
     if (!result.data || typeof result.data !== "object" || !("id" in result.data)) {
       logImageDatabaseFailure({ requestId: generationId, operation, reason: "no_row_updated" });
+      await persistImageDatabaseFailure({ requestId: generationId, operation, reason: "no_row_updated", walletAccountId });
       return false;
     }
     return true;
   } catch (error) {
     logImageDatabaseFailure({ requestId: generationId, operation, error });
+    await persistImageDatabaseFailure({ requestId: generationId, operation, error, walletAccountId });
     return false;
   }
 }
@@ -91,7 +96,7 @@ function toRecord(row: Record<string, unknown>): GenerationRecord {
  * so the link is made here rather than at generation time. This link is what
  * lets a reopened conversation find the generation and mint a fresh signed URL.
  */
-export async function linkGenerationToMessage(generationId: string, assistantMessageId: string) {
+export async function linkGenerationToMessage(generationId: string, assistantMessageId: string, walletAccountId: string, conversationId: string) {
   const db = getServiceClient();
   if (!db) {
     logImageDatabaseFailure({ requestId: generationId, operation: "link_message", reason: "database_not_configured" });
@@ -101,8 +106,58 @@ export async function linkGenerationToMessage(generationId: string, assistantMes
     .from("image_generations")
     .update({ assistant_message_id: assistantMessageId })
     .eq("id", generationId)
+    .eq("wallet_account_id", walletAccountId)
+    .eq("conversation_id", conversationId)
+    .eq("status", "COMPLETED")
     .select("id")
-    .maybeSingle());
+    .maybeSingle(), walletAccountId);
+}
+
+/** Persist the completed image card with no temporary URL in message history. */
+export async function persistChatImageAttachment(input: {
+  walletAccountId: string;
+  conversationId: string;
+  assistantMessageId: string;
+  generationId: string;
+  card: ActionCard;
+  content: string;
+  metadata: Record<string, unknown>;
+  trace?: ImagePipelineTrace;
+}): Promise<boolean> {
+  if (input.card.kind !== "IMAGE") return false;
+  const db = getServiceClient();
+  if (!db) {
+    logImageDatabaseFailure({ requestId: input.generationId, operation: "chat_message", reason: "database_not_configured" });
+    return false;
+  }
+
+  const linked = await linkGenerationToMessage(input.generationId, input.assistantMessageId, input.walletAccountId, input.conversationId);
+  if (!linked) return false;
+
+  const { data, error } = await db.from("messages").update({
+    content: input.content,
+    status: "complete",
+    metadata_json: { ...input.metadata, actionCard: stripActionCardTransientData(input.card) },
+    updated_at: new Date().toISOString(),
+  })
+    .eq("id", input.assistantMessageId)
+    .eq("conversation_id", input.conversationId)
+    .eq("role", "assistant")
+    .select("id")
+    .maybeSingle();
+  if (error || !data) {
+    logImageDatabaseFailure({ requestId: input.generationId, operation: "chat_message", ...(error ? { error } : { reason: "no_row_updated" }) });
+    await persistImageDatabaseFailure({
+      requestId: input.generationId,
+      operation: "chat_message",
+      table: "messages",
+      ...(error ? { error } : { reason: "no_row_updated" }),
+      walletAccountId: input.walletAccountId,
+    });
+    return false;
+  }
+  input.trace?.record("CHAT_IMAGE_MESSAGE_CREATED");
+  return true;
 }
 
 /** One generation, scoped to its owner so a caller cannot read another wallet's. */
@@ -119,7 +174,7 @@ export async function readGeneration(walletAccountId: string, generationId: stri
 }
 
 /** The generations attached to one assistant message, oldest first. */
-export async function readGenerationsForMessages(messageIds: readonly string[]): Promise<Map<string, GenerationRecord>> {
+export async function readGenerationsForMessages(messageIds: readonly string[], walletAccountId: string): Promise<Map<string, GenerationRecord>> {
   const map = new Map<string, GenerationRecord>();
   if (messageIds.length === 0) return map;
   const db = getServiceClient();
@@ -127,6 +182,7 @@ export async function readGenerationsForMessages(messageIds: readonly string[]):
   const { data } = await db
     .from("image_generations")
     .select(`${recordColumns},assistant_message_id`)
+    .eq("wallet_account_id", walletAccountId)
     .in("assistant_message_id", messageIds as string[]);
   for (const row of (data ?? []) as Array<Record<string, unknown>>) {
     const messageId = row.assistant_message_id as string | null;
@@ -160,13 +216,14 @@ export async function markCompleted(input: {
   model: string;
   referenceConditioned?: boolean;
   assistantMessageId?: string | null;
+  diagnostics?: Record<string, unknown>;
 }): Promise<boolean> {
   const db = getServiceClient();
   if (!db) {
     logImageDatabaseFailure({ requestId: input.generationId, operation: "mark_completed", reason: "database_not_configured" });
     return false;
   }
-  const { referenceConditioned, ...fields } = input;
+  const { referenceConditioned, diagnostics, ...fields } = input;
   return trackedGenerationUpdate(input.generationId, "mark_completed", db
     .from("image_generations")
     .update({
@@ -179,6 +236,7 @@ export async function markCompleted(input: {
       failure_code: null,
       failure_message: null,
       ...(referenceConditioned !== undefined ? { reference_conditioned: referenceConditioned } : {}),
+      ...diagnostics,
     })
     .eq("id", input.generationId)
     .select("id")
@@ -218,7 +276,7 @@ export async function markFailed(input: {
  * Returns the card unchanged when it carries no generation id, so non-image
  * cards pass through untouched.
  */
-export async function refreshCardUrl(card: ActionCard): Promise<ActionCard> {
+export async function refreshCardUrl(card: ActionCard, walletAccountId: string): Promise<ActionCard> {
   if (card.kind !== "IMAGE") return card;
   const db = getServiceClient();
   if (!db) return card;
@@ -226,6 +284,7 @@ export async function refreshCardUrl(card: ActionCard): Promise<ActionCard> {
     .from("image_generations")
     .select("image_path,status")
     .eq("id", card.generationId)
+    .eq("wallet_account_id", walletAccountId)
     .maybeSingle();
   const row = data as { image_path: string | null; status: GenerationStatus } | null;
   if (!row?.image_path || row.status !== "COMPLETED") return card;
@@ -242,6 +301,7 @@ export async function refreshCardUrl(card: ActionCard): Promise<ActionCard> {
  */
 export async function refreshStoredCards<T extends { id: string; role: string; metadata_json?: unknown }>(
   messages: readonly T[],
+  walletAccountId: string,
 ): Promise<T[]> {
   const imageMessages = messages.filter((message) => {
     const meta = message.metadata_json as { actionCard?: unknown } | null;
@@ -250,7 +310,7 @@ export async function refreshStoredCards<T extends { id: string; role: string; m
   });
   if (imageMessages.length === 0) return [...messages];
 
-  const generations = await readGenerationsForMessages(imageMessages.map((message) => message.id));
+  const generations = await readGenerationsForMessages(imageMessages.map((message) => message.id), walletAccountId);
   return Promise.all(messages.map(async (message) => {
     const meta = message.metadata_json as { actionCard?: unknown } | null;
     if (!meta?.actionCard) return message;
@@ -264,8 +324,18 @@ export async function refreshStoredCards<T extends { id: string; role: string; m
     if (generation && generation.status !== "COMPLETED") {
       return { ...message, metadata_json: { ...meta, actionCard: safe, generationStatus: generation.status, generationFailure: generation.failureMessage } };
     }
-    const refreshed = await refreshCardUrl(safe);
-    return { ...message, metadata_json: { ...meta, actionCard: refreshed } };
+    if (!generation?.imagePath) {
+      const metadata = { ...meta };
+      delete metadata.actionCard;
+      return { ...message, metadata_json: metadata };
+    }
+    const url = await signedImageUrl(generationBucket, generation.imagePath, cardUrlTtlSeconds);
+    if (!url) {
+      const metadata = { ...meta };
+      delete metadata.actionCard;
+      return { ...message, metadata_json: metadata };
+    }
+    return { ...message, metadata_json: { ...meta, actionCard: { ...safe, url } } };
   }));
 }
 

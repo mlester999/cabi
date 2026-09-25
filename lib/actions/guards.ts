@@ -86,16 +86,17 @@ export const actionCardSchema = z.discriminatedUnion("kind", [
   z.object({ ...baseSchema, kind: z.literal("CLARIFY") }),
   z.object({ ...baseSchema, kind: z.literal("NOTICE") }),
   /*
-   * A stored image card is re-validated like any other. The URL must be an
-   * absolute HTTPS storage link, so a tampered row cannot inject a
-   * javascript: or data: URL into an <img src>, and membership in this union is
-   * what keeps a hand-crafted row out of the transcript entirely.
+   * A stored image card is re-validated like any other. Live cards require an
+   * absolute HTTPS URL; persisted cards may use the empty sentinel because the
+   * wallet-scoped conversation loader replaces it from the private object path.
    */
   z.object({
     ...baseSchema,
     kind: z.literal("IMAGE"),
     generationId: z.string().min(1).max(80),
-    url: httpsUrl,
+    // Persisted image cards intentionally store an empty URL. The private
+    // storage path is resolved server-side into a fresh signed URL on read.
+    url: httpsUrl.or(z.literal("")),
     prompt: z.string().max(400),
     aspectRatio: z.string().max(10),
     createdAt: z.string().max(40),
@@ -121,4 +122,10 @@ export function stripActionCardDebugDetails(card: ActionCard): ActionCard {
   const safe = { ...card };
   delete safe.debugDetails;
   return safe;
+}
+
+/** Store image identity, not a temporary signed URL; the URL is minted on read. */
+export function stripActionCardTransientData(card: ActionCard): ActionCard {
+  const safe = stripActionCardDebugDetails(card);
+  return safe.kind === "IMAGE" ? { ...safe, url: "" } : safe;
 }
