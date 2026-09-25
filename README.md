@@ -1,6 +1,6 @@
 # Cabi — Cat Partner Unit
 
-Cabi is a wallet-optional AI companion built as a real **Next.js 16 App Router** application. The current `*.chatgpt.site` URL is only its hosting domain; the source is Next.js, React 19, TypeScript, Tailwind CSS, route handlers, and Supabase/PostgreSQL.
+Cabi is a wallet-optional AI companion built as a real **Next.js 16 App Router** application. Its official production deployment is on Vercel at [www.chatwithcabi.fun](https://www.chatwithcabi.fun); the source is Next.js, React 19, TypeScript, Tailwind CSS, route handlers, and Supabase/PostgreSQL.
 
 When the site is live, it opens directly into chat. A wallet is never required to talk to Cabi.
 
@@ -28,7 +28,7 @@ Guest transcripts are never written to Supabase, `localStorage`, or IndexedDB. R
 - EIP-6963/injected providers plus optional Reown WalletConnect
 - DeepSeek-compatible Chat Completions or Responses streaming
 - Zod validation, Vitest, Testing Library, ESLint
-- Cloudflare Worker-compatible production output through the Vinext deployment adapter
+- Vercel production deployment through the native Next.js build
 
 ## Architecture
 
@@ -647,12 +647,10 @@ Retrieved webpage content, memories, nicknames, and summaries are passed as lowe
 ```bash
 npm run check
 npm run build:next
-npm run build
 ```
 
-`build:next` verifies the native Next.js production output. The canonical
-`build` command then creates the Cloudflare Worker bundle expected by the
-current OpenAI Sites deployment target.
+`build:next` is the production build configured in `vercel.json` and verifies
+the same native Next.js output used by Vercel.
 
 The automated suite covers, among other cases:
 
@@ -675,17 +673,21 @@ With `CABI_CPU_ONCHAIN=1`, `tests/cpu-access-onchain.test.ts` additionally perfo
 
 ## Deployment
 
-The current deployment uses OpenAI Sites, which assigns the `*.chatgpt.site` domain and runs the Cloudflare Worker-compatible build. That does not change the framework: the repository remains a Next.js application. Hosting can later move to Vercel or a custom domain without redesigning the product; update `APP_URL`, the Reown origin allowlist, and deployment secrets together.
+Vercel is the official production platform. Its Git integration deploys the
+connected production branch after a push; `vercel.json` selects the native
+Next.js framework and `npm run build:next`. The canonical custom domain is
+`https://www.chatwithcabi.fun`.
 
-Vercel uses `vercel.json` to run the native `next build` command and publish `.next`. OpenAI Sites continues to use the Vinext/Worker build from `npm run build`.
+The owner-managed Vercel project already contains the production environment
+configuration. Do not infer production configuration from a local checkout or
+another host. For Together AI, `/admin/images` can store the key encrypted
+using `APP_ENCRYPTION_KEY`; `TOGETHER_API_KEY` is only an environment fallback.
 
-Before production publication:
+For each production change:
 
-1. Apply the Supabase migrations.
-2. Configure production secrets and exact `APP_URL`.
-3. Configure Reown if WalletConnect is desired.
-4. Configure/test DeepSeek and admin access.
-5. Verify supported chains and `$CPU` fields in `/admin/cpu`.
-6. Run `npm run check` and `npm run build`.
+1. Run `npm run check` and `npm run build:next` locally.
+2. Commit and push to the connected production branch.
+3. Verify the resulting deployment and application flows on Vercel.
+4. Confirm supported chains and `$CPU` fields in `/admin/cpu` when those change.
 
 Do not publish a `$CPU` contract or Clank.trade link until independently verified. Cabi never makes buying, holding, wallet balance, or trading activity part of the user's bond.

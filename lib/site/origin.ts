@@ -3,14 +3,14 @@ import "server-only";
 import { env } from "@/lib/config/env";
 
 /**
- * Last-resort public origin.
+ * Last-resort public origin for non-Vercel/local environments.
  *
  * Used only when neither `APP_URL` nor a hosting-platform variable is present,
  * so metadata and `robots.txt` never fall back to `localhost` on a real deploy.
- * The owner should set `APP_URL` to the real domain (`https://chatwithcabi.fun`)
+ * The owner should set `APP_URL` to the canonical domain (`https://www.chatwithcabi.fun`)
  * for production.
  */
-export const fallbackPublicOrigin = "https://cabi-cat-partner-unit.acakmarklester33.chatgpt.site";
+export const fallbackPublicOrigin = "https://www.chatwithcabi.fun";
 
 /**
  * Canonical public origin, used for metadata, canonical links, robots, and the

@@ -23,7 +23,7 @@ function robotsAllowed(robots: string, path: string) {
 async function fetchPage(url: string, policy: UrlPolicy, signal?: AbortSignal): Promise<FetchResult> {
   let current = normalizePublicUrl(url, policy);
   for (let redirect = 0; redirect <= 4; redirect += 1) {
-    const response = await fetch(current, { redirect: "manual", signal, headers: { "User-Agent": "CabiKnowledgeBot/1.0 (+https://cabi-cat-partner-unit.chatgpt.site)", Accept: "text/html,text/plain;q=0.8" } });
+    const response = await fetch(current, { redirect: "manual", signal, headers: { "User-Agent": "CabiKnowledgeBot/1.0 (+https://www.chatwithcabi.fun)", Accept: "text/html,text/plain;q=0.8" } });
     if ([301, 302, 303, 307, 308].includes(response.status)) {
       const location = response.headers.get("location");
       if (!location) throw new Error("REDIRECT_WITHOUT_LOCATION");
