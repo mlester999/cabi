@@ -208,8 +208,18 @@ describe("admin Together connection route", () => {
       { id: "queued-1", created_at: "2026-03-01T00:00:00Z", status: "QUEUED", wallet_account_id: "wallet-1", pipeline_request_id: "trace-1" },
       { id: "running-1", created_at: "2026-03-01T00:01:00Z", status: "GENERATING", provider: "together", model: settings.model, http_status: 403, provider_error_category: "organization_permission" },
       { id: "complete-1", created_at: "2026-03-01T00:02:00Z", status: "COMPLETED", model: settings.model },
-      { id: "failed-1", created_at: "2026-03-01T00:03:00Z", status: "FAILED", provider: "together", model: settings.model, http_status: 400, diagnostic_provider_error: { code: "invalid_request", type: "invalid_request_error", param: "negative_prompt", message: "The negative_prompt parameter is not supported." } },
+      { id: "failed-1", created_at: "2026-03-01T00:03:00Z", status: "FAILED", provider: "together", model: settings.model, http_status: 400 },
     ];
+    const providerFailure = {
+      id: 11,
+      occurred_at: "2026-03-01T00:03:00Z",
+      request_id: "trace-provider-failure",
+      actor_id: null,
+      action: "image_generation.provider_failure",
+      target_type: "image_generations",
+      target_id: "failed-1",
+      metadata_json: { providerError: { code: "invalid_request", type: "invalid_request_error", param: "negative_prompt", message: "The negative_prompt parameter is not supported." } },
+    };
     mocks.database.mockReturnValue({
       from: (table: string) => {
         const query: Record<string, unknown> = {};
@@ -217,7 +227,7 @@ describe("admin Together connection route", () => {
         query.order = vi.fn(() => query);
         query.in = vi.fn(() => query);
         query.eq = vi.fn(() => query);
-        query.limit = vi.fn(async () => ({ data: table === "image_generations" ? rows : [], error: null }));
+        query.limit = vi.fn(async () => ({ data: table === "image_generations" ? rows : table === "audit_logs" ? [providerFailure] : [], error: null }));
         return query;
       },
     });

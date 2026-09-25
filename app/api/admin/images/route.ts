@@ -218,29 +218,10 @@ export async function GET(request: Request) {
       logImageDatabaseFailure({ requestId: "admin-image-activity", operation: "admin_activity", error: activityError });
       return jsonError("Recent generation activity could not be loaded.", 503, "DIAGNOSTICS_UNAVAILABLE");
     }
-    const providerErrorsByRun = new Map<string, ReturnType<typeof sanitizeTogetherProviderError>>();
-    const runIds = rows.map((record) => record.id).filter((id): id is string => typeof id === "string");
-    if (runIds.length > 0) {
-      try {
-        const providerDetails = await db.from("image_generations")
-          .select("id,diagnostic_provider_error")
-          .in("id", runIds)
-          .limit(50);
-        if (!providerDetails.error) {
-          for (const record of (providerDetails.data ?? []) as Array<Record<string, unknown>>) {
-            if (typeof record.id === "string") {
-              providerErrorsByRun.set(record.id, sanitizeTogetherProviderError(record.diagnostic_provider_error));
-            }
-          }
-        }
-      } catch {
-        // Older deployments may not have applied the additive diagnostics column yet.
-      }
-    }
     let diagnosticEvents: Array<Record<string, unknown>> = [];
     const diagnosticRead = await db.from("audit_logs")
-      .select("id,occurred_at,request_id,actor_id,target_type,target_id,metadata_json")
-      .in("action", ["image_generation.database_failure", "chat.persistence_failure"])
+      .select("id,occurred_at,request_id,actor_id,action,target_type,target_id,metadata_json")
+      .in("action", ["image_generation.database_failure", "chat.persistence_failure", "image_generation.provider_failure"])
       .eq("outcome", "failure")
       .order("occurred_at", { ascending: false })
       .limit(50);
@@ -249,6 +230,12 @@ export async function GET(request: Request) {
       logImageDatabaseFailure({ requestId: "admin-image-database-diagnostics", operation: "admin_activity", error: diagnosticRead.error });
     } else {
       diagnosticEvents = (diagnosticRead.data ?? []) as Array<Record<string, unknown>>;
+    }
+    const providerErrorsByRun = new Map<string, ReturnType<typeof sanitizeTogetherProviderError>>();
+    for (const candidate of diagnosticEvents) {
+      if (candidate.action !== "image_generation.provider_failure" || typeof candidate.target_id !== "string") continue;
+      const metadata = candidate.metadata_json && typeof candidate.metadata_json === "object" ? candidate.metadata_json as Record<string, unknown> : {};
+      providerErrorsByRun.set(candidate.target_id, sanitizeTogetherProviderError(metadata.providerError));
     }
     const matchedEvents = new Set<string>();
     const errors = rows.map((record) => {

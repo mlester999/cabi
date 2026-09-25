@@ -149,15 +149,23 @@ export async function persistImageDatabaseFailure(input: {
 /** Persist only Together's already-sanitized error fields for the owner run view. */
 export async function persistImageProviderError(input: {
   generationId: string;
+  requestId: string;
   providerError: SafeTogetherProviderError | null;
 }): Promise<void> {
   if (!input.providerError) return;
   const db = getServiceClient();
   if (!db) return;
   try {
-    await db.from("image_generations")
-      .update({ diagnostic_provider_error: input.providerError })
-      .eq("id", input.generationId);
+    await db.from("audit_logs").insert({
+      request_id: input.requestId,
+      actor_type: "system",
+      actor_id: null,
+      action: "image_generation.provider_failure",
+      target_type: "image_generations",
+      target_id: input.generationId,
+      outcome: "failure",
+      metadata_json: { providerError: input.providerError },
+    });
   } catch {
     // The main failure transition is already saved; diagnostics must stay best effort.
   }

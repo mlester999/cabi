@@ -8,7 +8,7 @@ vi.mock("@/lib/db/supabase", () => ({
   }),
 }));
 
-import { imageDiagnosticErrorCategory, logImageDatabaseFailure, persistImageDatabaseFailure, sanitizeImageDatabaseError } from "@/lib/image-generation/diagnostics";
+import { imageDiagnosticErrorCategory, logImageDatabaseFailure, persistImageDatabaseFailure, persistImageProviderError, sanitizeImageDatabaseError } from "@/lib/image-generation/diagnostics";
 
 describe("safe image database diagnostics", () => {
   afterEach(() => {
@@ -84,6 +84,29 @@ describe("safe image database diagnostics", () => {
       },
     });
     expect(JSON.stringify(mocks.auditRows)).not.toMatch(/PRIVATE_PROMPT|sk-secret/u);
+  });
+
+  it("stores sanitized Together fields in the existing owner audit log", async () => {
+    await persistImageProviderError({
+      generationId: "generation-safe-id",
+      requestId: "trace-safe-id",
+      providerError: {
+        code: "invalid_request",
+        type: "invalid_request_error",
+        parameter: "negative_prompt",
+        message: "The negative_prompt parameter is not supported.",
+      },
+    });
+
+    expect(mocks.auditRows).toHaveLength(1);
+    expect(mocks.auditRows[0]).toMatchObject({
+      request_id: "trace-safe-id",
+      action: "image_generation.provider_failure",
+      target_type: "image_generations",
+      target_id: "generation-safe-id",
+      metadata_json: { providerError: { code: "invalid_request", type: "invalid_request_error", parameter: "negative_prompt" } },
+    });
+    expect(JSON.stringify(mocks.auditRows)).not.toMatch(/prompt PRIVATE|sk-secret|https?:/u);
   });
 });
 

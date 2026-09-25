@@ -343,7 +343,7 @@ async function generateChatImageInternal(message: string, options: ChatImageOpti
       message: pipeline.message,
       diagnostics: imagePipelineDatabaseFields(trace),
     });
-    await persistImageProviderError({ generationId, providerError: trace.snapshot().providerError });
+    await persistImageProviderError({ generationId, requestId: trace.requestId, providerError: trace.snapshot().providerError });
     trace.record("GENERATION_ROW_UPDATED", { error: markedFailed === false ? "DATABASE_UPDATE_FAILED" : null });
     return {
       handled: true,
