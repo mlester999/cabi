@@ -34,7 +34,7 @@ type Props = {
   onRegenerateImage?: (prompt: string) => void;
   /** Retries a persisted card request and keeps its generation lineage. */
   onRetryPrompt?: (prompt: string, parentGenerationId?: string) => void;
-  onUseImageAsAvatar?: (card: Extract<ActionCard, { kind: "IMAGE" }>) => void;
+  onUseImageAsAvatar?: (card: Extract<ActionCard, { kind: "IMAGE" }>) => Promise<boolean>;
   /** Owner-added chat-thinking copy, resolved from the server-side status settings. */
   statusMessages?: CabiStatusOverrides | null;
 };

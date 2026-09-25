@@ -1,8 +1,7 @@
 import { z } from "zod";
 
 import { getServiceClient } from "@/lib/db/supabase";
-import { avatarBucket, stripJpegMetadata, uploadAvatar, validateAvatarBytes } from "@/lib/image-generation/storage";
-import { generationBucket } from "@/lib/image-generation/storage";
+import { avatarBucket, avatarMaxBytes, generationBucket, stripJpegMetadata, uploadAvatar, validateAvatarBytes } from "@/lib/image-generation/storage";
 import { setAvatar as persistAvatar } from "@/lib/profiles/service";
 import { assertSameOrigin, jsonError } from "@/lib/security/request";
 import { guardAppApiCpu } from "@/lib/site/guard";
@@ -10,7 +9,7 @@ import { walletAuthOrResponse } from "@/lib/wallet/session";
 
 export const dynamic = "force-dynamic";
 
-/** Refuses anything larger than this before downloading a byte. */
+/** Generated images may be larger than direct uploads, but stay bounded. */
 const maxSourceBytes = 6 * 1024 * 1024;
 
 const bodySchema = z.object({
@@ -68,6 +67,7 @@ export async function POST(request: Request) {
 
     const { data: blob, error } = await db.storage.from(generationBucket).download(path);
     if (error || !blob) return jsonError("That image could not be read.", 503, "STORAGE_FAILED");
+    if (blob.size > maxSourceBytes) return jsonError("That picture is too large. Keep it under 6 MB.", 413, "TOO_LARGE");
     bytes = new Uint8Array(await blob.arrayBuffer());
   } else if (parsed.data.dataUrl) {
     const match = parsed.data.dataUrl.match(/^data:(image\/(?:png|jpeg|webp));base64,([A-Za-z0-9+/=]+)$/u);
@@ -77,11 +77,15 @@ export async function POST(request: Request) {
   }
 
   if (!bytes) return jsonError("Nothing to save.", 400, "INVALID_INPUT");
-  if (bytes.byteLength > maxSourceBytes) return jsonError("That picture is too large. Keep it under 6 MB.", 413, "TOO_LARGE");
+  const maxBytes = parsed.data.generationId ? maxSourceBytes : avatarMaxBytes;
+  if (bytes.byteLength > maxBytes) {
+    const limit = maxBytes === maxSourceBytes ? "6 MB" : "2 MB";
+    return jsonError(`That picture is too large. Keep it under ${limit}.`, 413, "TOO_LARGE");
+  }
 
   // Validated by real magic bytes rather than the declared type, so a renamed
   // file cannot get through.
-  const validation = validateAvatarBytes(bytes);
+  const validation = validateAvatarBytes(bytes, maxBytes);
   if (!validation.ok) return jsonError(validation.message, 400, "INVALID_IMAGE");
 
   // EXIF is dropped before storage: phone photos carry GPS coordinates that

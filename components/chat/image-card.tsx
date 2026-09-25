@@ -20,7 +20,7 @@ import type { ImageCard } from "@/lib/actions/types";
 export function ImageCardView({ card, onRegenerate, onUseAsAvatar, status, onRetry, onDelete, onShare }: {
   card: ImageCard;
   onRegenerate?: (prompt: string) => void;
-  onUseAsAvatar?: (card: ImageCard) => void;
+  onUseAsAvatar?: (card: ImageCard) => Promise<boolean>;
   /**
    * Lifecycle state, when the caller knows it. A card whose generation is still
    * running or has failed must not render as a broken image: it renders as its
@@ -34,6 +34,7 @@ export function ImageCardView({ card, onRegenerate, onUseAsAvatar, status, onRet
 }) {
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState("");
+  const [saveFailed, setSaveFailed] = useState(false);
   const aspectParts = /^(\d{1,2}):(\d{1,2})$/u.exec(card.aspectRatio);
   const ratioWidth = aspectParts ? Number(aspectParts[1]) : 1;
   const ratioHeight = aspectParts ? Number(aspectParts[2]) : 1;
@@ -45,9 +46,14 @@ export function ImageCardView({ card, onRegenerate, onUseAsAvatar, status, onRet
     if (!onUseAsAvatar) return;
     setSaving(true);
     setNotice("");
+    setSaveFailed(false);
     try {
-      onUseAsAvatar(card);
-      setNotice("Saved as your profile picture.");
+      const saved = await onUseAsAvatar(card);
+      setNotice(saved ? "Saved as your profile picture." : "I couldn't set that as your picture.");
+      setSaveFailed(!saved);
+    } catch {
+      setNotice("I couldn't set that as your picture.");
+      setSaveFailed(true);
     } finally {
       setSaving(false);
     }
@@ -104,7 +110,7 @@ export function ImageCardView({ card, onRegenerate, onUseAsAvatar, status, onRet
         </p>
 
         {card.xp ? <p className="mt-1.5 text-[11px] font-semibold text-violet-200">First image today +{card.xp} XP</p> : null}
-        {notice ? <p role="status" className="mt-1.5 text-[11px] text-emerald-200">{notice}</p> : null}
+        {notice ? <p role="status" className={`mt-1.5 text-[11px] ${saveFailed ? "text-rose-200" : "text-emerald-200"}`}>{notice}</p> : null}
 
         <div className="mt-3 flex flex-wrap gap-2">
           {card.url ? (

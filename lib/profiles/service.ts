@@ -118,8 +118,13 @@ export async function completeProfile(walletAccountId: string, input: ProfileSet
 export async function setAvatar(walletAccountId: string, avatarPath: string | null) {
   const db = getServiceClient();
   if (!db) return false;
-  const { error } = await db.from("profiles").update({ avatar_path: avatarPath, updated_at: new Date().toISOString() }).eq("wallet_account_id", walletAccountId);
-  return !error;
+  const { data, error } = await db
+    .from("profiles")
+    .update({ avatar_path: avatarPath, updated_at: new Date().toISOString() })
+    .eq("wallet_account_id", walletAccountId)
+    .select("wallet_account_id")
+    .maybeSingle();
+  return !error && Boolean(data);
 }
 
 /** Is this handle free? Advisory only - the unique index is the real guard. */

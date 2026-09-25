@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import { assertSameOrigin, jsonError } from "@/lib/security/request";
 import { completeProfile, readProfile } from "@/lib/profiles/service";
+import { avatarBucket, signedImageUrl } from "@/lib/image-generation/storage";
 import { initialsFor, usernameRules } from "@/lib/profiles/username";
 import { guardAppApiCpu } from "@/lib/site/guard";
 import { walletAuthOrResponse } from "@/lib/wallet/session";
@@ -28,6 +29,7 @@ export async function GET() {
   if (!auth.identity) return auth.response;
 
   const profile = await readProfile(auth.identity.walletAccountId);
+  const avatarUrl = profile?.avatarPath ? await signedImageUrl(avatarBucket, profile.avatarPath) : null;
   return Response.json(
     {
       connected: true,
@@ -38,6 +40,7 @@ export async function GET() {
           displayName: profile.displayName,
           initials: profile.username ? initialsFor(profile.username) : null,
           avatarPath: profile.avatarPath,
+          avatarUrl,
           showBondPublicly: profile.showBondPublicly,
           rankingStatus: profile.rankingStatus,
           lifetimeXp: profile.lifetimeXp,

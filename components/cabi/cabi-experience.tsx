@@ -180,7 +180,7 @@ export function CabiExperience({ flags = defaultFeatureFlags, viewport = "full",
   const [savePromptOpen, setSavePromptOpen] = useState(false);
   const [savingGuestChat, setSavingGuestChat] = useState(false);
   // Identity and rank for the header chip. Server-provided; never computed here.
-  const [rank, setRank] = useState<{ username: string | null; initials: string | null; tier: RankTier | null; profileComplete: boolean } | null>(null);
+  const [rank, setRank] = useState<{ username: string | null; initials: string | null; avatarUrl: string | null; tier: RankTier | null; profileComplete: boolean } | null>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const controllerRef = useRef<AbortController | null>(null);
   // The server renames the streaming assistant entry to its own id when the
@@ -205,17 +205,19 @@ export function CabiExperience({ flags = defaultFeatureFlags, viewport = "full",
       if (!response.ok) return;
       const payload = await response.json() as {
         profileComplete?: boolean;
-        identity?: { username: string | null; initials: string | null };
+        identity?: { username: string | null; initials: string | null; avatarUrl?: string | null };
         progress?: { current?: { tier?: number } };
-        profile?: { username?: string | null; initials?: string | null } | null;
+        profile?: { username?: string | null; initials?: string | null; avatarUrl?: string | null } | null;
       };
       const identity = payload.identity ?? {
         username: payload.profile?.username ?? null,
         initials: payload.profile?.initials ?? null,
+        avatarUrl: payload.profile?.avatarUrl ?? null,
       };
       setRank({
         username: identity.username ?? null,
         initials: identity.initials ?? null,
+        avatarUrl: identity.avatarUrl ?? null,
         tier: flags.ranking_enabled ? tierByNumber(payload.progress?.current?.tier ?? 1) : null,
         profileComplete: Boolean(payload.profileComplete),
       });
@@ -232,21 +234,22 @@ export function CabiExperience({ flags = defaultFeatureFlags, viewport = "full",
   }, []);
 
   // Adopts a generated Cabi image as the profile picture.
-  const adoptImageAsAvatar = useCallback(async (card: { generationId: string }) => {
+  const adoptImageAsAvatar = useCallback(async (card: { generationId: string }): Promise<boolean> => {
     try {
       const response = await fetch("/api/profile/avatar", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ generationId: card.generationId }),
       });
-      if (response.ok) {
-        setNotice("Profile picture updated.");
+      const result = await response.json().catch(() => null) as { ok?: boolean } | null;
+      if (response.ok && result?.ok === true) {
         void refreshRank();
+        return true;
       } else {
-        setNotice("I could not set that as your picture.");
+        return false;
       }
     } catch {
-      setNotice("I could not set that as your picture.");
+      return false;
     }
   }, [refreshRank]);
   // A gallery "Regenerate" link arrives as ?regenerate=<scene>. It only prefills
@@ -541,7 +544,7 @@ export function CabiExperience({ flags = defaultFeatureFlags, viewport = "full",
             <Lock size={13} className="shrink-0 text-[#777180]" aria-hidden="true" />
           </Link>
 
-          <div className="mt-2 flex items-center gap-2"><button onClick={wallet.authenticated ? undefined : wallet.openConnect} className="focus-ring flex h-11 min-w-0 flex-1 items-center gap-3 rounded-xl px-3 text-left hover:bg-white/[0.035]">{rank?.initials ? <InitialsAvatar initials={rank.initials} size={28} label="Your avatar" /> : <span className="grid h-7 w-7 place-items-center rounded-full bg-white/[0.06]"><UserRound size={14} /></span>}<span className="min-w-0 flex-1 truncate text-xs text-[#a8a3b3]">{rank?.username ?? (wallet.authenticated && wallet.address ? `${wallet.address.slice(0, 6)}…${wallet.address.slice(-4)}` : "Guest")}</span></button><Link href="/profile" className="focus-ring grid h-11 w-11 place-items-center rounded-xl text-[#706a7d] hover:bg-white/[0.035] hover:text-white" aria-label="Your profile"><UserRound size={17} /></Link><Link href="/settings" className="focus-ring grid h-11 w-11 place-items-center rounded-xl text-[#706a7d] hover:bg-white/[0.035] hover:text-white" aria-label="Settings"><Settings size={17} /></Link></div>
+          <div className="mt-2 flex items-center gap-2"><button onClick={wallet.authenticated ? undefined : wallet.openConnect} className="focus-ring flex h-11 min-w-0 flex-1 items-center gap-3 rounded-xl px-3 text-left hover:bg-white/[0.035]">{rank?.initials ? <InitialsAvatar initials={rank.initials} src={rank.avatarUrl} size={28} label="Your avatar" /> : <span className="grid h-7 w-7 place-items-center rounded-full bg-white/[0.06]"><UserRound size={14} /></span>}<span className="min-w-0 flex-1 truncate text-xs text-[#a8a3b3]">{rank?.username ?? (wallet.authenticated && wallet.address ? `${wallet.address.slice(0, 6)}…${wallet.address.slice(-4)}` : "Guest")}</span></button><Link href="/profile" className="focus-ring grid h-11 w-11 place-items-center rounded-xl text-[#706a7d] hover:bg-white/[0.035] hover:text-white" aria-label="Your profile"><UserRound size={17} /></Link><Link href="/settings" className="focus-ring grid h-11 w-11 place-items-center rounded-xl text-[#706a7d] hover:bg-white/[0.035] hover:text-white" aria-label="Settings"><Settings size={17} /></Link></div>
         </aside>
 
       <RankUpCelebration tier={celebration?.tier ?? null} achievements={celebration?.achievements ?? []} onDismiss={() => { setCelebration(null); void refreshRank(); }} />
@@ -561,7 +564,7 @@ export function CabiExperience({ flags = defaultFeatureFlags, viewport = "full",
           </header>
           <div className={`scrollbar-cabi flex min-h-0 flex-1 flex-col px-5 max-sm:px-3 ${hasMessages ? "overflow-y-auto pb-6 pt-8" : "overflow-hidden py-3"}`}>
             <div className={`mx-auto flex w-full max-w-[820px] flex-1 flex-col ${hasMessages ? "justify-start" : "justify-center"}`}>
-              {!hasMessages ? <><motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .55 }} className="mx-auto max-w-xl text-center"><div className="relative mx-auto mb-4 grid h-[clamp(4.5rem,12vh,6rem)] w-[clamp(4.5rem,12vh,6rem)]"><div className="absolute inset-0 rounded-2xl bg-violet-400/15 blur-2xl" /><MiniCabi className="relative h-full w-full rounded-2xl" priority /></div><span className="inline-flex items-center gap-2 rounded-full border border-violet-200/[0.12] bg-violet-200/[0.05] px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[.13em] text-violet-200"><Sparkles size={13} /> Cabi</span><h2 className="mt-3 text-balance text-[clamp(2rem,4vw,3.15rem)] font-semibold leading-[1.02] tracking-[-0.055em]">Hey, I&apos;m Cabi.</h2><p className="mx-auto mt-3 max-w-md text-pretty text-sm leading-6 text-[#a8a3b3]">Ask me anything, make an image, or pick up where we left off.</p><button onClick={beginOnboarding} className="focus-ring mt-5 inline-flex h-11 items-center gap-2 rounded-xl bg-violet-200 px-5 text-sm font-semibold text-[#160f27] shadow-[0_10px_30px_rgba(139,92,246,.16)] hover:bg-violet-100">Start chatting <ArrowUp size={16} className="rotate-45" /></button><p className="mt-2 text-[11px] text-[#625d6d]">No wallet needed to start chatting.</p></motion.div><div className="cabi-welcome-prompts mt-6 flex flex-wrap justify-center gap-2">{quickPrompts.map((prompt) => <button key={prompt} onClick={() => { setComposer(prompt); composerRef.current?.focus(); }} className="focus-ring rounded-full border border-white/[0.07] bg-white/[0.025] px-3.5 py-2 text-xs text-[#9a95a5] transition hover:border-violet-300/20 hover:bg-violet-300/[0.06] hover:text-white">{prompt}</button>)}</div></> : <ol className="space-y-6" aria-label="Conversation messages">{messages.map((message, index) => <li key={message.id}><ChatMessage message={message} statusMessages={statusMessages} onRegenerateImage={regenerateImage} onUseImageAsAvatar={(card) => void adoptImageAsAvatar(card)} onRetryPrompt={(prompt, parentGenerationId) => void send(prompt, message.id, parentGenerationId)} onRetry={() => retry(index)} onDelete={() => void deleteMessage(message)} onEdit={() => void editMessage(message)} onShare={() => setShareMessage(message)} onReact={(reaction) => void reactToMessage(message, reaction)} /></li>)}</ol>}
+              {!hasMessages ? <><motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .55 }} className="mx-auto max-w-xl text-center"><div className="relative mx-auto mb-4 grid h-[clamp(4.5rem,12vh,6rem)] w-[clamp(4.5rem,12vh,6rem)]"><div className="absolute inset-0 rounded-2xl bg-violet-400/15 blur-2xl" /><MiniCabi className="relative h-full w-full rounded-2xl" priority /></div><span className="inline-flex items-center gap-2 rounded-full border border-violet-200/[0.12] bg-violet-200/[0.05] px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[.13em] text-violet-200"><Sparkles size={13} /> Cabi</span><h2 className="mt-3 text-balance text-[clamp(2rem,4vw,3.15rem)] font-semibold leading-[1.02] tracking-[-0.055em]">Hey, I&apos;m Cabi.</h2><p className="mx-auto mt-3 max-w-md text-pretty text-sm leading-6 text-[#a8a3b3]">Ask me anything, make an image, or pick up where we left off.</p><button onClick={beginOnboarding} className="focus-ring mt-5 inline-flex h-11 items-center gap-2 rounded-xl bg-violet-200 px-5 text-sm font-semibold text-[#160f27] shadow-[0_10px_30px_rgba(139,92,246,.16)] hover:bg-violet-100">Start chatting <ArrowUp size={16} className="rotate-45" /></button><p className="mt-2 text-[11px] text-[#625d6d]">No wallet needed to start chatting.</p></motion.div><div className="cabi-welcome-prompts mt-6 flex flex-wrap justify-center gap-2">{quickPrompts.map((prompt) => <button key={prompt} onClick={() => { setComposer(prompt); composerRef.current?.focus(); }} className="focus-ring rounded-full border border-white/[0.07] bg-white/[0.025] px-3.5 py-2 text-xs text-[#9a95a5] transition hover:border-violet-300/20 hover:bg-violet-300/[0.06] hover:text-white">{prompt}</button>)}</div></> : <ol className="space-y-6" aria-label="Conversation messages">{messages.map((message, index) => <li key={message.id}><ChatMessage message={message} statusMessages={statusMessages} onRegenerateImage={regenerateImage} onUseImageAsAvatar={adoptImageAsAvatar} onRetryPrompt={(prompt, parentGenerationId) => void send(prompt, message.id, parentGenerationId)} onRetry={() => retry(index)} onDelete={() => void deleteMessage(message)} onEdit={() => void editMessage(message)} onShare={() => setShareMessage(message)} onReact={(reaction) => void reactToMessage(message, reaction)} /></li>)}</ol>}
               {notice && <div role="alert" className="mx-auto mt-4 flex max-w-xl items-center gap-3 rounded-xl border border-rose-300/15 bg-rose-300/[0.05] px-3 py-2 text-xs text-rose-200"><span className="flex-1">{notice}</span><button className="focus-ring grid h-8 w-8 place-items-center rounded-lg hover:bg-[var(--cabi-surface-3)]" onClick={() => setNotice(undefined)} aria-label="Dismiss"><X size={14} /></button></div>}
               <div ref={endRef} />
             </div>

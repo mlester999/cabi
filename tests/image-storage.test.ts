@@ -47,6 +47,12 @@ describe("avatar upload validation", () => {
     if (!result.ok) expect(result.message).toMatch(/too large/i);
   });
 
+  it("accepts generated images up to the route's 6 MB limit while keeping the 2 MB upload default", () => {
+    const generated = png(3 * 1024 * 1024);
+    expect(validateAvatarBytes(generated).ok).toBe(false);
+    expect(validateAvatarBytes(generated, 6 * 1024 * 1024)).toEqual({ ok: true, contentType: "image/png", extension: "png" });
+  });
+
   it("rejects empty and truncated files", () => {
     expect(validateAvatarBytes(new Uint8Array(0)).ok).toBe(false);
     expect(validateAvatarBytes(new Uint8Array(4)).ok).toBe(false);

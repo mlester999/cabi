@@ -103,9 +103,12 @@ export type AvatarValidation =
 
 export const avatarMaxBytes = 2 * 1024 * 1024;
 
-export function validateAvatarBytes(bytes: Uint8Array): AvatarValidation {
+export function validateAvatarBytes(bytes: Uint8Array, maxBytes = avatarMaxBytes): AvatarValidation {
   if (bytes.byteLength === 0) return { ok: false, message: "That file was empty." };
-  if (bytes.byteLength > avatarMaxBytes) return { ok: false, message: "That picture is too large. Keep it under 2 MB." };
+  if (bytes.byteLength > maxBytes) {
+    const megabytes = Math.ceil(maxBytes / (1024 * 1024));
+    return { ok: false, message: `That picture is too large. Keep it under ${megabytes} MB.` };
+  }
   if (bytes.byteLength < 12) return { ok: false, message: "That does not look like an image." };
   if (bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47) {
     return { ok: true, contentType: "image/png", extension: "png" };

@@ -24,7 +24,7 @@ export function ActionCardView({ card, className = "", onRegenerate, onUseAsAvat
   card: ActionCardModel;
   className?: string;
   onRegenerate?: (prompt: string) => void;
-  onUseAsAvatar?: (card: Extract<ActionCardModel, { kind: "IMAGE" }>) => void;
+  onUseAsAvatar?: (card: Extract<ActionCardModel, { kind: "IMAGE" }>) => Promise<boolean>;
   onRetry?: (prompt: string, parentGenerationId?: string) => void;
 }) {
   const [copied, setCopied] = useState<string | null>(null);

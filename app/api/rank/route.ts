@@ -5,6 +5,7 @@ import { readProfile } from "@/lib/profiles/service";
 import { readAchievements } from "@/lib/ranking/achievements";
 import { countWalletMessages } from "@/lib/ranking/message-count";
 import { initialsFor } from "@/lib/profiles/username";
+import { avatarBucket, signedImageUrl } from "@/lib/image-generation/storage";
 import { guardAppApiCpu } from "@/lib/site/guard";
 import { walletAuthOrResponse } from "@/lib/wallet/session";
 import { featureGate } from "@/lib/config/feature-gate";
@@ -42,6 +43,7 @@ export async function GET() {
   // Message totals are a lifetime stat. Ownership lives on `conversations`, so
   // this is derived through it rather than by filtering messages directly.
   const messageCount = await countWalletMessages(walletAccountId, "user");
+  const avatarUrl = profile?.avatarPath ? await signedImageUrl(avatarBucket, profile.avatarPath) : null;
 
   return Response.json(
     {
@@ -52,6 +54,7 @@ export async function GET() {
         displayName: profile?.displayName ?? null,
         initials: profile?.username ? initialsFor(profile.username) : null,
         avatarPath: profile?.avatarPath ?? null,
+        avatarUrl,
         joinedAt: profile?.createdAt ?? null,
         rankingStatus: profile?.rankingStatus ?? "NORMAL",
       },

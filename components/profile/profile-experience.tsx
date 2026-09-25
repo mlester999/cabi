@@ -15,7 +15,7 @@ type Progress = { current: RankTier; next: RankTier | null; xp: number; toNext: 
 type Standing = { xp: number; placement: number | null; participants: number; tier: RankTier; progress: Progress; seasonLabel?: string | null } | null;
 type History = { type: string; label: string; xp: number; tier: RankTier; placement: number | null; status: string };
 type Payload = {
-  identity: { username: string | null; displayName: string | null; initials: string | null; avatarPath: string | null; joinedAt: string | null; rankingStatus: string };
+  identity: { username: string | null; displayName: string | null; initials: string | null; avatarUrl: string | null; joinedAt: string | null; rankingStatus: string };
   monthly: Standing;
   weekly: Standing;
   lifetime: { xp: number; messages: number; bestTier: number | null; bestPlacement: number | null; seasons: number };
@@ -31,7 +31,7 @@ type ProfileOnlyPayload = {
     username: string | null;
     displayName: string | null;
     initials: string | null;
-    avatarPath: string | null;
+    avatarUrl: string | null;
   } | null;
 };
 
@@ -81,7 +81,7 @@ export function ProfileExperience({ rankingEnabled = true, achievementsEnabled =
         <div className="mt-8 space-y-5">
           <section className="glass rounded-[26px] p-5 sm:p-6">
             <div className="flex flex-wrap items-center gap-4">
-              <InitialsAvatar initials={profileOnly?.initials ?? "?"} src={profileOnly?.avatarPath} size={64} label={`${profileOnly?.username ?? "You"} avatar`} />
+              <InitialsAvatar initials={profileOnly?.initials ?? "?"} src={profileOnly?.avatarUrl} size={64} label={`${profileOnly?.username ?? "You"} avatar`} />
               <div className="min-w-0 flex-1">
                 <p className="text-[10px] font-semibold uppercase tracking-[.16em] text-violet-300">Your identity</p>
                 <h2 className="mt-1 truncate text-lg font-bold text-white">{profileOnly?.username ?? "Unnamed"}</h2>
@@ -122,7 +122,7 @@ export function ProfileExperience({ rankingEnabled = true, achievementsEnabled =
     <div className="mt-8 space-y-5">
       <section className="glass rounded-[26px] p-5 sm:p-6">
         <div className="flex flex-wrap items-center gap-4">
-          <InitialsAvatar initials={identity.initials ?? "?"} size={64} label={`${identity.username ?? "You"} avatar`} />
+          <InitialsAvatar initials={identity.initials ?? "?"} src={identity.avatarUrl} size={64} label={`${identity.username ?? "You"} avatar`} />
           <div className="min-w-0 flex-1">
             <h2 className="truncate text-lg font-bold text-white">{identity.username ?? "Unnamed"}</h2>
             <div className="mt-1.5 flex flex-wrap items-center gap-2">
