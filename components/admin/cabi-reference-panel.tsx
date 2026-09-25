@@ -207,9 +207,11 @@ export function CabiReferencePanel({ selectedProvider, selectedModel, selectedMo
   const capabilityKnown = Boolean(selectedModelDefinition || payload?.provider);
   const supportsReference = capability?.supportsReferenceImages === true;
   const capabilityMessage = selectedModelDefinition
-    ? (selectedModelDefinition.supportsReferenceImages
-        ? "Cabi's official reference will be used automatically."
-        : "This model uses Cabi's character specification only.")
+    ? (!selectedModelDefinition.supportsReferenceImages
+        ? "This model cannot condition on Cabi's reference image, so identity consistency may degrade."
+        : selectedModelDefinition.tier === "budget"
+          ? "The reference is attached, but identity consistency may degrade compared with the recommended model."
+          : "Cabi's official reference will be used automatically.")
     : payload?.provider.message ?? "Capability is resolved from the configured model.";
 
   return (

@@ -70,6 +70,8 @@ const imageAdminTestSchema = z.object({
 }).strict();
 
 const imageAdminFullTestSchema = z.object({
+  provider: z.string().trim().min(1).max(40).optional(),
+  model: z.string().trim().min(1).max(120).optional(),
   action: z.literal("test-full"),
 }).strict();
 
@@ -93,6 +95,13 @@ export const imageAdminSaveSchema = z
   .discriminatedUnion("action", [imageAdminPersistSchema, imageAdminTestSchema, imageAdminFullTestSchema, imageAdminFullChatTestSchema])
   .superRefine((value, context) => {
     if (value.action !== "test-full" && value.action !== "test-chat-full") validateImageSelection(value, context);
+    if (value.action === "test-full") {
+      if ((value.provider === undefined) !== (value.model === undefined)) {
+        context.addIssue({ code: z.ZodIssueCode.custom, path: ["model"], message: "Choose a provider and model together." });
+      } else if (value.provider !== undefined && value.model !== undefined) {
+        validateImageSelection({ provider: value.provider, model: value.model }, context);
+      }
+    }
   });
 
 type AdminImageSettings = Omit<ImageGenerationSettings, "baseUrl">;
@@ -412,7 +421,9 @@ export async function POST(request: Request) {
   }
 
   if (action === "test-full") {
-    const resolved = await resolveImageGenerationConfig();
+    const resolved = await resolveImageGenerationConfig(
+      parsed.data.provider && parsed.data.model ? { provider: parsed.data.provider, model: parsed.data.model } : undefined,
+    );
     const trace = createImagePipelineTrace({ source: "ADMIN_TEST", aspectRatio: resolved.aspectRatio });
     trace.record("USER_AUTHORIZED");
     trace.record("QUOTA_CHECK_PASSED");
@@ -432,6 +443,7 @@ export async function POST(request: Request) {
       referenceConditioned: result.ok ? result.referenceConditioned : false,
       referenceFallbackUsed: result.ok ? result.referenceFallbackUsed : false,
       promptFallbackUsed: result.ok ? result.promptFallbackUsed : false,
+      previewDataUrl: result.ok ? result.previewDataUrl : null,
     }, { status: result.ok ? 200 : 502, headers: responseHeaders() });
   }
 

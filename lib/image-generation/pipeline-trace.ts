@@ -80,6 +80,11 @@ export type ImagePipelineDebugDetails = {
   model: string | null;
   referenceVersion: number | null;
   referenceAttached: boolean;
+  referenceActive: boolean;
+  modelReferenceSupport: boolean;
+  identityLockApplied: boolean;
+  normalizedPromptApplied: boolean;
+  compositionType: string | null;
   aspectRatio: string | null;
   width: number | null;
   height: number | null;
@@ -113,6 +118,11 @@ type TraceFields = {
   model?: string | null;
   referenceVersion?: number | null;
   referenceAttached?: boolean;
+  referenceActive?: boolean;
+  modelReferenceSupport?: boolean;
+  identityLockApplied?: boolean;
+  normalizedPromptApplied?: boolean;
+  compositionType?: string | null;
   aspectRatio?: string | null;
   width?: number | null;
   height?: number | null;
@@ -158,6 +168,11 @@ export class ImagePipelineTrace {
     model: string | null;
     referenceVersion: number | null;
     referenceAttached: boolean;
+    referenceActive: boolean;
+    modelReferenceSupport: boolean;
+    identityLockApplied: boolean;
+    normalizedPromptApplied: boolean;
+    compositionType: string | null;
     aspectRatio: string | null;
     width: number | null;
     height: number | null;
@@ -188,6 +203,11 @@ export class ImagePipelineTrace {
       model: null,
       referenceVersion: null,
       referenceAttached: false,
+      referenceActive: false,
+      modelReferenceSupport: false,
+      identityLockApplied: false,
+      normalizedPromptApplied: false,
+      compositionType: null,
       aspectRatio: input.aspectRatio ?? null,
       width: null,
       height: null,
@@ -210,6 +230,11 @@ export class ImagePipelineTrace {
     if (fields.model !== undefined) this.context.model = fields.model;
     if (fields.referenceVersion !== undefined) this.context.referenceVersion = fields.referenceVersion;
     if (fields.referenceAttached !== undefined) this.context.referenceAttached = fields.referenceAttached;
+    if (fields.referenceActive !== undefined) this.context.referenceActive = fields.referenceActive;
+    if (fields.modelReferenceSupport !== undefined) this.context.modelReferenceSupport = fields.modelReferenceSupport;
+    if (fields.identityLockApplied !== undefined) this.context.identityLockApplied = fields.identityLockApplied;
+    if (fields.normalizedPromptApplied !== undefined) this.context.normalizedPromptApplied = fields.normalizedPromptApplied;
+    if (fields.compositionType !== undefined) this.context.compositionType = fields.compositionType;
     if (fields.aspectRatio !== undefined) this.context.aspectRatio = fields.aspectRatio;
     if (fields.width !== undefined) this.context.width = fields.width;
     if (fields.height !== undefined) this.context.height = fields.height;

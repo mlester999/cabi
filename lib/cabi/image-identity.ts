@@ -27,11 +27,11 @@ export const cabiIdentity = {
 
   /** FACE — the most identity-critical block, and the first thing in every prompt. */
   face:
-    "soft rounded anime face, delicate small nose, gentle almond-shaped eyes, balanced facial proportions",
+    "soft rounded anime face, delicate small nose, gentle almond-shaped eyes, balanced facial proportions and a recognizable consistent facial identity",
   /** EYES — locked colour and shape. */
   eyes: "large soft gray-lavender eyes with consistent shape and spacing",
   /** HAIR — locked length, colour, and general texture. */
-  hair: "long ash-gray hair with a faint lavender sheen, soft waves and layered ends, side-swept fringe",
+  hair: "long, layered ash-gray hair with a faint lavender sheen, soft waves, flowing length, layered ends, and side-swept fringe",
   /** CAT FEATURES — locked ear shape and fur. */
   ears: "upright fluffy ash-gray cat ears with lavender inner ear, matching fur texture, consistent ear shape",
   tail: "slender ash-gray cat tail with a lavender tip, present when the pose or outfit allows",
@@ -39,7 +39,7 @@ export const cabiIdentity = {
   age: "young adult",
   /** BRANDING — the lavender identity. */
   palette: ["#C4B5FD", "#A78BFA", "#8B5CF6", "#E5E0F0", "#1B1430"],
-  branding: "lavender and violet colour identity; a lavender CPU-branded shirt only when the scene or outfit calls for it",
+  branding: "lavender and violet colour identity; a warm, gentle, playful character vibe; a lavender CPU-branded shirt only when the scene or outfit calls for it",
 } as const;
 
 /**
@@ -47,7 +47,8 @@ export const cabiIdentity = {
  * reader. Injected verbatim as the IDENTITY layer of every prompt.
  */
 export const cabiCanonicalIdentity =
-  "Cabi is a young adult anime catgirl with " + cabiIdentity.face + ", " + cabiIdentity.eyes + ", "
+  "IDENTITY LOCK: Depict the same established character, Cabi, as in the official reference image whenever it is attached. Preserve her recognizable facial identity, face shape, eye style, hairstyle silhouette and length, cat-ear design, apparent age, and overall character vibe across changes to expression, pose, camera angle, outfit, and background. Do not redesign her as a different anime catgirl. "
+  + "Cabi is a young adult anime catgirl with " + cabiIdentity.face + ", " + cabiIdentity.eyes + ", "
   + cabiIdentity.hair + ", " + cabiIdentity.ears + ", and " + cabiIdentity.tail + ". "
   + "Her visual identity uses " + cabiIdentity.branding + ".";
 
@@ -56,15 +57,60 @@ export const cabiComposition =
   "Single subject, centred composition, character clearly the focus of the frame. "
   + "Cinematic lighting, detailed rendering, high quality, cohesive lavender colour grading.";
 
-/** QUALITY layer, last in every prompt. */
+export const cabiCompositionTypes = ["close-up", "portrait", "selfie", "profile-picture", "full-body", "scene"] as const;
+export type CabiCompositionType = (typeof cabiCompositionTypes)[number];
+
+/** Classifies framing cues without allowing them to rewrite Cabi's identity. */
+export function cabiCompositionTypeFor(scene: string): CabiCompositionType {
+  if (/\b(?:profile\s*(?:picture|pic)|avatar|pfp)\b/iu.test(scene)) return "profile-picture";
+  if (/\bselfie\b/iu.test(scene)) return "selfie";
+  if (/\b(?:close[ -]?up|headshot|head\s*and\s*shoulders|bust\s*portrait|cutest\s+face|cute\s+face)\b/iu.test(scene)) return "close-up";
+  if (/\b(?:portrait|head\s*shot)\b/iu.test(scene)) return "portrait";
+  if (/\b(?:full[ -]?body|head\s+to\s+toe|from\s+head\s+to\s+feet)\b/iu.test(scene)) return "full-body";
+  return "scene";
+}
+
+export function cabiCompositionFor(type: CabiCompositionType): string {
+  switch (type) {
+    case "close-up":
+      return "Composition: close-up, face-centred framing with her head and shoulders in frame; keep the same recognizable face shape, eyes, full hairstyle, and cat ears clearly visible.";
+    case "portrait":
+      return "Composition: head-and-shoulders portrait, face centred and looking toward the viewer; keep her same recognizable face, eyes, hairstyle, and cat ears clearly visible.";
+    case "selfie":
+      return "Composition: cozy eye-level selfie with close head-and-shoulders framing; keep her same recognizable face, eyes, hairstyle, and cat ears clearly visible.";
+    case "profile-picture":
+      return "Composition: clean centred profile-picture portrait, head and shoulders framed with her face, full hairstyle, and cat ears clearly visible.";
+    case "full-body":
+      return "Composition: full-body view from head to feet; keep her face, hairstyle, eyes, and cat ears recognizable and consistent.";
+    default:
+      return cabiComposition;
+  }
+}
+
+/** QUALITY layer, placed immediately before the final visual drift guidance. */
 export const cabiQuality =
   "Clean anime illustration with soft cel shading and lavender rim light, sharp linework, "
   + "consistent character design, high detail.";
 
 /** Negative guidance for providers that accept a negative prompt. */
 export const cabiNegativePrompt =
-  "blurry, low resolution, distorted anatomy, malformed hands, extra fingers, warped face, "
-  + "inconsistent eyes, extra limbs, duplicate face, text artifacts, watermark, signature";
+  "chibi proportions, childlike redesign, mascot-like proportions, different face shape, different facial identity, "
+  + "different eye style, different eye colour, different hair colour, short hair, different hair length or silhouette, "
+  + "different cat-ear shape or style, generic replacement anime catgirl, random substitute anime girl, "
+  + "blurry, low resolution, distorted anatomy, malformed hands, extra fingers, warped face, inconsistent eyes, "
+  + "extra limbs, duplicate face, text artifacts, watermark, signature";
+
+function explicitShortHairRequest(scene: string): boolean {
+  return /\b(?:with|give|make|style|cut|shorten)\b[^.!?]{0,40}\b(?:short|bob)(?:\s+length)?\s+(?:hair|hairstyle|cut)\b/iu.test(scene);
+}
+
+export function cabiNegativePromptForScene(scene: string): string {
+  if (!explicitShortHairRequest(scene)) return cabiNegativePrompt;
+  return cabiNegativePrompt
+    .split(", ")
+    .filter((term) => term !== "short hair" && term !== "different hair length or silhouette")
+    .join(", ");
+}
 
 /**
  * Explicit drift targets. Used to describe what the model must not produce, in
@@ -72,15 +118,38 @@ export const cabiNegativePrompt =
  */
 export const cabiProhibitedDrift = [
   "a different anime character",
-  "a different face shape or apparent identity",
-  "different hair colour or length",
-  "different eye colour",
-  "missing or random cat-ear styles",
+  "a different face shape or facial identity",
+  "a different eye style",
+  "a different eye colour",
+  "different hair colour, length, or silhouette",
+  "an unrequested short-haired variant or an unrelated hairstyle",
+  "missing or differently styled cat ears",
+  "chibi or childlike proportions",
+  "a mascot-like redesign",
+  "a generic replacement anime catgirl",
   "a childlike or different apparent age",
   "a real photographed person",
   "extra or missing limbs, duplicated faces",
   "text, watermarks or signatures",
 ] as const;
+
+function cabiIdentityForScene(scene: string): string {
+  if (!explicitShortHairRequest(scene)) return cabiCanonicalIdentity;
+  return cabiCanonicalIdentity
+    .replace("hairstyle silhouette and length", "hair colour and overall hairstyle design, while following the requested haircut")
+    .replace(cabiIdentity.hair, "short ash-gray layered hair with a faint lavender sheen and a side-swept fringe");
+}
+
+function cabiDriftGuidanceForScene(scene: string): string {
+  const allowShortHair = explicitShortHairRequest(scene);
+  const allowMascotStyle = /\bmascot\b/iu.test(scene);
+  const drift = cabiProhibitedDrift.filter((item) => {
+    if (allowShortHair && (item === "different hair colour, length, or silhouette" || item === "an unrequested short-haired variant or an unrelated hairstyle")) return false;
+    if (allowMascotStyle && item === "a mascot-like redesign") return false;
+    return true;
+  });
+  return "Avoid visual drift: " + drift.join(", ") + ".";
+}
 
 /* ---------------------------------------------------------------------------
  * EXPRESSION layer.
@@ -234,6 +303,9 @@ export function cleanCabiScene(scene: string, maxLength = 400): string {
     .replace(/\s+/gu, " ")
     .trim();
 
+  if (/\b(?:cutest|cute|adorable)\s+face\b/iu.test(cleaned)) {
+    return "extra-cute close-up portrait of Cabi with a warm, gentle smile";
+  }
   if (!cleaned || /^(?:your|cabi(?:'s)?)\s+cuteness$/iu.test(cleaned)) {
     return "a cute, cheerful portrait of Cabi in a cozy setting";
   }
@@ -260,20 +332,26 @@ export type CabiPromptParts = {
   expression: string | null;
   outfit: string | null;
   scene: string;
+  compositionType: CabiCompositionType;
   composition: string;
   quality: string;
+  negativeDrift: string;
   /** The assembled prompt, in layer order. */
   prompt: string;
 };
 
 /**
- * Builds the six prompt layers.
+ * Builds the structured prompt layers, with identity and drift guidance kept fixed.
  *
  * Returned as separate parts as well as a joined prompt, so a caller (or a test)
  * can assert that an outfit or expression change leaves IDENTITY byte-identical.
  */
 export function buildCabiPromptLayers(layers: CabiImageLayers): CabiPromptParts {
   const scene = cleanCabiScene([layers.scene, layers.sceneNote].filter(Boolean).join(", "));
+  const compositionType = cabiCompositionTypeFor(scene);
+  const composition = cabiCompositionFor(compositionType);
+  const identity = cabiIdentityForScene(scene);
+  const negativeDrift = cabiDriftGuidanceForScene(scene);
   const expression = layers.expression ? cabiExpressionPrompts[layers.expression] : null;
   const outfitParts = [
     layers.outfit ? cabiOutfitPrompts[layers.outfit] : null,
@@ -282,21 +360,24 @@ export function buildCabiPromptLayers(layers: CabiImageLayers): CabiPromptParts 
   const outfit = outfitParts.length > 0 ? outfitParts.join(", ") : null;
 
   const prompt = [
-    cabiCanonicalIdentity,
+    identity,
     expression ? `Expression: ${expression}.` : null,
     outfit ? `Outfit: ${outfit}.` : null,
     `Scene: ${scene.length > 0 ? scene : "Cabi standing calmly, looking toward the camera"}.`,
-    cabiComposition,
+    composition,
     cabiQuality,
+    negativeDrift,
   ].filter((part): part is string => Boolean(part)).join(" ");
 
   return {
-    identity: cabiCanonicalIdentity,
+    identity,
     expression,
     outfit,
     scene,
-    composition: cabiComposition,
+    compositionType,
+    composition,
     quality: cabiQuality,
+    negativeDrift,
     prompt,
   };
 }
@@ -305,7 +386,7 @@ export function buildCabiPromptLayers(layers: CabiImageLayers): CabiPromptParts 
  * Builds the final prompt from a scene.
  *
  * Order is deliberate and is the whole defence: canonical identity first, the
- * user's scene second, composition and quality last. A scene that tries to
+ * user's scene and composition next, then quality and visual drift guidance. A scene that tries to
  * describe a different character is competing with the canon, not replacing it.
  */
 export function buildCabiImagePrompt(scene: string, layers: Omit<CabiImageLayers, "scene"> = {}): string {
@@ -320,6 +401,7 @@ export function buildCabiImagePrompt(scene: string, layers: Omit<CabiImageLayers
  */
 export function buildCabiMinimalPrompt(layers: CabiImageLayers): string {
   const scene = cleanCabiScene([layers.scene, layers.sceneNote].filter(Boolean).join(", "));
+  const identity = cabiIdentityForScene(scene);
   const expression = layers.expression ? cabiExpressionPrompts[layers.expression] : null;
   const outfit = [
     layers.outfit ? cabiOutfitPrompts[layers.outfit] : null,
@@ -327,10 +409,11 @@ export function buildCabiMinimalPrompt(layers: CabiImageLayers): string {
   ].filter((part): part is string => Boolean(part && part.length > 0)).join(", ");
 
   return [
-    cabiCanonicalIdentity,
+    identity,
     expression ? `Expression: ${expression}.` : "Warm cheerful expression.",
     outfit ? `Outfit: ${outfit}.` : "Wearing soft lavender everyday clothing.",
     `Scene: ${scene}.`,
+    cabiCompositionFor(cabiCompositionTypeFor(scene)),
     "Polished anime illustration with clean anatomy, detailed hair, and soft lavender lighting.",
   ].join(" ");
 }

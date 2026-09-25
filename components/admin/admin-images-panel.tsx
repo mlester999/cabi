@@ -65,6 +65,7 @@ type FullTestResult = {
   referenceConditioned?: boolean;
   referenceFallbackUsed?: boolean;
   promptFallbackUsed?: boolean;
+  previewDataUrl?: string;
 };
 
 type ChatFullTestResult = {
@@ -232,7 +233,9 @@ export function AdminImagesPanel() {
     const { hasApiKey: _hasApiKey, keyLastFour: _keyLastFour, ...editableSettings } = settings;
     void _hasApiKey;
     void _keyLastFour;
-    const body = action === "test-full" || action === "test-chat-full"
+    const body = action === "test-full"
+      ? { action, provider: settings.provider, model: settings.model }
+      : action === "test-chat-full"
       ? { action }
       : action === "test"
       // Testing is a read-only operation: the server resolves the stored key
@@ -280,6 +283,7 @@ export function AdminImagesPanel() {
           referenceConditioned: payload.referenceConditioned,
           referenceFallbackUsed: payload.referenceFallbackUsed,
           promptFallbackUsed: payload.promptFallbackUsed,
+          previewDataUrl: payload.previewDataUrl ?? undefined,
         });
         setNotice({ tone: "success", message: "Full Cabi generation verified." });
       } else {
@@ -473,12 +477,17 @@ export function AdminImagesPanel() {
           </div>
         ) : null}
 
+        <div className="mt-5 rounded-xl border border-violet-200/[0.14] bg-violet-300/[0.05] p-3" aria-label="Cabi identity quick test">
+          <p className="text-[12px] font-semibold text-violet-100">Cabi identity quick test</p>
+          <p className="mt-1 text-[11px] leading-5 text-[var(--cabi-text-muted)]">Test prompt: <span className="font-medium text-[var(--cabi-text-secondary)]">cutest face of Cabi</span>. The result is previewed here for an admin to compare with the official reference.</p>
+        </div>
+
         {fullTest ? (
           <div className={`mt-5 rounded-xl border p-3 ${fullTest.ok ? "border-emerald-300/[0.18] bg-emerald-300/[0.06]" : "border-rose-300/[0.2] bg-rose-300/[0.06]"}`} role={fullTest.ok ? "status" : "alert"}>
             <div className="flex items-start gap-2">
               {fullTest.ok ? <CheckCircle2 size={15} className="mt-0.5 shrink-0 text-emerald-300" aria-hidden="true" /> : <XCircle size={15} className="mt-0.5 shrink-0 text-rose-300" aria-hidden="true" />}
               <div className="min-w-0 flex-1">
-                <p className={`text-[12px] font-semibold ${fullTest.ok ? "text-emerald-100" : "text-rose-100"}`}>{fullTest.ok ? "Full generation verified" : "Full generation failed"}</p>
+                <p className={`text-[12px] font-semibold ${fullTest.ok ? "text-emerald-100" : "text-rose-100"}`}>{fullTest.ok ? "Cabi identity test generated" : "Cabi identity test failed"}</p>
                 <p className={`mt-1 text-[11px] leading-5 ${fullTest.ok ? "text-emerald-100/75" : "text-rose-100/75"}`}>{fullTest.message}</p>
                 {fullTest.ok ? <p className="mt-2 text-[11px] text-emerald-100/80">Reference: {fullTest.referenceConditioned ? "conditioned" : "text only"}{fullTest.referenceFallbackUsed ? " · text-only fallback used" : ""}{fullTest.promptFallbackUsed ? " · clean prompt retry used" : ""}</p> : null}
                 {fullTest.diagnostics ? (
@@ -489,6 +498,14 @@ export function AdminImagesPanel() {
                         HTTP {fullTest.diagnostics.httpStatus ?? "—"} · {fullTest.diagnostics.provider ?? "Provider unknown"} · {imageModelFor("together", fullTest.diagnostics.model ?? settings.model)?.label ?? fullTest.diagnostics.model ?? settings.model}
                         {fullTest.diagnostics.stage ? ` · stopped at ${displayPipelineStage(fullTest.diagnostics.stage)}` : ""}
                       </p>
+                      <dl className="mt-2 grid gap-x-4 gap-y-1 text-[10px] text-[var(--cabi-text-muted)] sm:grid-cols-2" aria-label="Cabi identity checks">
+                        <div><dt className="text-white/45">Reference image attached</dt><dd>{fullTest.diagnostics.referenceAttached ? "Yes" : "No"}</dd></div>
+                        <div><dt className="text-white/45">Saved reference active</dt><dd>{fullTest.diagnostics.referenceActive ? "Yes" : "No"}</dd></div>
+                        <div><dt className="text-white/45">Model reference support</dt><dd>{fullTest.diagnostics.modelReferenceSupport ? "Yes" : "No"}</dd></div>
+                        <div><dt className="text-white/45">Identity lock applied</dt><dd>{fullTest.diagnostics.identityLockApplied ? "Yes" : "No"}</dd></div>
+                        <div><dt className="text-white/45">Normalized prompt applied</dt><dd>{fullTest.diagnostics.normalizedPromptApplied ? "Yes" : "No"}</dd></div>
+                        <div><dt className="text-white/45">Composition type</dt><dd>{fullTest.diagnostics.compositionType ?? "—"}</dd></div>
+                      </dl>
                       <div className="mt-2 rounded-md bg-black/15 px-2.5 py-2 text-[10px] leading-4">
                         <span className="font-semibold text-white/65">Together response: </span>
                         <span className="break-words text-[var(--cabi-text-secondary)]">{formatSafeProviderError(fullTest.diagnostics.providerError)}</span>
@@ -513,6 +530,14 @@ export function AdminImagesPanel() {
                         </dl>
                       </section>
                     ) : null}
+                  </div>
+                ) : null}
+                {fullTest.ok && fullTest.previewDataUrl ? (
+                  <div className="mt-3 overflow-hidden rounded-lg border border-white/[0.08] bg-black/20">
+                    {/* A one-off data URL preview is already loaded; image optimization adds no value here. */}
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={fullTest.previewDataUrl} alt="Generated Cabi close-up for identity review" className="mx-auto max-h-[480px] w-full object-contain" />
+                    <p className="border-t border-white/[0.08] px-3 py-2 text-[10px] text-[var(--cabi-text-muted)]">Compare the face, eyes, hair silhouette, and cat ears with the official reference.</p>
                   </div>
                 ) : null}
                 {fullTest.diagnostics ? (
@@ -548,7 +573,7 @@ export function AdminImagesPanel() {
             <PlugZap size={15} aria-hidden="true" /> {busy === "test" ? "Testing..." : `Test ${providerLabel}`}
           </button>
           <button type="button" disabled={busy !== null} onClick={() => void submit("test-full")} className="focus-ring inline-flex h-11 items-center gap-2 rounded-xl border border-violet-200/[0.22] bg-violet-300/[0.08] px-5 text-sm font-semibold text-violet-100 disabled:opacity-40">
-            <ShieldCheck size={15} aria-hidden="true" /> {busy === "test-full" ? "Running full test..." : "Test Full Cabi Generation"}
+            <ShieldCheck size={15} aria-hidden="true" /> {busy === "test-full" ? "Running identity test..." : "Test Cabi Identity Lock"}
           </button>
           <button type="button" disabled={busy !== null} onClick={() => void submit("test-chat-full")} className="focus-ring inline-flex h-11 items-center gap-2 rounded-xl border border-emerald-200/[0.2] bg-emerald-300/[0.06] px-5 text-sm font-semibold text-emerald-100 disabled:opacity-40">
             <ShieldCheck size={15} aria-hidden="true" /> {busy === "test-chat-full" ? "Testing chat persistence..." : "Test Full Chat Image Pipeline"}

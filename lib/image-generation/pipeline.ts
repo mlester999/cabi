@@ -35,6 +35,11 @@ export function recordCabiPlanStages(trace: ImagePipelineTrace, config: Resolved
   trace.record("CABI_REFERENCE_RESOLVED", {
     referenceVersion: plan.reference.version,
     referenceAttached: Boolean(plan.referenceImages?.length),
+    referenceActive: plan.referenceActive,
+    modelReferenceSupport: plan.modelReferenceSupport,
+    identityLockApplied: plan.identityLockApplied,
+    normalizedPromptApplied: plan.normalizedPromptApplied,
+    compositionType: plan.compositionType,
   });
   trace.record("PROMPT_BUILT", {
     provider: config.provider,
@@ -47,6 +52,11 @@ export function recordCabiPlanStages(trace: ImagePipelineTrace, config: Resolved
     scene: plan.scene,
     expression: plan.expression,
     outfit: plan.outfit,
+    identityLockApplied: plan.identityLockApplied,
+    normalizedPromptApplied: plan.normalizedPromptApplied,
+    compositionType: plan.compositionType,
+    referenceActive: plan.referenceActive,
+    modelReferenceSupport: plan.modelReferenceSupport,
   });
 }
 

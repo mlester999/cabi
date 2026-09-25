@@ -112,6 +112,7 @@ describe("owner image settings panel", () => {
   });
 
   it("shows safe Together error details, request differences, and pipeline checks for an admin full test", async () => {
+    const fullTestRequest = vi.fn();
     const diagnostics = {
       requestId: "admin-trace-1",
       source: "ADMIN_TEST",
@@ -121,6 +122,11 @@ describe("owner image settings panel", () => {
       model: "Qwen/Qwen-Image-2.0",
       referenceVersion: null,
       referenceAttached: false,
+      referenceActive: true,
+      modelReferenceSupport: true,
+      identityLockApplied: true,
+      normalizedPromptApplied: true,
+      compositionType: "close-up",
       aspectRatio: "1:1",
       width: 1024,
       height: 1024,
@@ -153,6 +159,7 @@ describe("owner image settings panel", () => {
     };
     globalThis.fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       if (String(input).includes("/api/admin/images") && init?.method === "POST") {
+        fullTestRequest(JSON.parse(String(init.body)));
         return new Response(JSON.stringify({ ok: false, message: "The full Cabi generation failed.", diagnostics }), { status: 502 });
       }
       if (String(input).includes("/api/admin/images")) return new Response(JSON.stringify(payload), { status: 200 });
@@ -161,9 +168,14 @@ describe("owner image settings panel", () => {
 
     render(<AdminImagesPanel />);
     await screen.findByRole("combobox", { name: "Provider" });
-    fireEvent.click(screen.getByRole("button", { name: "Test Full Cabi Generation" }));
+    fireEvent.click(screen.getByRole("button", { name: "Test Cabi Identity Lock" }));
 
     expect(await screen.findByText("Generation diagnosis")).toBeInTheDocument();
+    expect(screen.getByText("Cabi identity quick test")).toBeInTheDocument();
+    expect(fullTestRequest).toHaveBeenCalledWith({ action: "test-full", provider: "together", model: "Qwen/Qwen-Image-2.0" });
+    expect(screen.getByText("Identity lock applied").parentElement).toHaveTextContent("Yes");
+    expect(screen.getByText("Normalized prompt applied").parentElement).toHaveTextContent("Yes");
+    expect(screen.getByText("Composition type").parentElement).toHaveTextContent("close-up");
     expect(screen.getByText(/Unsupported use of 'steps' parameter\./u)).toBeInTheDocument();
     expect(screen.getByText(/parameter: steps/u)).toBeInTheDocument();
     expect(screen.getByText("steps, negative_prompt")).toBeInTheDocument();

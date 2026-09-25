@@ -176,7 +176,19 @@ describe("the prompt always carries the fixed identity", () => {
     const prompt = String(mocks.generated[0].preparedPrompt);
     expect(prompt).toContain("a cute, cheerful portrait of Cabi in a cozy setting");
     expect(prompt).not.toContain("Generate an image of your cuteness");
-    expect(prompt).not.toMatch(/\b(?:sexual(?:i[sz]ed)?|violent|violence|hateful|nudity|nsfw|minors?|child(?:like)?|children|explicit(?:ly)?|unsafe|prohibited)\b/iu);
+    expect(prompt).not.toMatch(/\b(?:sexual(?:i[sz]ed)?|violent|violence|hateful|nudity|nsfw|minors?|children|explicit(?:ly)?|unsafe|prohibited)\b/iu);
+    expect(prompt).toContain("IDENTITY LOCK:");
+    expect(prompt).toContain("Avoid visual drift:");
+  });
+
+  it("normalizes a request for Cabi's cutest face into a close-up composition", async () => {
+    const response = await POST(request({ prompt: "Can you generate the cutest face of you?", aspectRatio: "1:1" }));
+    expect(response.status).toBe(200);
+    const prompt = String(mocks.generated[0].preparedPrompt);
+    expect(prompt).toContain("extra-cute close-up portrait of Cabi with a warm, gentle smile");
+    expect(prompt).toContain("Composition: close-up");
+    expect(prompt).toContain("IDENTITY LOCK:");
+    expect(prompt).toContain("unrequested short-haired variant");
   });
 
   it("rejects an unsafe Cabi request before invoking the provider", async () => {

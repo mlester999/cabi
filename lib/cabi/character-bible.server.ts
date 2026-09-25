@@ -27,7 +27,7 @@ export const cabiCharacterBibleKey = "cabi_character_bible";
 export type CabiCharacterBible = {
   /** Extra art-direction notes appended to every prompt. */
   artDirection: string;
-  /** What the model should avoid. Replaces the shipped negative prompt when set. */
+  /** Extra negative guidance, appended after the fixed identity drift guidance. */
   negative: string;
   /** Whether the owner's values are in use. */
   customized: boolean;
@@ -160,7 +160,7 @@ export async function resetCabiCharacterBible(): Promise<CabiCharacterBible> {
  * without ever showing the raw prompt to a browser: this is the *description* of
  * the layers, and the assembled prompt stays server-side.
  */
-export function cabiIdentityLayers(input: { artDirection?: string } = {}) {
+export function cabiIdentityLayers(input: { artDirection?: string; composition?: string } = {}) {
   let notes = "";
   try {
     notes = sanitizeVisualGuidance(input.artDirection ?? "", "artDirection");
@@ -170,7 +170,7 @@ export function cabiIdentityLayers(input: { artDirection?: string } = {}) {
   return {
     identity: cabiCanonicalIdentity,
     // Owner art direction is appended to composition, never to identity.
-    composition: notes ? `${cabiComposition} ${notes}.` : cabiComposition,
+    composition: notes ? `${input.composition ?? cabiComposition} ${notes}.` : (input.composition ?? cabiComposition),
     quality: cabiQuality,
   };
 }

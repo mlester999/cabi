@@ -108,9 +108,10 @@ beforeEach(() => {
   mocks.fullTest.mockResolvedValue({
     ok: true,
     message: "Full Cabi generation, image download, private upload, and signed URL verified.",
-    trace: { snapshot: () => ({ requestId: "trace-1", source: "ADMIN_TEST", wallet: null, conversation: null, provider: "together", model: settings.model, referenceVersion: 3, referenceAttached: true, aspectRatio: "1:1", width: 1024, height: 1024, stage: null, lastStage: "FINAL_RESPONSE_RETURNED", httpStatus: null, contentType: "image/png", byteLength: 256, error: null, latencyMs: 12, events: [] }) },
+    trace: { snapshot: () => ({ requestId: "trace-1", source: "ADMIN_TEST", wallet: null, conversation: null, provider: "together", model: settings.model, referenceVersion: 3, referenceAttached: true, referenceActive: true, modelReferenceSupport: true, identityLockApplied: true, normalizedPromptApplied: true, compositionType: "close-up", aspectRatio: "1:1", width: 1024, height: 1024, stage: null, lastStage: "FINAL_RESPONSE_RETURNED", httpStatus: null, contentType: "image/png", byteLength: 256, error: null, latencyMs: 12, events: [] }) },
     referenceConditioned: true,
     referenceFallbackUsed: false,
+    previewDataUrl: "data:image/png;base64,aW1hZ2U=",
   });
   mocks.fullChatTest.mockResolvedValue({
     ok: true,
@@ -174,15 +175,16 @@ describe("admin Together connection route", () => {
     expect(mocks.configs[0]?.baseUrl).toBe("https://api.together.xyz/v1/images/generations");
   });
 
-  it("runs the full stored-config generation test without using browser selections", async () => {
-    const response = await POST(request({ action: "test-full" }));
+  it("runs the full identity probe for the selected model without taking credentials from the browser", async () => {
+    const response = await POST(request({ action: "test-full", provider: "together", model: "Qwen/Qwen-Image-2.0-Pro" }));
     expect(response.status).toBe(200);
+    expect(mocks.resolveConfig).toHaveBeenCalledWith({ provider: "together", model: "Qwen/Qwen-Image-2.0-Pro" });
     expect(mocks.fullTest).toHaveBeenCalledWith(expect.objectContaining({
-      config: expect.objectContaining({ provider: "together", model: settings.model, apiKey: "stored-together-key" }),
+      config: expect.objectContaining({ provider: "together", model: "Qwen/Qwen-Image-2.0-Pro", apiKey: "stored-together-key" }),
       trace: expect.anything(),
     }));
     expect(mocks.create).not.toHaveBeenCalled();
-    expect(await response.json()).toMatchObject({ ok: true, referenceConditioned: true, referenceFallbackUsed: false });
+    expect(await response.json()).toMatchObject({ ok: true, referenceConditioned: true, referenceFallbackUsed: false, previewDataUrl: "data:image/png;base64,aW1hZ2U=" });
   });
 
   it("requires the authenticated wallet and runs the full chat test as that same identity", async () => {

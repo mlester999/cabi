@@ -16,8 +16,18 @@ export type FullCabiImageTestResult =
       referenceConditioned: boolean;
       referenceFallbackUsed: boolean;
       promptFallbackUsed: boolean;
+      previewDataUrl: string;
     }
   | { ok: false; message: string; trace: ImagePipelineTrace };
+
+function makePreviewDataUrl(image: { bytes: Uint8Array; contentType: string }): string {
+  let binary = "";
+  const chunkSize = 0x8000;
+  for (let offset = 0; offset < image.bytes.length; offset += chunkSize) {
+    binary += String.fromCharCode(...image.bytes.subarray(offset, offset + chunkSize));
+  }
+  return "data:" + image.contentType + ";base64," + btoa(binary);
+}
 
 /**
  * Runs the real Cabi generation and private-storage path without creating a user
@@ -54,7 +64,7 @@ export async function runFullCabiImageTest(input: {
   }
 
   const planned = await buildCabiGenerationPlan({
-    scene: "Cabi standing in a softly lit studio",
+    scene: "cutest face of Cabi",
     aspectRatio: input.config.aspectRatio,
     modelSupportsReferenceImages: input.config.capabilities.supportsReferenceImages,
   });
@@ -84,6 +94,7 @@ export async function runFullCabiImageTest(input: {
 
   // The probe verifies the object and signed URL, then removes its temporary
   // object so repeated admin diagnostics do not become user gallery entries.
+  const preview = makePreviewDataUrl(pipeline.generated.image);
   await deleteGenerationImage(pipeline.uploaded.path).catch(() => false);
   trace.record("FINAL_RESPONSE_RETURNED");
   logImagePipelineTrace(trace);
@@ -94,5 +105,6 @@ export async function runFullCabiImageTest(input: {
     referenceConditioned: pipeline.generated.referenceConditioned,
     referenceFallbackUsed: pipeline.generated.referenceFallbackUsed,
     promptFallbackUsed: pipeline.generated.promptFallbackUsed,
+    previewDataUrl: preview,
   };
 }

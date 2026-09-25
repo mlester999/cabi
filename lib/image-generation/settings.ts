@@ -298,10 +298,10 @@ export async function readImageProviderConfig(): Promise<ImageProviderConfig | n
 /**
  * Resolves the live image configuration without a cache window.
  *
- * An optional selection is used only by the admin connection test so it can
- * test the model currently shown in the form. Normal generation uses the saved
- * selection. In both cases the endpoint, key source, model, capabilities and
- * limits come from this one function.
+ * An optional selection is used by the admin connection and identity tests so
+ * they can test the model currently shown in the form. Normal generation uses
+ * the saved selection. In both cases the endpoint, key source, model,
+ * capabilities and limits come from this one function.
  */
 export async function resolveImageGenerationConfig(selection?: { provider?: string; model?: string }): Promise<ResolvedImageGenerationConfig> {
   const stored = await readStoredImageProviderConfig();

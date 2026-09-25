@@ -88,9 +88,11 @@ export async function GET() {
         referenceConfigured: Boolean(activeRow) || ("source" in resolved && resolved.source === "BUNDLED"),
         capabilities,
         /** Never claims conditioning the model cannot do. */
-        message: capabilities.supportsReferenceImages
-          ? `${model?.label ?? settings.model} accepts Cabi's official reference automatically with every generation.`
-          : "The current model uses Cabi's character specification, but cannot directly condition on the uploaded reference image.",
+        message: !capabilities.supportsReferenceImages
+          ? "The current model cannot condition on Cabi's official reference image, so identity consistency may degrade."
+          : model?.tier === "budget"
+            ? `${model.label} accepts Cabi's official reference automatically, but identity consistency may degrade compared with the recommended model.`
+            : `${model?.label ?? settings.model} accepts Cabi's official reference automatically with every generation.`,
       },
       bible: {
         artDirection: bible.artDirection,

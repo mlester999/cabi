@@ -7,6 +7,8 @@ import {
   buildCabiPromptLayers,
   cabiCanonicalIdentity,
   cabiComposition,
+  cabiNegativePrompt,
+  cabiNegativePromptForScene,
   cabiExpressionPrompts,
   cabiExpressions,
   cabiOutfitPrompts,
@@ -62,14 +64,16 @@ describe("identity layers are fixed", () => {
     expect(beach.quality).toBe(cabiQuality);
   });
 
-  it("puts identity first and quality last in the assembled prompt", () => {
+  it("puts identity first and visual drift guidance after quality", () => {
     const prompt = buildCabiImagePrompt("in a cosy gaming room", { outfit: "hoodie", expression: "happy" });
     const identityAt = prompt.indexOf(cabiCanonicalIdentity);
     const sceneAt = prompt.indexOf("Scene:");
     const qualityAt = prompt.indexOf(cabiQuality);
+    const driftAt = prompt.indexOf("Avoid visual drift:");
     expect(identityAt).toBe(0);
     expect(sceneAt).toBeGreaterThan(identityAt);
     expect(qualityAt).toBeGreaterThan(sceneAt);
+    expect(driftAt).toBeGreaterThan(qualityAt);
   });
 
   it("states every core identity trait in the canonical paragraph", () => {
@@ -85,6 +89,42 @@ describe("identity layers are fixed", () => {
     expect(layers.scene).toBe("a cute, cheerful portrait of Cabi in a cozy setting");
     expect(layers.prompt).toContain("Scene: a cute, cheerful portrait of Cabi in a cozy setting.");
     expect(minimal).toContain("Scene: a cute, cheerful portrait of Cabi in a cozy setting.");
+  });
+
+  it("normalizes cute-face requests into identity-locked close-up portraits", () => {
+    const layers = buildCabiPromptLayers({ scene: "Can you generate the cutest face of you?" });
+    expect(layers.scene).toBe("extra-cute close-up portrait of Cabi with a warm, gentle smile");
+    expect(layers.compositionType).toBe("close-up");
+    expect(layers.composition).toContain("face-centred framing");
+    expect(layers.prompt).toContain("IDENTITY LOCK:");
+    expect(layers.prompt).toContain("Avoid visual drift:");
+    expect(layers.prompt).toContain("chibi or childlike proportions");
+    expect(cabiNegativePrompt).toContain("different face shape");
+    expect(cabiNegativePrompt).toContain("different eye style");
+    expect(cabiNegativePrompt).toContain("short hair");
+  });
+
+  it("allows an explicitly requested haircut while retaining Cabi's face and core identity", () => {
+    const layers = buildCabiPromptLayers({ scene: "Cabi with short hair" });
+    expect(layers.identity).toContain("short ash-gray layered hair");
+    expect(layers.identity).toContain("gray-lavender eyes");
+    expect(layers.negativeDrift).not.toContain("short hair");
+    expect(cabiNegativePromptForScene("Cabi with short hair")).not.toContain("short hair");
+    expect(cabiNegativePromptForScene("Cabi, no short hair")).toContain("short hair");
+  });
+
+  it.each([
+    ["Make a cute portrait of Cabi", "portrait"],
+    ["Show Cabi smiling softly", "scene"],
+    ["Make a profile picture of Cabi", "profile-picture"],
+    ["Generate a cozy selfie of Cabi", "selfie"],
+    ["Show Cabi full-body", "full-body"],
+  ] as const)("preserves the fixed identity in %s (%s composition)", (request, compositionType) => {
+    const layers = buildCabiPromptLayers({ scene: request });
+    expect(layers.identity).toBe(cabiCanonicalIdentity);
+    expect(layers.compositionType).toBe(compositionType);
+    expect(layers.prompt).toContain("IDENTITY LOCK:");
+    expect(layers.prompt).toContain("Scene:");
   });
 
   it("uses structured safety decisions instead of rejecting benign policy-adjacent wording", () => {
@@ -143,7 +183,7 @@ describe("the user cannot redefine Cabi", () => {
   it("enumerates the drift the model must not produce", () => {
     // These are the exact failure modes the brief lists.
     const joined = cabiProhibitedDrift.join(" ").toLowerCase();
-    for (const trait of ["different face shape", "different hair colour", "different eye colour", "random cat-ear", "different apparent age", "different anime character"]) {
+    for (const trait of ["different face shape", "different hair colour", "different eye colour", "different eye style", "chibi", "generic replacement anime catgirl", "different apparent age", "different anime character"]) {
       expect(joined).toContain(trait);
     }
   });

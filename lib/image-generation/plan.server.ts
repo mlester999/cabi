@@ -2,10 +2,11 @@ import "server-only";
 
 import {
   type CabiExpression,
+  type CabiCompositionType,
   type CabiOutfit,
   buildCabiMinimalPrompt,
   buildCabiPromptLayers,
-  cabiNegativePrompt,
+  cabiNegativePromptForScene,
 } from "@/lib/cabi/image-identity";
 import { cabiIdentityLayers, readCabiCharacterBible } from "@/lib/cabi/character-bible.server";
 import { resolveCabiReference } from "@/lib/cabi/reference/resolve.server";
@@ -32,14 +33,22 @@ export type CabiGenerationPlan = {
     expression: string | null;
     outfit: string | null;
     scene: string;
+    compositionType: CabiCompositionType;
     composition: string;
     quality: string;
+    negativeDrift: string;
   };
   /** The assembled prompt. Server-only; never returned to a browser. */
   prompt: string;
   /** Positive-only prompt used for the single controlled safety retry. */
   minimalPrompt: string;
   negative: string;
+  /** Safe admin diagnostics describing the prompt controls applied. */
+  identityLockApplied: true;
+  normalizedPromptApplied: true;
+  compositionType: CabiCompositionType;
+  referenceActive: boolean;
+  modelReferenceSupport: boolean;
   expression: CabiExpression | null;
   outfit: CabiOutfit | null;
   scene: string;
@@ -115,7 +124,6 @@ export async function buildCabiGenerationPlan(input: {
     return { ok: false, reason: unavailable.reason, message: unavailable.message };
   }
 
-  const layers = cabiIdentityLayers({ artDirection: bible.artDirection });
   const parts = buildCabiPromptLayers({
     scene: input.scene,
     expression: input.expression ?? null,
@@ -123,9 +131,10 @@ export async function buildCabiGenerationPlan(input: {
     outfitNote: input.outfitNote ?? null,
     sceneNote: input.sceneNote ?? null,
   });
+  const layers = cabiIdentityLayers({ artDirection: bible.artDirection, composition: parts.composition });
 
-  // The owner's art direction replaces the shipped composition text only when it
-  // is set; identity and quality are never owner-editable.
+  // Owner art direction augments the request-specific composition; identity and
+  // quality remain fixed.
   const prompt = [
     parts.identity,
     parts.expression ? `Expression: ${parts.expression}.` : null,
@@ -133,6 +142,7 @@ export async function buildCabiGenerationPlan(input: {
     `Scene: ${parts.scene}.`,
     layers.composition,
     parts.quality,
+    parts.negativeDrift,
   ].filter((part): part is string => Boolean(part)).join(" ");
 
   const minimalPrompt = buildCabiMinimalPrompt({
@@ -150,7 +160,12 @@ export async function buildCabiGenerationPlan(input: {
       parts: { ...parts, composition: layers.composition },
       prompt,
       minimalPrompt,
-      negative: bible.negative || cabiNegativePrompt,
+      negative: [cabiNegativePromptForScene(parts.scene), bible.negative].filter(Boolean).join(", "),
+      identityLockApplied: true,
+      normalizedPromptApplied: true,
+      compositionType: parts.compositionType,
+      referenceActive: reference.source === "ADMIN_UPLOAD",
+      modelReferenceSupport: input.modelSupportsReferenceImages,
       expression: input.expression ?? null,
       outfit: input.outfit ?? null,
       scene: parts.scene,

@@ -223,6 +223,14 @@ describe("capability reporting", () => {
     const payload = await (await GET()).json() as { provider: { capabilities: { supportsReferenceImages: boolean }; message: string } };
     expect(payload.provider.capabilities.supportsReferenceImages).toBe(true);
     expect(payload.provider.message).toContain("automatically");
+    expect(payload.provider.message).toContain("identity consistency may degrade");
+  });
+
+  it("warns when the selected model cannot use reference conditioning", async () => {
+    mocks.settings.mockResolvedValue({ provider: "together", model: "unlisted-model", hasApiKey: true, enabled: true });
+    const payload = await (await GET()).json() as { provider: { capabilities: { supportsReferenceImages: boolean }; message: string } };
+    expect(payload.provider.capabilities.supportsReferenceImages).toBe(false);
+    expect(payload.provider.message).toContain("identity consistency may degrade");
   });
 
   it("reports the bundled fallback when no admin reference is active", async () => {
