@@ -3,6 +3,7 @@ import "server-only";
 import { buildCabiGenerationPlan } from "@/lib/image-generation/plan.server";
 import { aspectRatioSizes } from "@/lib/image-generation/types";
 import { deleteGenerationImage } from "@/lib/image-generation/storage";
+import { checkImageSafety } from "@/lib/image-generation/safety";
 import type { ResolvedImageGenerationConfig } from "@/lib/image-generation/settings";
 import { logImagePipelineTrace } from "@/lib/image-generation/diagnostics";
 import { createImagePipelineTrace, type ImagePipelineTrace } from "@/lib/image-generation/pipeline-trace";
@@ -38,6 +39,7 @@ function makePreviewDataUrl(image: { bytes: Uint8Array; contentType: string }): 
 export async function runFullCabiImageTest(input: {
   config: ResolvedImageGenerationConfig;
   trace?: ImagePipelineTrace;
+  scene?: string;
 }): Promise<FullCabiImageTestResult> {
   const trace = input.trace ?? createImagePipelineTrace({ source: "ADMIN_TEST", aspectRatio: input.config.aspectRatio });
   const size = aspectRatioSizes[input.config.aspectRatio];
@@ -56,6 +58,14 @@ export async function runFullCabiImageTest(input: {
     height: size.height,
   });
 
+  const scene = input.scene?.trim() || "cutest face of Cabi";
+  const safety = checkImageSafety(scene);
+  if (!safety.safe) {
+    trace.record("FINAL_RESPONSE_RETURNED", { error: "UNSAFE_PROMPT" });
+    logImagePipelineTrace(trace);
+    return { ok: false, message: safety.message, trace };
+  }
+
   if (!input.config.apiKey) {
     trace.record("TOGETHER_REQUEST_STARTED", { error: "NOT_CONFIGURED" });
     trace.record("FINAL_RESPONSE_RETURNED", { error: "NOT_CONFIGURED" });
@@ -64,7 +74,7 @@ export async function runFullCabiImageTest(input: {
   }
 
   const planned = await buildCabiGenerationPlan({
-    scene: "cutest face of Cabi",
+    scene,
     aspectRatio: input.config.aspectRatio,
     modelSupportsReferenceImages: input.config.capabilities.supportsReferenceImages,
   });

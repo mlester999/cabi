@@ -246,6 +246,19 @@ describe("scenario 6: an unrelated subject is redirected, not drawn", () => {
 });
 
 describe("application image safety", () => {
+  it("normalizes the exact adult boyfriend request and keeps it on the normal provider path", async () => {
+    const result = await generateChatImage("can u generate me an image of you with your boyfriend in the park", wallet);
+    expect(result.handled).toBe(true);
+    if (!result.handled) return;
+    expect(result.usedProvider).toBe(true);
+    expect(mocks.generated).toHaveLength(1);
+    const request = mocks.generated[0];
+    expect(request.scene).toContain("Cabi walking together with her adult boyfriend in a sunny public park");
+    expect(request.preparedPrompt).toContain("both clearly young adults");
+    expect(request.preparedPrompt).toContain("two-person anime illustration");
+    expect(request.negativePrompt).toBe("");
+  });
+
   it("refuses unsafe requests before resolving provider settings or calling the provider", async () => {
     const result = await generateChatImage("Generate an image of Cabi stabbing someone", wallet);
     expect(result.handled).toBe(true);
@@ -253,6 +266,14 @@ describe("application image safety", () => {
     expect(result.usedProvider).toBe(false);
     expect(mocks.generated).toHaveLength(0);
     expect(result.reply).toMatch(/not draw/i);
+  });
+
+  it("still rejects a minor-coded couple request before calling Together", async () => {
+    const result = await generateChatImage("can u draw Cabi with her boyfriend as a childlike character", wallet);
+    expect(result.handled).toBe(true);
+    if (!result.handled) return;
+    expect(result.usedProvider).toBe(false);
+    expect(mocks.generated).toHaveLength(0);
   });
 });
 

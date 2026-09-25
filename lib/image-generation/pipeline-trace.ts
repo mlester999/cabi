@@ -239,7 +239,7 @@ export class ImagePipelineTrace {
     if (fields.width !== undefined) this.context.width = fields.width;
     if (fields.height !== undefined) this.context.height = fields.height;
     if (fields.providerErrorCategory !== undefined) this.context.providerErrorCategory = fields.providerErrorCategory;
-    if (this.context.source === "ADMIN_TEST" && fields.providerError !== undefined) {
+    if (fields.providerError !== undefined) {
       this.context.providerError = fields.providerError ? { ...fields.providerError } : null;
     }
     if (this.context.source === "ADMIN_TEST" && fields.requestComparison !== undefined) {

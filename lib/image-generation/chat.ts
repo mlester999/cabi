@@ -13,7 +13,7 @@ import { checkImageSafety } from "@/lib/image-generation/safety";
 import { noticeCard, imageCard } from "@/lib/actions/cards";
 import type { ActionCard } from "@/lib/actions/types";
 import { createImagePipelineTrace, type ImagePipelineTrace } from "@/lib/image-generation/pipeline-trace";
-import { imagePipelineDatabaseFields, logImageDatabaseFailure, logImagePipelineTrace, persistImageDatabaseFailure } from "@/lib/image-generation/diagnostics";
+import { imagePipelineDatabaseFields, logImageDatabaseFailure, logImagePipelineTrace, persistImageDatabaseFailure, persistImageProviderError } from "@/lib/image-generation/diagnostics";
 import { recordCabiPlanStages, runCabiImagePipeline } from "@/lib/image-generation/pipeline";
 import { deleteGenerationImage } from "@/lib/image-generation/storage";
 import { cabiImageFailureCardMessage, cabiImageFailureCardTitle, cabiImageFailureReply } from "@/lib/cabi/status-messages";
@@ -343,6 +343,7 @@ async function generateChatImageInternal(message: string, options: ChatImageOpti
       message: pipeline.message,
       diagnostics: imagePipelineDatabaseFields(trace),
     });
+    await persistImageProviderError({ generationId, providerError: trace.snapshot().providerError });
     trace.record("GENERATION_ROW_UPDATED", { error: markedFailed === false ? "DATABASE_UPDATE_FAILED" : null });
     return {
       handled: true,

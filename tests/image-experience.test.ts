@@ -15,6 +15,7 @@ import { cardUrlTtlSeconds } from "@/lib/image-generation/lifecycle";
 
 describe("natural chat detects image intent", () => {
   const intentExamples = [
+    "can u generate me an image of you with your boyfriend in the park",
     "Make a picture of you drinking coffee.",
     "Generate a picture of you at the beach.",
     "Cabi playing on a gaming PC",
@@ -27,6 +28,12 @@ describe("natural chat detects image intent", () => {
 
   it.each(intentExamples)("%s is routed to the image pipeline", (message) => {
     expect(looksLikeImageRequest(message)).toBe(true);
+  });
+
+  it("keeps the exact couple request Cabi-related and locally safe", () => {
+    const message = "can u generate me an image of you with your boyfriend in the park";
+    expect(classifyCabiRelevance(message)).toBe("CABI_RELATED");
+    expect(checkImageSafety(message).safe).toBe(true);
   });
 
   it("leaves ordinary conversation to the model", () => {

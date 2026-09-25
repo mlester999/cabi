@@ -176,12 +176,14 @@ describe("admin Together connection route", () => {
   });
 
   it("runs the full identity probe for the selected model without taking credentials from the browser", async () => {
-    const response = await POST(request({ action: "test-full", provider: "together", model: "Qwen/Qwen-Image-2.0-Pro" }));
+    const scene = "Cabi walking with her adult boyfriend in a sunny public park";
+    const response = await POST(request({ action: "test-full", provider: "together", model: "Qwen/Qwen-Image-2.0-Pro", scene }));
     expect(response.status).toBe(200);
     expect(mocks.resolveConfig).toHaveBeenCalledWith({ provider: "together", model: "Qwen/Qwen-Image-2.0-Pro" });
     expect(mocks.fullTest).toHaveBeenCalledWith(expect.objectContaining({
       config: expect.objectContaining({ provider: "together", model: "Qwen/Qwen-Image-2.0-Pro", apiKey: "stored-together-key" }),
       trace: expect.anything(),
+      scene,
     }));
     expect(mocks.create).not.toHaveBeenCalled();
     expect(await response.json()).toMatchObject({ ok: true, referenceConditioned: true, referenceFallbackUsed: false, previewDataUrl: "data:image/png;base64,aW1hZ2U=" });
@@ -206,6 +208,7 @@ describe("admin Together connection route", () => {
       { id: "queued-1", created_at: "2026-03-01T00:00:00Z", status: "QUEUED", wallet_account_id: "wallet-1", pipeline_request_id: "trace-1" },
       { id: "running-1", created_at: "2026-03-01T00:01:00Z", status: "GENERATING", provider: "together", model: settings.model, http_status: 403, provider_error_category: "organization_permission" },
       { id: "complete-1", created_at: "2026-03-01T00:02:00Z", status: "COMPLETED", model: settings.model },
+      { id: "failed-1", created_at: "2026-03-01T00:03:00Z", status: "FAILED", provider: "together", model: settings.model, http_status: 400, diagnostic_provider_error: { code: "invalid_request", type: "invalid_request_error", param: "negative_prompt", message: "The negative_prompt parameter is not supported." } },
     ];
     mocks.database.mockReturnValue({
       from: (table: string) => {
@@ -223,6 +226,7 @@ describe("admin Together connection route", () => {
     await expect(response.json()).resolves.toMatchObject({
       detailedDiagnosticsAvailable: true,
       errors: [
+        { id: "failed-1", status: "FAILED", httpStatus: 400, details: { providerError: { code: "invalid_request", type: "invalid_request_error", parameter: "negative_prompt", message: "The negative_prompt parameter is not supported." } } },
         { id: "complete-1", status: "COMPLETED" },
         { id: "running-1", status: "GENERATING", httpStatus: 403, category: "organization_permission" },
         { id: "queued-1", status: "QUEUED" },

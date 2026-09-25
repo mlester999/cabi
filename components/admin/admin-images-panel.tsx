@@ -167,6 +167,7 @@ export function AdminImagesPanel() {
   const [notice, setNotice] = useState<{ tone: "success" | "error" | "info"; message: string } | null>(null);
   const [connection, setConnection] = useState<ConnectionResult | null>(null);
   const [fullTest, setFullTest] = useState<FullTestResult | null>(null);
+  const [fullTestScene, setFullTestScene] = useState("Cabi standing in a park.");
   const [chatFullTest, setChatFullTest] = useState<ChatFullTestResult | null>(null);
   const [busy, setBusy] = useState<"save" | "test" | "test-full" | "test-chat-full" | null>(null);
 
@@ -234,7 +235,7 @@ export function AdminImagesPanel() {
     void _hasApiKey;
     void _keyLastFour;
     const body = action === "test-full"
-      ? { action, provider: settings.provider, model: settings.model }
+      ? { action, provider: settings.provider, model: settings.model, scene: fullTestScene.trim() }
       : action === "test-chat-full"
       ? { action }
       : action === "test"
@@ -564,6 +565,12 @@ export function AdminImagesPanel() {
             </div>
           </div>
         ) : null}
+
+        <label className="mt-5 block max-w-2xl">
+          <span className={label}>Full image test scene</span>
+          <input aria-label="Full image test scene" value={fullTestScene} onChange={(event) => setFullTestScene(event.target.value)} maxLength={400} className={`${field} mt-2`} />
+          <span className="mt-1.5 block text-[11px] leading-5 text-[var(--cabi-text-muted)]">Runs one full image request through the active provider and storage path. Use A/B/C/D scenes here to compare requests.</span>
+        </label>
 
         <div className="mt-5 flex flex-wrap gap-3">
           <button type="button" disabled={busy !== null} onClick={() => void submit("save")} className="focus-ring inline-flex h-11 items-center gap-2 rounded-xl bg-violet-300 px-5 text-sm font-bold text-[var(--cabi-on-primary)] disabled:opacity-40">

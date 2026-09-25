@@ -248,7 +248,10 @@ describe("request construction", () => {
     const chatTrace = createImagePipelineTrace({ source: "CHAT_GENERATION", aspectRatio: "1:1" });
     const chatResult = await generateTogetherImage({ prompt: "Cabi waving", aspectRatio: "1:1", negativePrompt: "soft image", trace: chatTrace });
     expect(calls[0]?.body).toEqual(calls[1]?.body);
-    expect(chatTrace.snapshot()).toMatchObject({ providerError: null, requestComparison: null });
+    expect(chatTrace.snapshot()).toMatchObject({
+      providerError: { code: "unsupported_parameter", parameter: "steps", message: providerMessage },
+      requestComparison: null,
+    });
     expect(JSON.stringify(chatResult)).not.toContain("negative_prompt");
     expect(JSON.stringify(chatResult)).not.toContain(providerMessage);
   });

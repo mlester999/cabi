@@ -7,6 +7,7 @@ import {
   buildCabiMinimalPrompt,
   buildCabiPromptLayers,
   cabiNegativePromptForScene,
+  isCabiRelationshipScene,
 } from "@/lib/cabi/image-identity";
 import { cabiIdentityLayers, readCabiCharacterBible } from "@/lib/cabi/character-bible.server";
 import { resolveCabiReference } from "@/lib/cabi/reference/resolve.server";
@@ -36,7 +37,7 @@ export type CabiGenerationPlan = {
     compositionType: CabiCompositionType;
     composition: string;
     quality: string;
-    negativeDrift: string;
+    identityContinuity: string;
   };
   /** The assembled prompt. Server-only; never returned to a browser. */
   prompt: string;
@@ -142,7 +143,7 @@ export async function buildCabiGenerationPlan(input: {
     `Scene: ${parts.scene}.`,
     layers.composition,
     parts.quality,
-    parts.negativeDrift,
+    parts.identityContinuity,
   ].filter((part): part is string => Boolean(part)).join(" ");
 
   const minimalPrompt = buildCabiMinimalPrompt({
@@ -160,7 +161,9 @@ export async function buildCabiGenerationPlan(input: {
       parts: { ...parts, composition: layers.composition },
       prompt,
       minimalPrompt,
-      negative: [cabiNegativePromptForScene(parts.scene), bible.negative].filter(Boolean).join(", "),
+      negative: isCabiRelationshipScene(parts.scene)
+        ? ""
+        : [cabiNegativePromptForScene(parts.scene), bible.negative].filter(Boolean).join(", "),
       identityLockApplied: true,
       normalizedPromptApplied: true,
       compositionType: parts.compositionType,

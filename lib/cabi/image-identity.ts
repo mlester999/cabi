@@ -70,7 +70,10 @@ export function cabiCompositionTypeFor(scene: string): CabiCompositionType {
   return "scene";
 }
 
-export function cabiCompositionFor(type: CabiCompositionType): string {
+export function cabiCompositionFor(type: CabiCompositionType, scene = ""): string {
+  if (isCabiRelationshipScene(scene)) {
+    return "Composition: a balanced two-person anime illustration with Cabi and her adult partner both clearly visible. Preserve Cabi's recognizable face, eyes, hairstyle, and cat ears; in a selfie, keep both faces in frame.";
+  }
   switch (type) {
     case "close-up":
       return "Composition: close-up, face-centred framing with her head and shoulders in frame; keep the same recognizable face shape, eyes, full hairstyle, and cat ears clearly visible.";
@@ -94,7 +97,7 @@ export const cabiQuality =
 
 /** Negative guidance for providers that accept a negative prompt. */
 export const cabiNegativePrompt =
-  "chibi proportions, childlike redesign, mascot-like proportions, different face shape, different facial identity, "
+  "chibi proportions, toy-like proportions, mascot-like proportions, different face shape, different facial identity, "
   + "different eye style, different eye colour, different hair colour, short hair, different hair length or silhouette, "
   + "different cat-ear shape or style, generic replacement anime catgirl, random substitute anime girl, "
   + "blurry, low resolution, distorted anatomy, malformed hands, extra fingers, warped face, inconsistent eyes, "
@@ -124,10 +127,10 @@ export const cabiProhibitedDrift = [
   "different hair colour, length, or silhouette",
   "an unrequested short-haired variant or an unrelated hairstyle",
   "missing or differently styled cat ears",
-  "chibi or childlike proportions",
+  "chibi proportions",
+  "inconsistent character proportions",
   "a mascot-like redesign",
   "a generic replacement anime catgirl",
-  "a childlike or different apparent age",
   "a real photographed person",
   "extra or missing limbs, duplicated faces",
   "text, watermarks or signatures",
@@ -140,15 +143,53 @@ function cabiIdentityForScene(scene: string): string {
     .replace(cabiIdentity.hair, "short ash-gray layered hair with a faint lavender sheen and a side-swept fringe");
 }
 
-function cabiDriftGuidanceForScene(scene: string): string {
-  const allowShortHair = explicitShortHairRequest(scene);
-  const allowMascotStyle = /\bmascot\b/iu.test(scene);
-  const drift = cabiProhibitedDrift.filter((item) => {
-    if (allowShortHair && (item === "different hair colour, length, or silhouette" || item === "an unrequested short-haired variant or an unrelated hairstyle")) return false;
-    if (allowMascotStyle && item === "a mascot-like redesign") return false;
-    return true;
-  });
-  return "Avoid visual drift: " + drift.join(", ") + ".";
+const relationshipTerms = /\b(?:boyfriend|girlfriend|partner|fianc[eé]e?|husband|wife|spouse)\b/iu;
+
+/** Whether a scene is a couple/date request, used for adult framing and composition. */
+export function isCabiRelationshipScene(scene: string): boolean {
+  return relationshipTerms.test(scene) || /\bdate\b/iu.test(scene);
+}
+
+/** Normalize casual couple phrasing into a positive, clearly adult visual scene. */
+export function normalizeCabiRelationshipScene(scene: string): string {
+  if (!isCabiRelationshipScene(scene)) return scene;
+
+  let normalized = scene
+    .replace(/\byour\s+(?=(?:adult\s+)?(?:boyfriend|girlfriend|partner|fianc[eé]e?|husband|wife|spouse)\b)/giu, "her ")
+    .replace(/\bmy\s+(?=(?:adult\s+)?(?:boyfriend|girlfriend|partner|fianc[eé]e?|husband|wife|spouse)\b)/giu, "her ")
+    .replace(/\b(?:you|yourself)\b/giu, "Cabi")
+    .replace(/\b(boyfriend|girlfriend|partner|fianc[eé]e?|husband|wife|spouse)\b/giu, (_match, term: string, offset: number, whole: string) => {
+      return /\badult\s+$/iu.test(whole.slice(0, offset)) ? term : `adult ${term}`;
+    });
+
+  if (/\bon a date\b/iu.test(normalized) && !relationshipTerms.test(normalized)) {
+    normalized = normalized.replace(/\bon a date\b/iu, "on a date with her adult partner");
+  }
+  if (!/\bcabi\b/iu.test(normalized)) normalized = `Cabi ${normalized}`;
+  normalized = normalized.replace(/\bwith\s+(?!(?:her|his|their)\s+)(adult\s+)?(boyfriend|girlfriend|partner|fianc[eé]e?|husband|wife|spouse)\b/giu, "with her $1$2");
+  normalized = normalized.replace(/\b(?:in|at)\s+(?:the|a)\s+park\b/iu, "in a sunny public park");
+
+  // A bare couple pose gets a natural shared activity; requested activities such
+  // as coffee, a selfie, or a date remain intact.
+  const hasActivity = /\b(?:walk\w*|sit\w*|stand\w*|hold\w*|hug\w*|kiss\w*|dance\w*|take\w*|selfie|coffee|tea|dinner|lunch|picnic|date|shop\w*|travel\w*|ride\w*|talk\w*|laugh\w*|celebrat\w*)\b/iu.test(normalized);
+  if (!hasActivity) {
+    normalized = normalized
+      .replace(/^Cabi\s+and\s+/iu, "Cabi walking together with ")
+      .replace(/^Cabi\s+with\s+/iu, "Cabi walking together with ");
+  }
+
+  if (!/\bboth clearly young adults\b/iu.test(normalized)) normalized += ", both clearly young adults";
+  if (!/\b(?:wearing|outfit|dress|hoodie|suit|clothes|clothing)\b/iu.test(normalized)) normalized += ", wearing casual everyday clothes";
+  if (!/\b(?:smil\w*|laugh\w*|sad|cry\w*|angry|grumpy|annoyed)\b/iu.test(normalized)) normalized += ", smiling naturally";
+  if (!/\b(?:warm|affectionate|romantic)\b/iu.test(normalized)) normalized += ", warm, wholesome romantic atmosphere";
+  return normalized.replace(/\s+/gu, " ").trim();
+}
+
+function cabiIdentityContinuityForScene(scene: string): string {
+  const hairstyle = explicitShortHairRequest(scene)
+    ? "Keep her ash-gray hairstyle aligned with the requested cut."
+    : "Keep her ash-gray hairstyle consistent.";
+  return `Keep Cabi's recognizable face, gray-lavender eyes, fluffy cat ears, and consistent anime character design. ${hairstyle}`;
 }
 
 /* ---------------------------------------------------------------------------
@@ -297,8 +338,9 @@ export function sanitizeScene(scene: string, maxLength = 400): string {
 export function cleanCabiScene(scene: string, maxLength = 400): string {
   let cleaned = sanitizeScene(scene, maxLength);
   cleaned = cleaned
+    .replace(/^(?:(?:please|hey),?\s+)*(?:can|could|would)\s+(?:u|you)\s+(?:please\s+)?(?:generate|make|create|draw|show|render|paint)\s+(?:me\s+)?/iu, "")
     .replace(/^(?:please\s+)?(?:generate|make|create|draw|show|render|paint)\s+(?:me\s+)?/iu, "")
-    .replace(/^(?:an?\s+)?(?:image|picture|illustration|portrait)\s+(?:of\s+)?/iu, "")
+    .replace(/^(?:me\s+)?(?:an?\s+)?(?:image|picture|illustration|portrait|photo)\s+(?:of\s+)?/iu, "")
     .replace(/^of\s+/iu, "")
     .replace(/\s+/gu, " ")
     .trim();
@@ -306,6 +348,7 @@ export function cleanCabiScene(scene: string, maxLength = 400): string {
   if (/\b(?:cutest|cute|adorable)\s+face\b/iu.test(cleaned)) {
     return "extra-cute close-up portrait of Cabi with a warm, gentle smile";
   }
+  cleaned = normalizeCabiRelationshipScene(cleaned);
   if (!cleaned || /^(?:your|cabi(?:'s)?)\s+cuteness$/iu.test(cleaned)) {
     return "a cute, cheerful portrait of Cabi in a cozy setting";
   }
@@ -335,7 +378,7 @@ export type CabiPromptParts = {
   compositionType: CabiCompositionType;
   composition: string;
   quality: string;
-  negativeDrift: string;
+  identityContinuity: string;
   /** The assembled prompt, in layer order. */
   prompt: string;
 };
@@ -349,9 +392,9 @@ export type CabiPromptParts = {
 export function buildCabiPromptLayers(layers: CabiImageLayers): CabiPromptParts {
   const scene = cleanCabiScene([layers.scene, layers.sceneNote].filter(Boolean).join(", "));
   const compositionType = cabiCompositionTypeFor(scene);
-  const composition = cabiCompositionFor(compositionType);
+  const composition = cabiCompositionFor(compositionType, scene);
   const identity = cabiIdentityForScene(scene);
-  const negativeDrift = cabiDriftGuidanceForScene(scene);
+  const identityContinuity = cabiIdentityContinuityForScene(scene);
   const expression = layers.expression ? cabiExpressionPrompts[layers.expression] : null;
   const outfitParts = [
     layers.outfit ? cabiOutfitPrompts[layers.outfit] : null,
@@ -366,7 +409,7 @@ export function buildCabiPromptLayers(layers: CabiImageLayers): CabiPromptParts 
     `Scene: ${scene.length > 0 ? scene : "Cabi standing calmly, looking toward the camera"}.`,
     composition,
     cabiQuality,
-    negativeDrift,
+    identityContinuity,
   ].filter((part): part is string => Boolean(part)).join(" ");
 
   return {
@@ -377,7 +420,7 @@ export function buildCabiPromptLayers(layers: CabiImageLayers): CabiPromptParts 
     compositionType,
     composition,
     quality: cabiQuality,
-    negativeDrift,
+    identityContinuity,
     prompt,
   };
 }
@@ -413,7 +456,7 @@ export function buildCabiMinimalPrompt(layers: CabiImageLayers): string {
     expression ? `Expression: ${expression}.` : "Warm cheerful expression.",
     outfit ? `Outfit: ${outfit}.` : "Wearing soft lavender everyday clothing.",
     `Scene: ${scene}.`,
-    cabiCompositionFor(cabiCompositionTypeFor(scene)),
+    cabiCompositionFor(cabiCompositionTypeFor(scene), scene),
     "Polished anime illustration with clean anatomy, detailed hair, and soft lavender lighting.",
   ].join(" ");
 }

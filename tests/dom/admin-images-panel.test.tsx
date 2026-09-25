@@ -172,7 +172,7 @@ describe("owner image settings panel", () => {
 
     expect(await screen.findByText("Generation diagnosis")).toBeInTheDocument();
     expect(screen.getByText("Cabi identity quick test")).toBeInTheDocument();
-    expect(fullTestRequest).toHaveBeenCalledWith({ action: "test-full", provider: "together", model: "Qwen/Qwen-Image-2.0" });
+    expect(fullTestRequest).toHaveBeenCalledWith({ action: "test-full", provider: "together", model: "Qwen/Qwen-Image-2.0", scene: "Cabi standing in a park." });
     expect(screen.getByText("Identity lock applied").parentElement).toHaveTextContent("Yes");
     expect(screen.getByText("Normalized prompt applied").parentElement).toHaveTextContent("Yes");
     expect(screen.getByText("Composition type").parentElement).toHaveTextContent("close-up");

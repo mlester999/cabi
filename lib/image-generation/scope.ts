@@ -59,8 +59,9 @@ export type ImageScopeDecision =
 export function extractScene(prompt: string): string {
   return prompt
     .trim()
-    .replace(/^(?:please\s+)?(?:can you\s+)?(?:generate|make|create|draw|show me|give me|render|paint)\s+/iu, "")
-    .replace(/^(?:an?|the)\s+(?:image|picture|photo|drawing|illustration|artwork)\s+(?:of\s+)?/iu, "")
+    .replace(/^(?:(?:please|hey),?\s+)*(?:can|could|would)\s+(?:u|you)\s+(?:please\s+)?(?:generate|make|create|draw|show|give|render|paint)\s+(?:me\s+)?/iu, "")
+    .replace(/^(?:please\s+)?(?:generate|make|create|draw|show me|give me|render|paint)\s+(?:me\s+)?/iu, "")
+    .replace(/^(?:me\s+)?(?:an?|the)\s+(?:image|picture|photo|drawing|illustration|artwork)\s+(?:of\s+)?/iu, "")
     // A bare article is left behind by the verb strip above ("make a picture of
     // a Lamborghini" leaves "a Lamborghini"), and a leading article defeats the
     // standalone-subject patterns, which anchor on the noun itself.
@@ -68,7 +69,7 @@ export function extractScene(prompt: string): string {
     // A bare image noun left alone means no subject was given: "generate an
     // image" reduces to "image", which is not a scene. Without this the request
     // would be refused as unrelated instead of asking what to draw.
-    .replace(/^(?:image|images|picture|pictures|pic|photo|photos|drawing|illustration|artwork|render)\b\s*/iu, "")
+    .replace(/^(?:of\s+)?(?:image|images|picture|pictures|pic|photo|photos|drawing|illustration|artwork|render)\b\s*/iu, "")
     .replace(/\s+/gu, " ")
     // Trailing punctuation would defeat the anchored subject patterns, so
     // "Generate a Lamborghini." and "a Lamborghini" resolve the same way.

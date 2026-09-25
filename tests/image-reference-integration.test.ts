@@ -178,7 +178,7 @@ describe("the prompt always carries the fixed identity", () => {
     expect(prompt).not.toContain("Generate an image of your cuteness");
     expect(prompt).not.toMatch(/\b(?:sexual(?:i[sz]ed)?|violent|violence|hateful|nudity|nsfw|minors?|children|explicit(?:ly)?|unsafe|prohibited)\b/iu);
     expect(prompt).toContain("IDENTITY LOCK:");
-    expect(prompt).toContain("Avoid visual drift:");
+    expect(prompt).toContain("Keep Cabi's recognizable face");
   });
 
   it("normalizes a request for Cabi's cutest face into a close-up composition", async () => {
@@ -188,7 +188,7 @@ describe("the prompt always carries the fixed identity", () => {
     expect(prompt).toContain("extra-cute close-up portrait of Cabi with a warm, gentle smile");
     expect(prompt).toContain("Composition: close-up");
     expect(prompt).toContain("IDENTITY LOCK:");
-    expect(prompt).toContain("unrequested short-haired variant");
+    expect(prompt).toContain("Keep her ash-gray hairstyle consistent.");
   });
 
   it("rejects an unsafe Cabi request before invoking the provider", async () => {

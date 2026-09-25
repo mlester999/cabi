@@ -501,7 +501,8 @@ export async function generateTogetherImage(
         httpStatus: response.status,
         error: classified.error,
         providerErrorCategory: classified.providerErrorCategory ?? null,
-        ...(isAdminDiagnostic ? { providerError, requestComparison } : {}),
+        providerError,
+        ...(isAdminDiagnostic ? { requestComparison } : {}),
       });
       return { ok: false, ...classified, httpStatus: response.status };
     }

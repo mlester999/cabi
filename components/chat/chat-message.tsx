@@ -60,9 +60,10 @@ type Props = {
 export function ChatMessage({ message, onRetry, onDelete, onEdit, onShare, onReact, onRegenerateImage, onRetryPrompt, onUseImageAsAvatar, statusMessages }: Props) {
   const [copied, setCopied] = useState(false);
   const isCabi = message.role === "assistant";
-  const isSavedLegacyImageFailure = message.actionCard?.kind === "NOTICE"
-    && message.actionCard.title === "Couldn't make that image."
-    && message.actionCard.message === "I ran into a problem while making it.";
+  const legacyTitle = message.actionCard?.kind === "NOTICE" ? message.actionCard.title.trim().replace(/[.!]+$/u, "").toLowerCase() : "";
+  const legacyMessage = message.actionCard?.kind === "NOTICE" ? (message.actionCard.message?.trim().replace(/[.!]+$/u, "").toLowerCase() ?? "") : "";
+  const isSavedLegacyImageFailure = legacyTitle === "couldn't make that image"
+    && legacyMessage === "i ran into a problem while making it";
   const displayContent = isSavedLegacyImageFailure ? cabiImageFailureReply : message.content;
   const displayActionCard: ActionCard | undefined = message.actionCard?.kind === "NOTICE" && isSavedLegacyImageFailure
     ? {
@@ -132,7 +133,7 @@ export function ChatMessage({ message, onRetry, onDelete, onEdit, onShare, onRea
         ) : null}
 
         {/* The single error surface for a failed reply. No provider text. */}
-        {message.status === "failed" && displayContent.trim() ? (
+        {message.status === "failed" && displayContent.trim() && !displayActionCard ? (
           <div className="mt-2 flex flex-wrap items-center gap-2 rounded-lg bg-rose-300/[0.05] px-3 py-2.5">
             <span className="flex-1 text-xs text-rose-200">{cabiFailureMessages.CHAT}</span>
             <button onClick={onRetry} className="cabi-focus rounded-lg px-2.5 py-1.5 text-xs font-semibold text-violet-200 hover:bg-white/[0.05]">{cabiRetryLabel}</button>

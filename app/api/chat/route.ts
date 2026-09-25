@@ -337,6 +337,9 @@ export async function POST(request: Request) {
             if (item.type === "usage") usage = item.usage;
           }
         }
+        // The reply is now final. Clear the visible thinking state while
+        // persistence and non-critical progression finish in the background.
+        controller.enqueue(encoder.encode(event("reply_complete", { messageId: assistantMessageId })));
         if (db && walletAccountId && profileId) {
           let messageWriteError: unknown = null;
           if (!imageMessagePersisted) {

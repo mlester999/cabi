@@ -79,6 +79,27 @@ describe("action card rendering", () => {
     expect(screen.getByRole("region", { name: /^Cat Partner Unit card$/ })).toBeInTheDocument();
   });
 
+  it("upgrades the saved legacy image error card into Cabi's friendly reply", () => {
+    render(<ChatMessage message={{
+      id: "legacy-image-failure",
+      role: "assistant",
+      content: "I ran into a problem while making it.",
+      status: "complete",
+      actionCard: noticeCard({
+        title: "COULDN'T MAKE THAT IMAGE.",
+        message: "I ran into a problem while making it.",
+        tone: "error",
+        retry: { label: "Try Again", prompt: "Generate an image of Cabi" },
+      }),
+    }} onRetryPrompt={() => {}} />);
+
+    expect(screen.getByText(/Ohhh, I couldn't make that image this time/u)).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "A tiny image hiccup card" })).toBeInTheDocument();
+    expect(screen.queryByText("COULDN'T MAKE THAT IMAGE.")).toBeNull();
+    expect(screen.queryByText("I ran into a problem while making it.")).toBeNull();
+    expect(screen.getByRole("button", { name: /Try again/i })).toBeInTheDocument();
+  });
+
   it("shows a completed generated image inline in the chat transcript", () => {
     const card = imageCard({
       generationId: "generation-1",
@@ -232,6 +253,12 @@ describe("action card rendering", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it.each(["complete", "failed", "cancelled"] as const)("removes the thinking status when a reply is %s", (status) => {
+    render(<ChatMessage message={{ id: `terminal-${status}`, role: "assistant", content: "", status }} />);
+    expect(screen.queryByRole("status")).toBeNull();
+    expect(screen.queryByText(/Cabi is thinking/u)).toBeNull();
   });
 });
 

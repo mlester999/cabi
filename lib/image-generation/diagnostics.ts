@@ -8,7 +8,7 @@ import type {
   ImageGenerationError,
   ImageProviderErrorCategory,
 } from "@/lib/image-generation/types";
-import type { ImagePipelineDebugDetails, ImagePipelineTrace } from "@/lib/image-generation/pipeline-trace";
+import type { ImagePipelineDebugDetails, ImagePipelineTrace, SafeTogetherProviderError } from "@/lib/image-generation/pipeline-trace";
 
 export type ImageDiagnosticSource = "ADMIN_TEST" | "CHAT_GENERATION" | "HTTP_GENERATION";
 export type ImageReferenceInputType = "none" | "https-url" | "http-url" | "data-url" | "other";
@@ -146,6 +146,23 @@ export async function persistImageDatabaseFailure(input: {
   }
 }
 
+/** Persist only Together's already-sanitized error fields for the owner run view. */
+export async function persistImageProviderError(input: {
+  generationId: string;
+  providerError: SafeTogetherProviderError | null;
+}): Promise<void> {
+  if (!input.providerError) return;
+  const db = getServiceClient();
+  if (!db) return;
+  try {
+    await db.from("image_generations")
+      .update({ diagnostic_provider_error: input.providerError })
+      .eq("id", input.generationId);
+  } catch {
+    // The main failure transition is already saved; diagnostics must stay best effort.
+  }
+}
+
 /** Emits safe write diagnostics only when explicitly enabled; raw DB errors never leave this function. */
 export function logImageDatabaseFailure(input: {
   requestId: string;
@@ -224,7 +241,8 @@ export function logImageGenerationDiagnostic(diagnostic: ImageGenerationDiagnost
 /** Logs the complete safe trace without prompts, URLs, response bodies, or keys. */
 export function logImagePipelineTrace(trace: ImagePipelineTrace | ImagePipelineDebugDetails): void {
   if (!envBoolean("IMAGE_GENERATION_DIAGNOSTICS")) return;
-  const snapshot = "snapshot" in trace ? trace.snapshot() : trace;
+  const original = "snapshot" in trace ? trace.snapshot() : trace;
+  const snapshot = original.source === "ADMIN_TEST" ? original : { ...original, providerError: null };
   console.info("[cabi:image-pipeline]", JSON.stringify(snapshot));
 }
 

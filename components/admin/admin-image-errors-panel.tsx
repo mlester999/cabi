@@ -30,6 +30,7 @@ type ImageError = {
     outfit: string | null;
     promptRetryCount: number;
     referenceConditioned: boolean;
+    providerError: { code: string | null; type: string | null; parameter: string | null; message: string | null } | null;
   };
 };
 
@@ -126,6 +127,11 @@ export function AdminImageErrorsPanel() {
                         <div><dt className="uppercase tracking-[.08em] text-white/35">Scene</dt><dd>{entry.details.scene ?? "—"}</dd></div>
                         <div><dt className="uppercase tracking-[.08em] text-white/35">Expression / outfit</dt><dd>{entry.details.expression ?? "—"} · {entry.details.outfit ?? "—"}</dd></div>
                         <div><dt className="uppercase tracking-[.08em] text-white/35">Retries / reference</dt><dd>{entry.details.promptRetryCount} · {entry.details.referenceConditioned ? "attached" : "text only"}</dd></div>
+                        {entry.details.providerError ? <>
+                          <div><dt className="uppercase tracking-[.08em] text-white/35">Together error</dt><dd className="break-words">{entry.details.providerError.message ?? "—"}</dd></div>
+                          <div><dt className="uppercase tracking-[.08em] text-white/35">Provider code / type</dt><dd className="break-words font-mono">{entry.details.providerError.code ?? "—"} · {entry.details.providerError.type ?? "—"}</dd></div>
+                          <div><dt className="uppercase tracking-[.08em] text-white/35">Provider parameter</dt><dd className="break-words font-mono">{entry.details.providerError.parameter ?? "—"}</dd></div>
+                        </> : null}
                       </dl>
                     </details>
                   </td>

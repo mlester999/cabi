@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { buildCabiImagePrompt, cabiCharacterBible, cabiNegativePrompt, cabiReferenceAsset } from "@/lib/image-generation/cabi-character";
+import { buildCabiPromptLayers } from "@/lib/cabi/image-identity";
 import { checkImageScope, looksLikeImageRequest } from "@/lib/image-generation/scope";
 import { aspectRatios, aspectRatioSizes, defaultImageSettings, type ImageGenerationSettings } from "@/lib/image-generation/types";
 import { initialsFor, normalizeUsername, reservedUsernames, usernameRules, validateUsername } from "@/lib/profiles/username";
@@ -126,14 +127,14 @@ describe("cabi character consistency", () => {
   });
 
   it("caps scene length so a prompt cannot be flooded", () => {
-    const prompt = buildCabiImagePrompt("x".repeat(2_000));
-    // The prompt is the canonical identity plus the (capped) scene plus the
-    // composition block, so bound it against those three parts rather than
-    // against a hardcoded length.
-    const budget = cabiCharacterBible.canonical.length + cabiCharacterBible.composition.length + 600;
-    expect(prompt.length).toBeLessThan(budget);
+    const parts = buildCabiPromptLayers({ scene: "x".repeat(2_000) });
+    // Bound the prompt against every fixed layer and the actual 400 character
+    // scene cap, including the positive identity-continuity layer.
+    const budget = parts.identity.length + 400 + parts.composition.length + parts.quality.length + parts.identityContinuity.length + 12;
+    expect(parts.prompt.length).toBeLessThanOrEqual(budget);
+    expect(parts.scene.length).toBeLessThanOrEqual(400);
     // The scene itself is capped at 400 characters.
-    expect(prompt).not.toContain("x".repeat(500));
+    expect(parts.prompt).not.toContain("x".repeat(500));
   });
 
   it("keeps a reference asset path and prohibited-substitution list", () => {

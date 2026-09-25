@@ -64,16 +64,16 @@ describe("identity layers are fixed", () => {
     expect(beach.quality).toBe(cabiQuality);
   });
 
-  it("puts identity first and visual drift guidance after quality", () => {
+  it("puts identity first and positive continuity guidance after quality", () => {
     const prompt = buildCabiImagePrompt("in a cosy gaming room", { outfit: "hoodie", expression: "happy" });
     const identityAt = prompt.indexOf(cabiCanonicalIdentity);
     const sceneAt = prompt.indexOf("Scene:");
     const qualityAt = prompt.indexOf(cabiQuality);
-    const driftAt = prompt.indexOf("Avoid visual drift:");
+    const continuityAt = prompt.indexOf("Keep Cabi's recognizable face");
     expect(identityAt).toBe(0);
     expect(sceneAt).toBeGreaterThan(identityAt);
     expect(qualityAt).toBeGreaterThan(sceneAt);
-    expect(driftAt).toBeGreaterThan(qualityAt);
+    expect(continuityAt).toBeGreaterThan(qualityAt);
   });
 
   it("states every core identity trait in the canonical paragraph", () => {
@@ -97,8 +97,8 @@ describe("identity layers are fixed", () => {
     expect(layers.compositionType).toBe("close-up");
     expect(layers.composition).toContain("face-centred framing");
     expect(layers.prompt).toContain("IDENTITY LOCK:");
-    expect(layers.prompt).toContain("Avoid visual drift:");
-    expect(layers.prompt).toContain("chibi or childlike proportions");
+    expect(layers.prompt).toContain("Keep Cabi's recognizable face");
+    expect(layers.prompt).not.toMatch(/childlike|not a minor|no sexual content|nothing explicit|no violence|safe image|policy compliant/iu);
     expect(cabiNegativePrompt).toContain("different face shape");
     expect(cabiNegativePrompt).toContain("different eye style");
     expect(cabiNegativePrompt).toContain("short hair");
@@ -108,7 +108,7 @@ describe("identity layers are fixed", () => {
     const layers = buildCabiPromptLayers({ scene: "Cabi with short hair" });
     expect(layers.identity).toContain("short ash-gray layered hair");
     expect(layers.identity).toContain("gray-lavender eyes");
-    expect(layers.negativeDrift).not.toContain("short hair");
+    expect(layers.identityContinuity).toContain("requested cut");
     expect(cabiNegativePromptForScene("Cabi with short hair")).not.toContain("short hair");
     expect(cabiNegativePromptForScene("Cabi, no short hair")).toContain("short hair");
   });
@@ -183,9 +183,35 @@ describe("the user cannot redefine Cabi", () => {
   it("enumerates the drift the model must not produce", () => {
     // These are the exact failure modes the brief lists.
     const joined = cabiProhibitedDrift.join(" ").toLowerCase();
-    for (const trait of ["different face shape", "different hair colour", "different eye colour", "different eye style", "chibi", "generic replacement anime catgirl", "different apparent age", "different anime character"]) {
+    for (const trait of ["different face shape", "different hair colour", "different eye colour", "different eye style", "chibi", "generic replacement anime catgirl", "inconsistent character proportions", "different anime character"]) {
       expect(joined).toContain(trait);
     }
+  });
+
+  it("normalizes benign adult relationship scenes into a positive two-person scene", () => {
+    const request = "can u generate me an image of you with your boyfriend in the park";
+    const parsed = parseCabiSceneRequest(request);
+    const layers = buildCabiPromptLayers({ scene: parsed.scene });
+    expect(parsed.scene).toContain("Cabi walking together with her adult boyfriend in a sunny public park");
+    expect(parsed.scene).not.toContain("her her");
+    expect(parsed.scene).toContain("both clearly young adults");
+    expect(layers.composition).toContain("balanced two-person anime illustration");
+    expect(layers.prompt).toContain("adult boyfriend");
+    expect(layers.prompt).not.toMatch(/childlike|not a minor|no sexual content|nothing explicit|no violence|safe image|policy compliant|can u generate/iu);
+    expect(checkImageSafety(request).safe).toBe(true);
+  });
+
+  it.each([
+    ["Cabi with her boyfriend in the park", /boyfriend.*sunny public park/iu],
+    ["Cabi having coffee with her boyfriend", /coffee.*adult boyfriend/iu],
+    ["Cabi taking a selfie with her boyfriend", /selfie.*adult boyfriend/iu],
+    ["Cabi on a date at a restaurant", /adult partner.*restaurant/iu],
+    ["Cabi walking with her partner", /adult partner/iu],
+  ])("keeps ordinary couple request %s in scope", (request, expected) => {
+    const parsed = parseCabiSceneRequest(request);
+    const layers = buildCabiPromptLayers({ scene: parsed.scene });
+    expect(layers.scene).toMatch(expected);
+    expect(layers.composition).toContain("two-person anime illustration");
   });
 });
 

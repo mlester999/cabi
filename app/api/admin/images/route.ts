@@ -3,6 +3,7 @@ import { z } from "zod";
 import { auditAdmin } from "@/lib/admin/audit";
 import { adminOrResponse } from "@/lib/admin/auth";
 import { getServiceClient } from "@/lib/db/supabase";
+import { sanitizeTogetherProviderError } from "@/lib/ai/image/together";
 import { createImageProvider } from "@/lib/image-generation/provider";
 import {
   IMAGE_PROVIDER_OPTIONS,
@@ -72,6 +73,7 @@ const imageAdminTestSchema = z.object({
 const imageAdminFullTestSchema = z.object({
   provider: z.string().trim().min(1).max(40).optional(),
   model: z.string().trim().min(1).max(120).optional(),
+  scene: z.string().trim().min(1).max(400).optional(),
   action: z.literal("test-full"),
 }).strict();
 
@@ -216,6 +218,25 @@ export async function GET(request: Request) {
       logImageDatabaseFailure({ requestId: "admin-image-activity", operation: "admin_activity", error: activityError });
       return jsonError("Recent generation activity could not be loaded.", 503, "DIAGNOSTICS_UNAVAILABLE");
     }
+    const providerErrorsByRun = new Map<string, ReturnType<typeof sanitizeTogetherProviderError>>();
+    const runIds = rows.map((record) => record.id).filter((id): id is string => typeof id === "string");
+    if (runIds.length > 0) {
+      try {
+        const providerDetails = await db.from("image_generations")
+          .select("id,diagnostic_provider_error")
+          .in("id", runIds)
+          .limit(50);
+        if (!providerDetails.error) {
+          for (const record of (providerDetails.data ?? []) as Array<Record<string, unknown>>) {
+            if (typeof record.id === "string") {
+              providerErrorsByRun.set(record.id, sanitizeTogetherProviderError(record.diagnostic_provider_error));
+            }
+          }
+        }
+      } catch {
+        // Older deployments may not have applied the additive diagnostics column yet.
+      }
+    }
     let diagnosticEvents: Array<Record<string, unknown>> = [];
     const diagnosticRead = await db.from("audit_logs")
       .select("id,occurred_at,request_id,actor_id,target_type,target_id,metadata_json")
@@ -265,6 +286,7 @@ export async function GET(request: Request) {
           outfit: typeof record.diagnostic_outfit === "string" ? record.diagnostic_outfit : null,
           promptRetryCount: typeof record.prompt_retry_count === "number" ? record.prompt_retry_count : 0,
           referenceConditioned: record.reference_conditioned === true,
+          providerError: id ? providerErrorsByRun.get(id) ?? null : null,
         },
       };
     });
@@ -285,7 +307,7 @@ export async function GET(request: Request) {
         category: "database_write_failed",
         httpStatus: null,
         database: safeDatabaseDiagnostic(metadata.database),
-        details: { message: null, promptHash: null, promptLength: null, scene: null, expression: null, outfit: null, promptRetryCount: 0, referenceConditioned: false },
+        details: { message: null, promptHash: null, promptLength: null, scene: null, expression: null, outfit: null, promptRetryCount: 0, referenceConditioned: false, providerError: null },
       });
     }
     errors.sort((a, b) => Date.parse(String(b.time ?? "")) - Date.parse(String(a.time ?? "")));
@@ -427,7 +449,7 @@ export async function POST(request: Request) {
     const trace = createImagePipelineTrace({ source: "ADMIN_TEST", aspectRatio: resolved.aspectRatio });
     trace.record("USER_AUTHORIZED");
     trace.record("QUOTA_CHECK_PASSED");
-    const result = await runFullCabiImageTest({ config: resolved, trace });
+    const result = await runFullCabiImageTest({ config: resolved, trace, scene: parsed.data.scene });
     await auditAdmin(request, admin.email, "image_settings.test_full", "image_settings", "singleton", result.ok ? "success" : "failure", {
       provider: resolved.provider,
       model: resolved.model,
