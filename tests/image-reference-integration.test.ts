@@ -105,7 +105,7 @@ vi.mock("@/lib/image-generation/settings", async (importOriginal) => {
         supportsImageToImage: true,
         supportsSeed: true,
         supportsNegativePrompt: true,
-        supportsSteps: true,
+        supportsSteps: mocks.providerModel !== "Qwen/Qwen-Image-2.0",
       },
       aspectRatio: "1:1",
       quality: "standard",

@@ -31,8 +31,11 @@ describe("curated image catalog", () => {
       "black-forest-labs/FLUX.1-kontext-pro",
     ]);
     expect(IMAGE_MODELS["Qwen/Qwen-Image-2.0"].supportsReferenceImages).toBe(true);
+    expect(IMAGE_MODELS["Qwen/Qwen-Image-2.0"].supportsSteps).toBe(false);
     expect(IMAGE_MODELS["Qwen/Qwen-Image-2.0-Pro"].supportsReferenceImages).toBe(true);
+    expect(IMAGE_MODELS["Qwen/Qwen-Image-2.0-Pro"].supportsSteps).toBe(true);
     expect(IMAGE_MODELS["Qwen/Qwen-Image"].supportsReferenceImages).toBe(true);
+    expect(IMAGE_MODELS["Qwen/Qwen-Image"].supportsSteps).toBe(true);
     expect(IMAGE_MODELS["Qwen/Qwen-Image"].referenceParameter).toBe("image_url");
     expect(IMAGE_MODELS["Qwen/Qwen-Image"].supportsImageEditing).toBe(true);
     expect(IMAGE_MODELS["black-forest-labs/FLUX.1-kontext-pro"].supportsReferenceImages).toBe(true);

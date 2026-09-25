@@ -72,7 +72,7 @@ export const IMAGE_MODELS = {
     supportsImageEditing: true,
     supportsSeed: true,
     supportsNegativePrompt: true,
-    supportsSteps: true,
+    supportsSteps: false,
     recommended: true,
   },
   "Qwen/Qwen-Image-2.0-Pro": {

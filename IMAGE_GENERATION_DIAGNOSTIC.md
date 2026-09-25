@@ -2,13 +2,12 @@
 
 ## Finding
 
-The Together key and endpoint were not the primary chat defect. The admin test
-was a minimal text-only generation, while chat could add a reference input that
-Together could not fetch:
-
-- uploaded references were converted to `data:` URLs;
-- the bundled fallback could become an `APP_URL`/localhost URL;
-- the Together request was therefore not equivalent to the working admin probe.
+The first hypothesis was that chat failed because of a reference input that
+Together could not fetch. Vercel's full-generation test then supplied the
+decisive evidence: Qwen/Qwen-Image-2.0 rejects the `steps` parameter with HTTP
+400 (`Unsupported use of 'steps' parameter. This parameter is not supported for
+the selected model.`). The shared request builder now omits `steps` for that
+model. Reference-input validation below remains a separate safeguard.
 
 The chat failure also returned the provider message as prose and rendered a
 notice card, which created duplicate failure UI. An empty image reply could then
@@ -53,6 +52,13 @@ fields:
 }
 ```
 
+`steps` is optional and emitted only when the selected model declares support.
+The Vercel error above led the registry to mark `supportsSteps: false` for Qwen
+2.0, so the shared builder omits it from chat and admin full-test requests.
+Other models keep their registry-declared step behavior. `negative_prompt`
+remains enabled for Qwen 2.0; the Vercel evidence implicated `steps`, not that
+field. Aspect-ratio dimensions remain unchanged at 1024x1024 for square requests.
+
 `image_url` is omitted for the bundled local fallback and for models that do not
 advertise reference support. Data URLs, HTTP URLs, localhost URLs and local paths
 are rejected before reaching Together. Generated HTTPS result URLs are fetched
@@ -85,9 +91,9 @@ message), plus the minimal connection request next to the full request's safe
 field/shape summary. This detail is returned only by the admin test endpoint
 and is retained in the trace only for `ADMIN_TEST`; normal chat results and
 chat traces do not expose it. A generic HTTP 400 is not treated as an unsafe
-prompt, and no request field should be removed based on the status alone. Use
-the actual Together message and parameter reported by the Vercel admin test to
-make any provider-payload correction.
+prompt, and no request field should be removed based on the status alone. The
+confirmed Vercel response above is the evidence for omitting `steps` only for
+Qwen 2.0.
 
 ## Verification
 

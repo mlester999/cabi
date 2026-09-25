@@ -130,8 +130,8 @@ describe("owner image settings panel", () => {
       contentType: null,
       byteLength: null,
       error: "PROVIDER_ERROR",
-      providerErrorCategory: "invalid_parameter",
-      providerError: { code: "invalid_parameter", type: "invalid_request_error", parameter: "negative_prompt", message: "Invalid value for negative_prompt" },
+      providerErrorCategory: "unsupported_parameter",
+      providerError: { code: null, type: null, parameter: "steps", message: "Unsupported use of 'steps' parameter. This parameter is not supported for the selected model." },
       requestComparison: {
         working: { fields: ["model", "prompt", "width", "height", "n", "response_format"], model: "Qwen/Qwen-Image-2.0", promptLength: 21, width: 512, height: 512, steps: null, n: 1, responseFormat: "url", seedPresent: false, negativePromptPresent: false, qualityPresent: false, aspectRatioParameterPresent: false, aspectRatioInternal: null, referenceInput: null },
         full: { fields: ["model", "prompt", "n", "response_format", "width", "height", "steps", "negative_prompt"], model: "Qwen/Qwen-Image-2.0", promptLength: 972, width: 1024, height: 1024, steps: 28, n: 1, responseFormat: "url", seedPresent: false, negativePromptPresent: true, qualityPresent: false, aspectRatioParameterPresent: false, aspectRatioInternal: "1:1", referenceInput: null },
@@ -164,7 +164,8 @@ describe("owner image settings panel", () => {
     fireEvent.click(screen.getByRole("button", { name: "Test Full Cabi Generation" }));
 
     expect(await screen.findByText("Generation diagnosis")).toBeInTheDocument();
-    expect(screen.getByText(/Invalid value for negative_prompt · parameter: negative_prompt/u)).toBeInTheDocument();
+    expect(screen.getByText(/Unsupported use of 'steps' parameter\./u)).toBeInTheDocument();
+    expect(screen.getByText(/parameter: steps/u)).toBeInTheDocument();
     expect(screen.getByText("steps, negative_prompt")).toBeInTheDocument();
     expect(screen.getByText("Together request").parentElement).toHaveTextContent("FAILED");
     expect(screen.getByText("Image download").parentElement).toHaveTextContent("SKIPPED");

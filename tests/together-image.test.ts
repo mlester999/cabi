@@ -157,15 +157,34 @@ describe("request construction", () => {
       seed: 42,
       negativePrompt: "blurry",
       referenceImages: ["https://storage.example/signed/reference.png"],
-    }, "Qwen/Qwen-Image-2.0");
+    }, "Qwen/Qwen-Image-2.0-Pro");
     expect(body).toMatchObject({
-      model: "Qwen/Qwen-Image-2.0",
+      model: "Qwen/Qwen-Image-2.0-Pro",
       steps: 28,
       seed: 42,
       negative_prompt: "blurry",
       image_url: "https://storage.example/signed/reference.png",
     });
     expect(body).not.toHaveProperty("reference_images");
+  });
+
+  it("omits steps entirely for Qwen Image 2.0 while translating aspect ratio into dimensions", () => {
+    const { body, width, height } = buildTogetherRequestBody({
+      prompt: "unused because the prepared prompt is canonical",
+      preparedPrompt: "Cabi safe prompt",
+      aspectRatio: "1:1",
+    }, "Qwen/Qwen-Image-2.0");
+
+    expect(body).toEqual({
+      model: "Qwen/Qwen-Image-2.0",
+      prompt: "Cabi safe prompt",
+      n: 1,
+      response_format: "url",
+      width: 1024,
+      height: 1024,
+    });
+    expect(Object.hasOwn(body, "steps")).toBe(false);
+    expect({ width, height }).toEqual({ width: 1024, height: 1024 });
   });
 
   it("compares the same minimal working probe with the full Cabi request without exposing values", () => {
@@ -185,9 +204,10 @@ describe("request construction", () => {
       n: 1,
       response_format: "url",
     });
-    expect(comparison.onlyInFull).toEqual(["steps", "negative_prompt"]);
+    expect(comparison.onlyInFull).toEqual(["negative_prompt"]);
     expect(comparison.onlyInWorking).toEqual([]);
-    expect(comparison.full).toMatchObject({ steps: 28, negativePromptPresent: true, aspectRatioInternal: "1:1" });
+    expect(comparison.full).toMatchObject({ steps: null, negativePromptPresent: true, aspectRatioInternal: "1:1" });
+    expect(comparison.full.fields).not.toContain("steps");
     expect(comparison.full).not.toHaveProperty("prompt");
     expect(comparison.full).not.toHaveProperty("referenceUrl");
     expect(comparison.full.qualityPresent).toBe(false);
@@ -213,27 +233,48 @@ describe("request construction", () => {
   });
 
   it("stores real provider details only in the admin trace, never in chat results", async () => {
-    const providerBody = { error: { code: "invalid_parameter", param: "negative_prompt", message: "Invalid value for negative_prompt" } };
+    const providerMessage = "Unsupported use of 'steps' parameter. This parameter is not supported for the selected model.";
+    const providerBody = { error: { code: "unsupported_parameter", param: "steps", message: providerMessage } };
     stubFetch(() => new Response(JSON.stringify(providerBody), { status: 400 }));
     const adminTrace = createImagePipelineTrace({ source: "ADMIN_TEST", aspectRatio: "1:1" });
     const adminResult = await generateTogetherImage({ prompt: "Cabi waving", aspectRatio: "1:1", negativePrompt: "soft image", trace: adminTrace });
-    expect(adminResult.ok).toBe(false);
+    expect(adminResult).toMatchObject({ ok: false, httpStatus: 400, providerErrorCategory: "unsupported_parameter" });
     expect(adminTrace.snapshot()).toMatchObject({
-      providerError: { code: "invalid_parameter", parameter: "negative_prompt" },
-      requestComparison: { onlyInFull: ["steps", "negative_prompt"], onlyInWorking: [] },
+      providerError: { code: "unsupported_parameter", parameter: "steps", message: providerMessage },
+      requestComparison: { onlyInFull: ["negative_prompt"], onlyInWorking: [], full: { steps: null } },
     });
+    expect(calls[0]?.body).not.toHaveProperty("steps");
 
     const chatTrace = createImagePipelineTrace({ source: "CHAT_GENERATION", aspectRatio: "1:1" });
     const chatResult = await generateTogetherImage({ prompt: "Cabi waving", aspectRatio: "1:1", negativePrompt: "soft image", trace: chatTrace });
+    expect(calls[0]?.body).toEqual(calls[1]?.body);
     expect(chatTrace.snapshot()).toMatchObject({ providerError: null, requestComparison: null });
     expect(JSON.stringify(chatResult)).not.toContain("negative_prompt");
-    expect(JSON.stringify(chatResult)).not.toContain("Invalid value");
+    expect(JSON.stringify(chatResult)).not.toContain(providerMessage);
   });
 
   it("does not forward internal quality or aspect-ratio controls as provider fields", () => {
-    const { body } = buildTogetherRequestBody({ prompt: "Cabi at a desk", aspectRatio: "16:9" }, "Qwen/Qwen-Image-2.0");
+    const request = {
+      prompt: "Cabi at a desk",
+      preparedPrompt: "Cabi prepared prompt",
+      aspectRatio: "16:9",
+      quality: "high",
+      steps: 100,
+      referenceVersion: 7,
+      scene: "internal scene",
+      expression: "internal expression",
+      outfit: "internal outfit",
+    } as unknown as Parameters<typeof buildTogetherRequestBody>[0];
+    const { body } = buildTogetherRequestBody(request, "Qwen/Qwen-Image-2.0");
     expect(body).not.toHaveProperty("quality");
     expect(body).not.toHaveProperty("aspect_ratio");
+    expect(body).not.toHaveProperty("steps");
+    expect(body).not.toHaveProperty("referenceVersion");
+    expect(body).not.toHaveProperty("scene");
+    expect(body).not.toHaveProperty("expression");
+    expect(body).not.toHaveProperty("outfit");
+    expect(body.width).toBe(1344);
+    expect(body.height).toBe(768);
   });
 
   it("sends a clean visual prompt and visual-only negative guidance for the harmless cuteness request", () => {
@@ -452,6 +493,10 @@ describe("error handling", () => {
   });
 
   it("uses explicit provider evidence for actionable bad-request categories", () => {
+    expect(classifyTogetherHttpError(400, { providerBody: { error: {
+      param: "steps",
+      message: "Unsupported use of 'steps' parameter. This parameter is not supported for the selected model.",
+    } } })).toMatchObject({ providerErrorCategory: "unsupported_parameter" });
     expect(classifyTogetherHttpError(400, { providerBody: { error: { code: "unknown_parameter", param: "quality", message: "Unknown parameter: quality" } } }))
       .toMatchObject({ providerErrorCategory: "unsupported_parameter" });
     expect(classifyTogetherHttpError(400, { providerBody: { error: { code: "invalid_parameter", param: "negative_prompt", message: "Invalid value for negative_prompt" } } }))

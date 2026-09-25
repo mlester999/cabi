@@ -94,7 +94,7 @@ function modelDefinitionFor(model: string): ImageModelDefinition {
   return imageModelFor("together", model) ?? recommendedImageModel("together");
 }
 
-/** How many inference steps to request. Qwen-Image is a step-distilled model. */
+/** Default inference-step count for models that declare step support in the registry. */
 const defaultSteps = 28;
 
 function providerErrorText(value: unknown): string {

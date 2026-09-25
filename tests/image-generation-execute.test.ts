@@ -199,8 +199,8 @@ describe("image execution fallback", () => {
     expect(record).toContain("CHAT_GENERATION");
     expect(record).toContain('"keySource":"admin"');
     expect(record).toContain('"keyLength":25');
-    expect(record).toContain('"requestFields":["model","prompt","n","response_format","width","height","steps","image_url"]');
-    expect(record).toContain('"stepsPresent":true');
+    expect(record).toContain('"requestFields":["model","prompt","n","response_format","width","height","image_url"]');
+    expect(record).toContain('"stepsPresent":false');
     expect(record).toContain("https-url");
     expect(record).not.toContain("stored-key-never-returned");
     expect(record).not.toContain("storage.example/signed/reference.png");
