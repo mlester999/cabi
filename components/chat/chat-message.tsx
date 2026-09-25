@@ -8,7 +8,14 @@ import remarkGfm from "remark-gfm";
 import { ActionCardView } from "@/components/chat/action-card";
 import { MiniCabi } from "@/components/cabi/mini-cabi";
 import { CabiActivityStatus } from "@/components/cabi/cabi-activity-status";
-import { cabiFailureMessages, cabiRetryLabel, type CabiStatusOverrides } from "@/lib/cabi/status-messages";
+import {
+  cabiFailureMessages,
+  cabiImageFailureCardMessage,
+  cabiImageFailureCardTitle,
+  cabiImageFailureReply,
+  cabiRetryLabel,
+  type CabiStatusOverrides,
+} from "@/lib/cabi/status-messages";
 import type { ActionCard } from "@/lib/actions/types";
 
 export type ChatMessageModel = {
@@ -53,15 +60,27 @@ type Props = {
 export function ChatMessage({ message, onRetry, onDelete, onEdit, onShare, onReact, onRegenerateImage, onRetryPrompt, onUseImageAsAvatar, statusMessages }: Props) {
   const [copied, setCopied] = useState(false);
   const isCabi = message.role === "assistant";
-  const hasCardRetry = Boolean(message.actionCard?.retry);
+  const isSavedLegacyImageFailure = message.actionCard?.kind === "NOTICE"
+    && message.actionCard.title === "Couldn't make that image."
+    && message.actionCard.message === "I ran into a problem while making it.";
+  const displayContent = isSavedLegacyImageFailure ? cabiImageFailureReply : message.content;
+  const displayActionCard: ActionCard | undefined = message.actionCard?.kind === "NOTICE" && isSavedLegacyImageFailure
+    ? {
+        ...message.actionCard,
+        title: cabiImageFailureCardTitle,
+        message: cabiImageFailureCardMessage,
+        tone: "neutral",
+      }
+    : message.actionCard;
+  const hasCardRetry = Boolean(displayActionCard?.retry);
   const copy = async () => {
-    await navigator.clipboard.writeText(message.content);
+    await navigator.clipboard.writeText(displayContent);
     setCopied(true);
     setTimeout(() => setCopied(false), 1200);
   };
 
   // A card-only reply has no text bubble: the card IS the message.
-  const showBubble = !(isCabi && !message.content.trim() && message.actionCard);
+  const showBubble = !(isCabi && !displayContent.trim() && displayActionCard);
 
   return (
     <article className={`group/message flex gap-3 ${isCabi ? "items-start" : "justify-end"}`} aria-label={`${isCabi ? "Cabi" : "You"} said`}>
@@ -78,7 +97,7 @@ export function ChatMessage({ message, onRetry, onDelete, onEdit, onShare, onRea
           >
             {isCabi ? (
               <div className="cabi-markdown break-words">
-                {message.content.trim() ? (
+                {displayContent.trim() ? (
                   <>
                     <ReactMarkdown
                       remarkPlugins={[remarkGfm]}
@@ -94,7 +113,7 @@ export function ChatMessage({ message, onRetry, onDelete, onEdit, onShare, onRea
                         p: ({ children }) => <p className="my-1.5 first:mt-0 last:mb-0">{children}</p>,
                       }}
                     >
-                      {message.content}
+                      {displayContent}
                     </ReactMarkdown>
                     {message.status === "streaming" ? (
                       <span className="ml-1 inline-block h-4 w-1.5 animate-pulse rounded-full bg-violet-300 align-middle" aria-label="Cabi is typing" />
@@ -113,7 +132,7 @@ export function ChatMessage({ message, onRetry, onDelete, onEdit, onShare, onRea
         ) : null}
 
         {/* The single error surface for a failed reply. No provider text. */}
-        {message.status === "failed" && message.content.trim() ? (
+        {message.status === "failed" && displayContent.trim() ? (
           <div className="mt-2 flex flex-wrap items-center gap-2 rounded-lg bg-rose-300/[0.05] px-3 py-2.5">
             <span className="flex-1 text-xs text-rose-200">{cabiFailureMessages.CHAT}</span>
             <button onClick={onRetry} className="cabi-focus rounded-lg px-2.5 py-1.5 text-xs font-semibold text-violet-200 hover:bg-white/[0.05]">{cabiRetryLabel}</button>
@@ -133,7 +152,7 @@ export function ChatMessage({ message, onRetry, onDelete, onEdit, onShare, onRea
           </div>
         ) : null}
 
-        {message.actionCard ? <ActionCardView card={message.actionCard} onRegenerate={onRegenerateImage} onRetry={onRetryPrompt} onUseAsAvatar={onUseImageAsAvatar} /> : null}
+        {displayActionCard ? <ActionCardView card={displayActionCard} onRegenerate={onRegenerateImage} onRetry={onRetryPrompt} onUseAsAvatar={onUseImageAsAvatar} /> : null}
 
         <div className={`mt-1.5 flex min-h-8 flex-wrap items-center gap-1 transition-opacity duration-200 ${isCabi ? "justify-start" : "justify-end"} opacity-100 md:opacity-0 md:group-hover/message:opacity-100 md:group-focus-within/message:opacity-100`}>
           {isCabi && !hasCardRetry ? (
