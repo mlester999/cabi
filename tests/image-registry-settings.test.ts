@@ -32,7 +32,9 @@ describe("curated image catalog", () => {
     ]);
     expect(IMAGE_MODELS["Qwen/Qwen-Image-2.0"].supportsReferenceImages).toBe(true);
     expect(IMAGE_MODELS["Qwen/Qwen-Image-2.0-Pro"].supportsReferenceImages).toBe(true);
-    expect(IMAGE_MODELS["Qwen/Qwen-Image"].supportsReferenceImages).toBe(false);
+    expect(IMAGE_MODELS["Qwen/Qwen-Image"].supportsReferenceImages).toBe(true);
+    expect(IMAGE_MODELS["Qwen/Qwen-Image"].referenceParameter).toBe("image_url");
+    expect(IMAGE_MODELS["Qwen/Qwen-Image"].supportsImageEditing).toBe(true);
     expect(IMAGE_MODELS["black-forest-labs/FLUX.1-kontext-pro"].supportsReferenceImages).toBe(true);
     expect(IMAGE_MODELS["black-forest-labs/FLUX.1-kontext-pro"].referenceParameter).toBe("image_url");
     expect(imageModelFor("together", "Qwen/Qwen-Image-Edit")).toBeNull();
@@ -41,7 +43,7 @@ describe("curated image catalog", () => {
   it("keeps model labels, badges, and use cases in the registry", () => {
     expect(IMAGE_MODELS["Qwen/Qwen-Image-2.0"].badges).toEqual(["Recommended", "Reference Ready", "Image Editing"]);
     expect(IMAGE_MODELS["Qwen/Qwen-Image-2.0-Pro"].badges[0]).toBe("Highest Quality");
-    expect(IMAGE_MODELS["Qwen/Qwen-Image"].badges).toEqual(["Budget", "Text to Image"]);
+    expect(IMAGE_MODELS["Qwen/Qwen-Image"].badges).toEqual(["Budget", "Text to Image", "Reference Ready", "Image Editing"]);
     expect(IMAGE_MODELS["black-forest-labs/FLUX.1-kontext-pro"].useCase).toContain("identity");
   });
 

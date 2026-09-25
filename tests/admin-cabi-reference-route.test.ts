@@ -218,11 +218,11 @@ describe("capability reporting", () => {
     expect(payload.provider.message).toContain("automatically");
   });
 
-  it("says NOT SUPPORTED for the verified text-to-image-only model", async () => {
+  it("reports reference support for the verified budget Qwen Image model", async () => {
     mocks.settings.mockResolvedValue({ provider: "together", model: "Qwen/Qwen-Image", hasApiKey: true, enabled: true });
     const payload = await (await GET()).json() as { provider: { capabilities: { supportsReferenceImages: boolean }; message: string } };
-    expect(payload.provider.capabilities.supportsReferenceImages).toBe(false);
-    expect(payload.provider.message).toContain("cannot directly condition");
+    expect(payload.provider.capabilities.supportsReferenceImages).toBe(true);
+    expect(payload.provider.message).toContain("automatically");
   });
 
   it("reports the bundled fallback when no admin reference is active", async () => {

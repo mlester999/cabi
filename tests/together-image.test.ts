@@ -212,16 +212,16 @@ describe("request construction", () => {
     expect(prompt).toContain(cabiImageIdentity.composition);
   });
 
-  it("does not send reference images to the verified text-to-image-only model", async () => {
+  it("sends the verified image_url reference to budget Qwen Image without unsupported options", async () => {
     stubFetch(() => new Response(JSON.stringify({ data: [{ b64_json: pngB64 }] }), { status: 200 }));
     await generateTogetherImage({
       prompt: "Cabi waving",
       aspectRatio: "1:1",
       seed: 123,
       negativePrompt: "blurry",
-      referenceImages: ["/assets/cabi-cpu-model.png"],
+      referenceImages: ["https://storage.example/signed/cabi-reference.png"],
     }, { model: "Qwen/Qwen-Image" });
-    expect(calls[0].body).not.toHaveProperty("image_url");
+    expect(calls[0].body.image_url).toBe("https://storage.example/signed/cabi-reference.png");
     expect(calls[0].body).not.toHaveProperty("reference_images");
     expect(calls[0].body).not.toHaveProperty("seed");
     expect(calls[0].body).not.toHaveProperty("negative_prompt");
@@ -246,7 +246,7 @@ describe("request construction", () => {
   });
 
   it("only claims reference support for models that accept it", () => {
-    expect(supportsReferenceImages("Qwen/Qwen-Image")).toBe(false);
+    expect(supportsReferenceImages("Qwen/Qwen-Image")).toBe(true);
     expect(supportsReferenceImages("Qwen/Qwen-Image-2.0")).toBe(true);
     expect(supportsReferenceImages("Qwen/Qwen-Image-2.0-Pro")).toBe(true);
     expect(supportsReferenceImages("black-forest-labs/FLUX.1-kontext-pro")).toBe(true);
@@ -274,17 +274,15 @@ describe("provider abstraction surface", () => {
     expect(calls[0].body.model).toBe("Qwen/Qwen-Image-2.0-Pro");
   });
 
-  it("accepts a referenceImages array without sending it to a text-to-image model", async () => {
+  it("accepts the same server reference input for budget Qwen Image", async () => {
     stubFetch(() => new Response(JSON.stringify({ data: [{ b64_json: pngB64 }] }), { status: 200 }));
-    // The contract must accept the field even when the model ignores it, so a
-    // provider swap does not require changing every call site.
     const result = await generateTogetherImage({
       prompt: "Cabi waving",
       aspectRatio: "1:1",
-      referenceImages: ["/assets/cabi-cpu-model.png"],
+      referenceImages: ["https://storage.example/signed/cabi-reference.png"],
     }, { model: "Qwen/Qwen-Image" });
     expect(result.ok).toBe(true);
-    expect(calls[0].body).not.toHaveProperty("image_url");
+    expect(calls[0].body.image_url).toBe("https://storage.example/signed/cabi-reference.png");
   });
 });
 

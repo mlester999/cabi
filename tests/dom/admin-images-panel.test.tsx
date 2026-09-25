@@ -51,12 +51,15 @@ describe("owner image settings panel", () => {
     expect(screen.queryByText(/OpenAI-compatible/i)).not.toBeInTheDocument();
     expect(screen.queryByRole("textbox", { name: "Model" })).not.toBeInTheDocument();
     expect(screen.getByText(/Reference ready/i)).toBeInTheDocument();
+    expect(screen.getByText("Seed").parentElement).toHaveAttribute("data-capability", "supported");
   });
 
   it("updates the live reference capability preview when the model changes", async () => {
     render(<AdminImagesPanel />);
     const model = await screen.findByRole("combobox", { name: "Model" });
+    expect(screen.getByText("Seed").parentElement).toHaveAttribute("data-capability", "supported");
     fireEvent.change(model, { target: { value: "Qwen/Qwen-Image" } });
+    expect(screen.getByText("Seed").parentElement).toHaveAttribute("data-capability", "unsupported");
     expect(screen.getAllByText("Text to Image").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Reference Images").length).toBeGreaterThan(0);
     // Unsupported capabilities use a Lucide Minus icon rather than a Unicode

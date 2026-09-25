@@ -342,17 +342,18 @@ magic bytes (PNG, JPEG, or WebP; 8 MB cap) and audited as `cabi.reference_upload
 **Reference conditioning depends on the model.** `imageCapabilitiesFor()` derives the
 capability from the selected *model*, and the reference is attached automatically whenever
 the model supports it — the user never uploads Cabi. The recommended
-`Qwen/Qwen-Image-2.0` and premium `Qwen/Qwen-Image-2.0-Pro` support direct reference
-conditioning. The optional verified `Qwen/Qwen-Image` is text-to-image, so:
+`Qwen/Qwen-Image-2.0`, premium `Qwen/Qwen-Image-2.0-Pro`, budget `Qwen/Qwen-Image`,
+and `black-forest-labs/FLUX.1-kontext-pro` all document Together's `image_url` input.
+The budget Qwen option supports reference edits too, while Qwen Image 2.0 remains the
+recommended balance for Cabi identity consistency. The admin console derives these
+capabilities from the same registry used by the request adapter:
 
 ```
-Reference Conditioning: NOT SUPPORTED BY CURRENT MODEL
+Reference Conditioning: SUPPORTED (Qwen Image)
 ```
 
-The admin console says exactly that, and no `image_url` parameter is ever sent to a model
-that cannot use it. Switching the model to a reference-capable one —
-`Qwen/Qwen-Image-2.0` or `Qwen/Qwen-Image-2.0-Pro` — makes the active reference apply on
-the next generation with no other change.
+The active reference is attached only for models whose registry entry supports it; the
+selected model's capability panel updates immediately when the owner changes the dropdown.
 
 Generation metadata recorded per row is safe by construction: `reference_version`,
 `expression`, `outfit`, `scene`, `seed`, `reference_conditioned`, provider, model, and

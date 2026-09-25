@@ -101,8 +101,8 @@ vi.mock("@/lib/image-generation/settings", async (importOriginal) => {
       apiKeySource: "admin",
       capabilities: {
         supportsTextToImage: true,
-        supportsReferenceImages: mocks.providerModel !== "Qwen/Qwen-Image",
-        supportsImageToImage: mocks.providerModel !== "Qwen/Qwen-Image",
+        supportsReferenceImages: true,
+        supportsImageToImage: true,
         supportsSeed: true,
         supportsNegativePrompt: true,
         supportsSteps: true,
@@ -229,7 +229,7 @@ describe("the official reference is used automatically", () => {
     expect(completed?.reference_conditioned).toBe(true);
   });
 
-  it("never sends a reference parameter to a text-to-image model", async () => {
+  it("automatically attaches the official reference for budget Qwen Image", async () => {
     mocks.providerModel = "Qwen/Qwen-Image";
     mocks.reference = {
       source: "ADMIN_UPLOAD",
@@ -243,12 +243,10 @@ describe("the official reference is used automatically", () => {
       conditionable: true,
     };
     await POST(request({ prompt: "Cabi in a hoodie", aspectRatio: "1:1" }));
-    // The reference is stored and used as the canonical identity asset, but the
-    // request must not carry a parameter the model cannot honour.
-    expect(mocks.generated[0].referenceImages).toBeUndefined();
+    expect(mocks.generated[0].referenceImages).toEqual(["https://storage.example/signed/reference.png"]);
     const completed = mocks.inserted.find((row) => row.status === "COMPLETED");
     expect(completed?.reference_version).toBe(4);
-    expect(completed?.reference_conditioned).toBe(false);
+    expect(completed?.reference_conditioned).toBe(true);
   });
 
   it("records the bundled fallback as version 0 without sending a local reference URL", async () => {
