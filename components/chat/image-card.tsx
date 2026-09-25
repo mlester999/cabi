@@ -4,6 +4,7 @@ import { Download, RefreshCw, Share2, Sparkles, Trash2, UserRound } from "lucide
 import { MiniCabi } from "@/components/cabi/mini-cabi";
 import { CabiActivityStatus } from "@/components/cabi/cabi-activity-status";
 import { cabiFailureMessages, cabiRetryLabel } from "@/lib/cabi/status-messages";
+import Image from "next/image";
 import { useState } from "react";
 
 import type { ImageCard } from "@/lib/actions/types";
@@ -33,6 +34,12 @@ export function ImageCardView({ card, onRegenerate, onUseAsAvatar, status, onRet
 }) {
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState("");
+  const aspectParts = /^(\d{1,2}):(\d{1,2})$/u.exec(card.aspectRatio);
+  const ratioWidth = aspectParts ? Number(aspectParts[1]) : 1;
+  const ratioHeight = aspectParts ? Number(aspectParts[2]) : 1;
+  const scale = 1024 / Math.max(ratioWidth, ratioHeight);
+  const imageWidth = Math.max(1, Math.round(ratioWidth * scale));
+  const imageHeight = Math.max(1, Math.round(ratioHeight * scale));
 
   const saveAsAvatar = async () => {
     if (!onUseAsAvatar) return;
@@ -74,6 +81,19 @@ export function ImageCardView({ card, onRegenerate, onUseAsAvatar, status, onRet
               </button>
             ) : null}
           </div>
+        </div>
+      ) : card.url ? (
+        <div className="bg-black/20">
+          <Image
+            src={card.url}
+            alt={`Generated image: ${card.prompt}`}
+            width={imageWidth}
+            height={imageHeight}
+            unoptimized
+            loading="eager"
+            decoding="async"
+            className="mx-auto block max-h-[70vh] w-full object-contain"
+          />
         </div>
       ) : null}
 

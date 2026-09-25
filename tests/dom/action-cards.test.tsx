@@ -9,7 +9,7 @@ vi.mock("next/link", () => ({
 import { ActionCardView } from "@/components/chat/action-card";
 import { ChatMessage } from "@/components/chat/chat-message";
 import { SlashCommandPalette } from "@/components/chat/slash-command-palette";
-import { noticeCard, tokenCard, tradeCard, clarifyCard } from "@/lib/actions/cards";
+import { noticeCard, tokenCard, tradeCard, clarifyCard, imageCard } from "@/lib/actions/cards";
 import { cabiStatusAnnouncements, cabiStatusDefaults } from "@/lib/cabi/status-messages";
 import type { ActionCard as ActionCardModel } from "@/lib/actions/types";
 import type { TokenMetadata } from "@/lib/tokens/metadata";
@@ -77,6 +77,36 @@ describe("action card rendering", () => {
     render(<ChatMessage message={{ id: "m1", role: "assistant", content: "Here's $CPU.", status: "complete", actionCard: tokenCard(token()) }} />);
     expect(screen.getByText("Here's $CPU.")).toBeInTheDocument();
     expect(screen.getByRole("region", { name: /^Cat Partner Unit card$/ })).toBeInTheDocument();
+  });
+
+  it("shows a completed generated image inline in the chat transcript", () => {
+    const card = imageCard({
+      generationId: "generation-1",
+      url: "https://storage.example.com/signed/generated.png?token=fresh",
+      prompt: "Cabi smiling in a garden",
+      aspectRatio: "1:1",
+      createdAt: "2026-09-25T00:00:00.000Z",
+      canUseAsAvatar: false,
+    });
+
+    render(<ChatMessage message={{ id: "image-message", role: "assistant", content: "Here you go.", status: "complete", actionCard: card }} />);
+
+    expect(screen.getByRole("img", { name: "Generated image: Cabi smiling in a garden" })).toHaveAttribute("src", card.url);
+  });
+
+  it("does not render a broken image before a fresh signed URL is available", () => {
+    const card = imageCard({
+      generationId: "generation-2",
+      url: "",
+      prompt: "Cabi smiling in a garden",
+      aspectRatio: "1:1",
+      createdAt: "2026-09-25T00:00:00.000Z",
+      canUseAsAvatar: false,
+    });
+
+    render(<ChatMessage message={{ id: "image-message-no-url", role: "assistant", content: "Here you go.", status: "complete", actionCard: card }} />);
+
+    expect(screen.queryByRole("img")).toBeNull();
   });
 
   it("renders no card when the message has none", () => {
