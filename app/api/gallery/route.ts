@@ -6,6 +6,7 @@ import { assertSameOrigin, jsonError } from "@/lib/security/request";
 import { featureGate } from "@/lib/config/feature-gate";
 import { guardAppApiCpu } from "@/lib/site/guard";
 import { walletAuthOrResponse } from "@/lib/wallet/session";
+import { deleteGeneration } from "@/lib/image-generation/lifecycle";
 
 export const dynamic = "force-dynamic";
 
@@ -77,19 +78,12 @@ export async function DELETE(request: Request) {
   const parsed = deleteSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return jsonError("Invalid request.", 400, "INVALID_INPUT");
 
-  const db = getServiceClient();
-  if (!db) return jsonError("Image storage isn't configured.", 503, "DATABASE_NOT_CONFIGURED");
-
-  const { data } = await db
-    .from("image_generations")
-    .select("image_path")
-    .eq("id", parsed.data.id)
-    .eq("wallet_account_id", auth.identity.walletAccountId)
-    .maybeSingle();
-  if (!data) return jsonError("That image doesn't exist.", 404, "NOT_FOUND");
-
-  if (data.image_path) await db.storage.from(generationBucket).remove([data.image_path as string]);
-  await db.from("image_generations").delete().eq("id", parsed.data.id).eq("wallet_account_id", auth.identity.walletAccountId);
+  const result = await deleteGeneration(auth.identity.walletAccountId, parsed.data.id);
+  if (!result.ok) {
+    if (result.reason === "NOT_FOUND") return jsonError("That image doesn't exist.", 404, "NOT_FOUND");
+    if (result.reason === "IN_CONTEST") return jsonError("An image submitted to a contest cannot be deleted.", 409, "IMAGE_IN_CONTEST");
+    return jsonError("I couldn't remove that image.", 503, "STORAGE_FAILED");
+  }
 
   return Response.json({ ok: true }, { headers: { "Cache-Control": "private, no-store" } });
 }

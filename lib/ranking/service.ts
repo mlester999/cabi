@@ -113,12 +113,13 @@ export async function readStanding(walletAccountId: string, type: "WEEKLY" | "MO
   const row = (Array.isArray(data) ? data[0] : data) as { placement: number | null; xp: number | string; rank_tier: number; participants: number } | undefined;
   if (!row) return null;
   const xp = Number(row.xp ?? 0);
+  const thresholds = await readRankThresholds();
   return {
     placement: row.placement == null ? null : Number(row.placement),
     xp,
     participants: Number(row.participants ?? 0),
     tier: tierByNumber(Number(row.rank_tier ?? 1)),
-    progress: rankProgress(xp),
+    progress: rankProgress(xp, thresholds),
   };
 }
 
@@ -157,6 +158,49 @@ export async function readLeaderboard(
       tier: tierByNumber(Number(row.rank_tier ?? 1)),
       isCurrentUser: Boolean(row.is_current_user),
     })),
+  };
+}
+
+/** Lifetime standings never roll over and use the same private wallet filter. */
+export async function readAllTimeLeaderboard(
+  options: { walletAccountId?: string | null; limit?: number } = {},
+): Promise<{ entries: LeaderboardEntry[]; available: boolean }> {
+  const db = getServiceClient();
+  if (!db) return { entries: [], available: false };
+  const { data, error } = await db.rpc("rank_all_time_leaderboard", {
+    p_limit: options.limit ?? 100,
+    p_wallet_account_id: options.walletAccountId ?? null,
+  });
+  if (error || !data) return { entries: [], available: false };
+  const rows = data as Array<{ placement: number; username: string; avatar_path: string | null; xp: number | string; rank_tier: number; is_current_user: boolean }>;
+  return {
+    available: true,
+    entries: rows.map((row) => ({
+      placement: Number(row.placement),
+      username: row.username,
+      avatarPath: row.avatar_path,
+      xp: Number(row.xp ?? 0),
+      tier: tierByNumber(Number(row.rank_tier ?? 1)),
+      isCurrentUser: Boolean(row.is_current_user),
+    })),
+  };
+}
+
+export async function readAllTimeStanding(walletAccountId: string): Promise<Standing | null> {
+  const db = getServiceClient();
+  if (!db) return null;
+  const { data, error } = await db.rpc("rank_all_time_standing", { p_wallet_account_id: walletAccountId });
+  if (error || !data) return null;
+  const row = (Array.isArray(data) ? data[0] : data) as { placement: number | null; xp: number | string; rank_tier: number; participants: number } | undefined;
+  if (!row) return null;
+  const xp = Number(row.xp ?? 0);
+  const thresholds = await readRankThresholds();
+  return {
+    placement: row.placement == null ? null : Number(row.placement),
+    xp,
+    participants: Number(row.participants ?? 0),
+    tier: tierByNumber(Number(row.rank_tier ?? 1)),
+    progress: rankProgress(xp, thresholds),
   };
 }
 

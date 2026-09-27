@@ -53,6 +53,8 @@ export async function DELETE(request: Request) {
   if (!result.ok) {
     return result.reason === "NOT_FOUND"
       ? jsonError("That image doesn't exist.", 404, "NOT_FOUND")
+      : result.reason === "IN_CONTEST"
+        ? jsonError("An image submitted to a contest cannot be deleted.", 409, "IMAGE_IN_CONTEST")
       : jsonError("I couldn't remove that image.", 503, "STORAGE_FAILED");
   }
   return Response.json({ ok: true }, { headers: { "Cache-Control": "private, no-store" } });

@@ -1,26 +1,12 @@
 import { CabiCharacter } from "@/components/prelaunch/cabi-character";
 import { PrelaunchHeader } from "@/components/prelaunch/prelaunch-header";
 import { PrelaunchVeil } from "@/components/prelaunch/prelaunch-veil";
-import { CabiMascotSpot, CabiTerminal, SystemStatus } from "@/components/prelaunch/system-status";
+import { CabiMascotSpot, SystemStatus } from "@/components/prelaunch/system-status";
 import { CupStage } from "@/components/prelaunch/cpu-stage";
 import { FeaturePreview } from "@/components/prelaunch/feature-preview";
 import { Reveal } from "@/components/prelaunch/reveal";
 import type { PrelaunchSettings } from "@/lib/site/prelaunch";
 import type { PublicWalletConfig } from "@/lib/wallet/config";
-
-/**
- * Rotating status lines. Playful and non-committal: none of them promise a
- * release time, and the owner's own status text always takes the first slot.
- */
-export const statusRotation = [
-  "Teaching Cabi new tricks...",
-  "Building her memory...",
-  "Connecting the wires...",
-  "Securing wallet sign-in...",
-  "Learning Clank.trade...",
-  "Getting her room ready...",
-  "Almost ready to meet you.",
-] as const;
 
 /**
  * The public prelaunch experience.
@@ -40,7 +26,6 @@ export function PrelaunchExperience({
   preview?: React.ReactNode;
 }) {
   const ticker = wallet.cpu.ticker || "CPU";
-  const rotation = [settings.subheadline, ...statusRotation];
 
   return (
     <div className="cabi-prelaunch cabi-noise relative min-h-[100dvh] overflow-x-hidden bg-transparent text-white">
@@ -92,7 +77,7 @@ export function PrelaunchExperience({
             </Reveal>
 
             <Reveal delay={0.06} className="mt-7">
-              <SystemStatus statusLabel={settings.statusLabel || "CABI SYSTEM"} rotation={rotation} />
+              <SystemStatus statusLabel="PUBLIC ACCESS" />
             </Reveal>
 
             <Reveal delay={0.12} className="mt-5">
@@ -107,9 +92,6 @@ export function PrelaunchExperience({
               <CabiMascotSpot />
             </Reveal>
 
-            <Reveal delay={0.2} className="mt-5">
-              <CabiTerminal />
-            </Reveal>
           </div>
 
           <div className="order-3 hidden lg:block">

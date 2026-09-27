@@ -18,6 +18,7 @@ export function GalleryExperience() {
   const [phase, setPhase] = useState<"loading" | "ready" | "error">("loading");
   const [busy, setBusy] = useState<string | null>(null);
   const [avatarNotice, setAvatarNotice] = useState<string | null>(null);
+  const [deleteNotice, setDeleteNotice] = useState<string | null>(null);
   const router = useRouter();
   const pathname = usePathname();
 
@@ -59,9 +60,14 @@ export function GalleryExperience() {
 
   const remove = async (id: string) => {
     setBusy(id);
+    setDeleteNotice(null);
     try {
       const response = await fetch("/api/gallery", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id }) });
       if (response.ok) setImages((current) => current.filter((image) => image.id !== id));
+      else {
+        const payload = await response.json().catch(() => ({})) as { error?: string };
+        setDeleteNotice(payload.error ?? "I couldn't remove that image.");
+      }
     } finally {
       setBusy(null);
     }
@@ -90,6 +96,8 @@ export function GalleryExperience() {
   }
 
   return (
+    <>
+    {deleteNotice ? <p role="status" className="mt-5 rounded-xl bg-amber-200/[0.08] px-4 py-3 text-xs text-amber-100">{deleteNotice}</p> : null}
     <ul className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
       {images.map((image) => (
         <li key={image.id} className="glass overflow-hidden rounded-[22px]">
@@ -143,5 +151,6 @@ export function GalleryExperience() {
         </li>
       ))}
     </ul>
+    </>
   );
 }

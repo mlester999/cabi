@@ -6,7 +6,7 @@ import { LeaderboardExperience } from "@/components/leaderboard/leaderboard-expe
 import { renderPrelaunchFallback } from "@/components/prelaunch/render-fallback";
 import { LockedFeatureScreen } from "@/components/features/locked-feature-screen";
 import { readFeatureFlags } from "@/lib/config/feature-flags.server";
-import { getAppAccess } from "@/lib/site/guard";
+import { cpuGatedPage } from "@/lib/cpu-access/page";
 import { readWalletAuth } from "@/lib/wallet/session";
 
 export const dynamic = "force-dynamic";
@@ -28,8 +28,9 @@ export default async function LeaderboardPage() {
   const flags = await readFeatureFlags();
   if (!flags.leaderboard_enabled) return <LockedFeatureScreen flagKey="leaderboard_enabled" />;
 
-  const access = await getAppAccess();
-  if (!access.live) return renderPrelaunchFallback();
+  const gated = await cpuGatedPage(() => null);
+  if (!gated.allowed && !gated.gated) return renderPrelaunchFallback();
+  if (gated.gated) return <>{gated.element}</>;
 
   let wallet = null;
   try { wallet = await readWalletAuth(); } catch { wallet = null; }

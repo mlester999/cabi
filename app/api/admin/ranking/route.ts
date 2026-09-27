@@ -43,7 +43,7 @@ export async function GET() {
   };
 
   const [{ data: pendingRewards }, { data: flagged }, { data: suspiciousData }, { data: eventData }] = await Promise.all([
-    db.from("rank_reward_snapshots").select("id,season_id,placement,xp,username,wallet_address,reward_status,admin_note,rewarded_at,rank_seasons(type,label)").order("created_at", { ascending: false }).limit(50),
+    db.from("rank_reward_snapshots").select("id,season_id,placement,xp,username,wallet_address,reward_status,reward_amount,transaction_hash,admin_note,rewarded_at,rank_seasons(type,label)").order("created_at", { ascending: false }).limit(50),
     db.from("profiles").select("wallet_account_id,username,ranking_status").neq("ranking_status", "NORMAL").limit(50),
     db.rpc("rank_suspicious_activity", { p_limit: 50 }),
     db.from("rank_xp_events").select("id,wallet_account_id,xp_delta,event_type,reason_code,quality_score,created_at").order("created_at", { ascending: false }).limit(30),
@@ -77,6 +77,8 @@ export async function GET() {
           // Shown to the owner so a manual payout can be made. Never public.
           walletAddress: (record.wallet_address as string | null) ?? null,
           status: String(record.reward_status),
+          rewardAmount: record.reward_amount == null ? null : String(record.reward_amount),
+          transactionHash: (record.transaction_hash as string | null) ?? null,
           note: (record.admin_note as string | null) ?? null,
           rewardedAt: (record.rewarded_at as string | null) ?? null,
           seasonType: season?.type ?? null,
@@ -104,7 +106,14 @@ const actionSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("reset"), type: z.enum(["WEEKLY", "MONTHLY"]) }),
   z.object({ action: z.literal("recalculate"), periodId: z.string().uuid() }),
   z.object({ action: z.literal("adjust"), walletAccountId: z.string().uuid(), delta: z.number().int().min(-5000).max(5000).refine((value) => value !== 0, "Enter a non-zero amount."), reason: z.string().trim().min(3).max(200) }),
-  z.object({ action: z.literal("reward"), id: z.number().int().positive(), status: z.enum(["PENDING", "REWARDED", "SKIPPED"]), note: z.string().trim().max(500).optional() }),
+  z.object({
+    action: z.literal("reward"),
+    id: z.number().int().positive(),
+    status: z.enum(["PENDING", "REWARDED", "SKIPPED"]),
+    note: z.string().trim().max(500).nullable().optional(),
+    rewardAmount: z.string().trim().regex(/^\d{1,20}(?:\.\d{1,18})?$/u, "Enter a positive $CPU amount.").nullable().optional().refine((value) => value == null || /[1-9]/u.test(value), "Enter a positive $CPU amount."),
+    transactionHash: z.string().trim().regex(/^0x[a-fA-F0-9]{64}$/u, "Enter a 32-byte transaction hash.").nullable().optional(),
+  }),
   z.object({ action: z.literal("eligibility"), walletAccountId: z.string().uuid(), status: z.enum(["NORMAL", "REVIEW", "INELIGIBLE"]) }),
   z.object({
     action: z.literal("tuning"),
@@ -194,12 +203,14 @@ export async function POST(request: Request) {
       .from("rank_reward_snapshots")
       .update({
         reward_status: parsed.data.status,
-        admin_note: parsed.data.note ?? null,
+        admin_note: parsed.data.note?.trim() || null,
+        reward_amount: parsed.data.rewardAmount ?? null,
+        transaction_hash: parsed.data.transactionHash ?? null,
         rewarded_at: parsed.data.status === "REWARDED" ? new Date().toISOString() : null,
       })
       .eq("id", parsed.data.id);
     if (error) return jsonError("That reward could not be updated.", 503, "UPDATE_FAILED");
-    await auditAdmin(request, admin.email, "ranking.reward_status", "rank_reward_snapshot", String(parsed.data.id), "success", { status: parsed.data.status });
+    await auditAdmin(request, admin.email, "ranking.reward_status", "rank_reward_snapshot", String(parsed.data.id), "success", { status: parsed.data.status, rewardAmount: parsed.data.rewardAmount ?? null, transactionHash: parsed.data.transactionHash ?? null });
     // Deliberately no token transfer: the site records the decision, the owner
     // makes the payout.
     return Response.json({ ok: true }, { headers: { "Cache-Control": "private, no-store" } });

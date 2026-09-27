@@ -1,4 +1,4 @@
-import { readLeaderboard, readStanding } from "@/lib/ranking/service";
+import { readAllTimeLeaderboard, readAllTimeStanding, readLeaderboard, readStanding } from "@/lib/ranking/service";
 import { featureGate } from "@/lib/config/feature-gate";
 import { guardAppApiCpu } from "@/lib/site/guard";
 import { readWalletAuth } from "@/lib/wallet/session";
@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 /**
  * Leaderboard reads.
  *
- * Weekly and monthly share one shape. The response never contains a wallet
+ * Period and lifetime boards share one shape. The response never contains a wallet
  * address: ranking is published by username only, and every row is filtered to
  * accounts that completed a profile. The season's `endsAt` is a server timestamp
  * so the client countdown is anchored to real data rather than a local guess.
@@ -22,14 +22,17 @@ export async function GET(request: Request) {
   if (blocked) return blocked;
 
   const url = new URL(request.url);
-  const type = url.searchParams.get("type")?.toUpperCase() === "MONTHLY" ? "MONTHLY" : "WEEKLY";
+  const requested = url.searchParams.get("type")?.toUpperCase();
+  const type = requested === "MONTHLY" ? "MONTHLY" : requested === "ALL_TIME" ? "ALL_TIME" : "WEEKLY";
 
   let wallet = null;
   try { wallet = await readWalletAuth(); } catch { wallet = null; }
 
   const [{ season, entries, available }, standing, profile] = await Promise.all([
-    readLeaderboard(type, { walletAccountId: wallet?.walletAccountId ?? null, limit: 100 }),
-    wallet ? readStanding(wallet.walletAccountId, type) : Promise.resolve(null),
+    type === "ALL_TIME"
+      ? readAllTimeLeaderboard({ walletAccountId: wallet?.walletAccountId ?? null, limit: 100 }).then((result) => ({ ...result, season: null }))
+      : readLeaderboard(type, { walletAccountId: wallet?.walletAccountId ?? null, limit: 100 }),
+    wallet ? (type === "ALL_TIME" ? readAllTimeStanding(wallet.walletAccountId) : readStanding(wallet.walletAccountId, type)) : Promise.resolve(null),
     wallet ? readProfile(wallet.walletAccountId) : Promise.resolve(null),
   ]);
 

@@ -345,7 +345,7 @@ export async function refreshStoredCards<T extends { id: string; role: string; m
  * Ownership is part of the lookup rather than a check afterwards, so a request
  * naming another wallet's id removes nothing.
  */
-export async function deleteGeneration(walletAccountId: string, generationId: string): Promise<{ ok: true } | { ok: false; reason: "NOT_FOUND" | "STORAGE_FAILED" }> {
+export async function deleteGeneration(walletAccountId: string, generationId: string): Promise<{ ok: true } | { ok: false; reason: "NOT_FOUND" | "STORAGE_FAILED" | "IN_CONTEST" }> {
   const db = getServiceClient();
   if (!db) return { ok: false, reason: "NOT_FOUND" };
 
@@ -357,14 +357,33 @@ export async function deleteGeneration(walletAccountId: string, generationId: st
     .maybeSingle();
   if (!data) return { ok: false, reason: "NOT_FOUND" };
 
+  // Contest entries keep their source image and history. Check before removing
+  // storage so a submitted image cannot leave a visible but broken entry.
+  const { count, error: contestError } = await db
+    .from("cabi_image_contest_entries")
+    .select("id", { count: "exact", head: true })
+    .eq("image_generation_id", generationId);
+  if (contestError) return { ok: false, reason: "STORAGE_FAILED" };
+  if ((count ?? 0) > 0) return { ok: false, reason: "IN_CONTEST" };
+
   const path = (data as { image_path: string | null }).image_path;
-  // Storage first: a row without an object is recoverable, an orphaned object is
-  // not reachable at all.
+  // Remove the row before storage. The contest foreign key protects it during a
+  // concurrent submission, and a restricted deletion must never orphan a public
+  // contest entry by removing its underlying object first.
+  const { data: deleted, error: deleteError } = await db
+    .from("image_generations")
+    .delete()
+    .eq("id", generationId)
+    .eq("wallet_account_id", walletAccountId)
+    .select("id")
+    .maybeSingle();
+  if (deleteError?.code === "23503") return { ok: false, reason: "IN_CONTEST" };
+  if (deleteError || !deleted) return { ok: false, reason: deleteError ? "STORAGE_FAILED" : "NOT_FOUND" };
+
   if (path) {
     const { error } = await db.storage.from(generationBucket).remove([path]);
     if (error) return { ok: false, reason: "STORAGE_FAILED" };
   }
-  await db.from("image_generations").delete().eq("id", generationId).eq("wallet_account_id", walletAccountId);
   return { ok: true };
 }
 

@@ -23,6 +23,7 @@ export const featureFlagKeys = [
   "rewards_enabled",
   "achievements_enabled",
   "gallery_enabled",
+  "contest_enabled",
 ] as const;
 
 export type FeatureFlagKey = (typeof featureFlagKeys)[number];
@@ -58,12 +59,13 @@ export const CABI_FEATURES = [
   { id: "memory", label: "Memory", description: "Keep the moments you want Cabi to remember.", icon: "brain", flag: "memory_enabled", surface: "active", route: "/settings/memory" },
   { id: "cpu", label: "$CPU", description: "The Cat Partner Unit access page.", icon: "cpu", flag: null, surface: "active", route: "/cpu" },
 
-  { id: "leaderboard", label: "Leaderboard", description: "Weekly and monthly rankings.", icon: "trophy", flag: "leaderboard_enabled", surface: "active", route: "/leaderboard" },
+  { id: "leaderboard", label: "Leaderboard", description: "Weekly, monthly and lifetime rankings.", icon: "trophy", flag: "leaderboard_enabled", surface: "active", route: "/leaderboard" },
   { id: "ranks", label: "Ranks", description: "Lifetime progress through six Cabi ranks.", icon: "medal", flag: "ranking_enabled", surface: "active", route: "/profile" },
-  { id: "portfolio", label: "Portfolio", description: "See your wallet through Cabi.", icon: "briefcase-business", flag: "portfolio_enabled", surface: "roadmap", route: "/portfolio" },
+  { id: "portfolio", label: "Portfolio", description: "See configured onchain balances for your signed-in wallet.", icon: "briefcase-business", flag: "portfolio_enabled", surface: "active", route: "/portfolio" },
   { id: "automated-trading", label: "Automated Trading", description: "Tell Cabi what you want to trade.", icon: "bot", flag: "direct_trading_enabled", surface: "roadmap", route: "/trading" },
-  { id: "rewards", label: "Rewards", description: "Community rewards for real activity.", icon: "gift", flag: "rewards_enabled", surface: "roadmap", route: "/rewards" },
-  { id: "achievements", label: "Achievements", description: "Permanent milestones from time spent with Cabi.", icon: "award", flag: "achievements_enabled", surface: "roadmap", route: "/achievements" },
+  { id: "rewards", label: "Rewards", description: "Track manually distributed leaderboard rewards.", icon: "gift", flag: "rewards_enabled", surface: "active", route: "/rewards" },
+  { id: "achievements", label: "Achievements", description: "Permanent milestones earned through Cabi activity.", icon: "award", flag: "achievements_enabled", surface: "active", route: "/achievements" },
+  { id: "contest", label: "Image Contest", description: "Submit one of your saved Cabi images for admin judging.", icon: "image", flag: "contest_enabled", surface: "active", route: "/contest" },
 
   // Gallery remains a supporting route for the existing image history work. It
   // is intentionally not part of the six-card public roadmap brief.
@@ -94,12 +96,12 @@ export const defaultFeatureFlags: FeatureFlags = {
   // Active progression features.
   ranking_enabled: true,
   leaderboard_enabled: true,
-  portfolio_enabled: false,
+  portfolio_enabled: true,
   direct_trading_enabled: false,
-  rewards_enabled: false,
-  achievements_enabled: false,
-  // Image history lives inside the profile for now, not as its own destination.
-  gallery_enabled: false,
+  rewards_enabled: true,
+  achievements_enabled: true,
+  gallery_enabled: true,
+  contest_enabled: true,
 };
 
 /** Copy for the locked cards. Never claims a feature works. */

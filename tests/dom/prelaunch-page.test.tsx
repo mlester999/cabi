@@ -96,21 +96,19 @@ describe("prelaunch page", () => {
   it("renders the brand, headline, and supporting copy", async () => {
     await renderPrelaunch();
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Cabi is getting ready.");
-    expect(screen.getAllByText(/still working on the tech/i).length).toBeGreaterThan(0);
-    expect(screen.getByText(/Soon you'll be able to talk with Cabi/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/public Cabi experience is still in prelaunch/i).length).toBeGreaterThan(0);
+    expect(screen.getByText(/public chat, images, memory, and wallet features will open/i)).toBeInTheDocument();
     expect(screen.getAllByText("CABI").length).toBeGreaterThan(0);
     expect(screen.getAllByText(/Cat Partner Unit/i).length).toBeGreaterThan(0);
   });
 
-  it("shows the animated system status without any fabricated percentage", async () => {
+  it("shows a plain launch status without fabricated system telemetry", async () => {
     const { container } = await renderPrelaunch();
-    for (const label of ["Personality Core", "Memory", "Wallet Connection", "Clank.trade", "Cat Mode"]) {
-      expect(screen.getAllByText(label).length).toBeGreaterThan(0);
-    }
-    // The "Preparing..." dots animate; a completion percentage must never appear.
+    expect(screen.getByText("Prelaunch")).toBeInTheDocument();
+    expect(screen.getByText("PUBLIC ACCESS")).toBeInTheDocument();
     expect(container.textContent ?? "").not.toMatch(/\d{1,3}\s*%/u);
-    expect(container.textContent ?? "").not.toMatch(/complete/iu);
-    expect(screen.getAllByText("CABI SYSTEM").length).toBe(2);
+    expect(container.textContent ?? "").not.toMatch(/systems? preparing|personality core|booting/iu);
+    expect(screen.getAllByText("CAT PARTNER UNIT").length).toBe(1);
   });
 
   it("does not claim an exact release date", async () => {
@@ -162,26 +160,22 @@ describe("prelaunch page", () => {
     expect(screen.getByText("Cabi is nearly ready.")).toBeInTheDocument();
   });
 
-  it("keeps the decorative terminal hidden from assistive tech and out of the way", async () => {
+  it("does not render decorative boot logs as product status", async () => {
     const { container } = await renderPrelaunch();
-    const terminal = container.querySelector("[data-cabi-terminal]");
-    expect(terminal).not.toBeNull();
-    expect(terminal?.getAttribute("aria-hidden")).toBe("true");
-    expect(terminal?.textContent).toContain("cabi@unit");
-    // It is decorative: it must never become the page's main content.
+    expect(container.querySelector("[data-cabi-terminal]")).toBeNull();
     expect(container.querySelectorAll("h1").length).toBe(1);
   });
 
   it("answers a click on the mascot with a playful line", async () => {
     await renderPrelaunch();
     const mascot = screen.getByRole("button", { name: /Cabi, your Cat Partner Unit/i });
-    expect(screen.queryByText(/Still working on it/i)).toBeNull();
+    expect(screen.queryByText(/I saved you the coziest spot/i)).toBeNull();
 
     await act(async () => { fireEvent.click(mascot); });
-    expect(screen.getByText(/Still working on it/i)).toBeInTheDocument();
+    expect(screen.getByText(/I saved you the coziest spot/i)).toBeInTheDocument();
 
     await act(async () => { fireEvent.click(screen.getByRole("button", { name: /Cabi says/i })); });
-    expect(screen.getByText(/going as fast as I can/i)).toBeInTheDocument();
+    expect(screen.getByText(/Psst.*I can hear you from here/i)).toBeInTheDocument();
   });
 
   it("gives every interactive control an accessible name and a focus ring", async () => {

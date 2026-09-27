@@ -23,6 +23,11 @@ export const appApiRoutePrefixes = [
   "/api/rank",
   "/api/images",
   "/api/gallery",
+  "/api/achievements",
+  "/api/rewards",
+  "/api/contest",
+  "/api/admin/contest",
+  "/api/activity",
 ] as const;
 
 /**
@@ -45,7 +50,7 @@ export const alwaysPublicApiRoutePrefixes = [
 ] as const;
 
 /** Public application pages that follow the site mode. */
-export const appPagePaths = ["/", "/settings"] as const;
+export const appPagePaths = ["/", "/settings", "/leaderboard", "/portfolio", "/gallery", "/images", "/achievements", "/rewards", "/contest", "/activity"] as const;
 
 /**
  * Server-rendered pages that require the $CPU holder gate while the site is
@@ -58,6 +63,14 @@ export const holderGatedPagePaths = [
   "/settings",
   "/settings/memory",
   "/profile",
+  "/leaderboard",
+  "/portfolio",
+  "/gallery",
+  "/images",
+  "/achievements",
+  "/rewards",
+  "/contest",
+  "/activity",
 ] as const;
 
 /** Admin-only surfaces that must keep working during PRELAUNCH and MAINTENANCE. */

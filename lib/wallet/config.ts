@@ -3,6 +3,7 @@ import "server-only";
 import { getAddress, isAddress } from "viem";
 import { z } from "zod";
 
+import { CPU_ACCESS_BUY_URL, CPU_ACCESS_TOKEN_ADDRESS, cpuAccessChain } from "@/lib/cpu-access/config";
 import { getServiceClient } from "@/lib/db/supabase";
 import { env } from "@/lib/config/env";
 import { fallbackCpuDescription } from "@/lib/wallet/public-defaults";
@@ -69,15 +70,9 @@ const clankTradeUrlOrEmpty = z.string().trim().max(2_000).refine((value) => {
 }, "Use the exact HTTPS Clank.trade coin URL.");
 
 /**
- * Deployment-level $CPU destination.
- *
- * The contract and its Clank.trade page are published values, so a fresh clone
- * intentionally has neither. An owner who would rather stage them in the hosting
- * environment than type them into `/admin/cpu` can set these two variables
- * instead. They are validated exactly like admin input — a valid EVM address and
- * an exact HTTPS Clank.trade URL — so a typo can never publish a broken
- * destination, and they are still gated by `launch_status` on the way to the
- * browser.
+ * Optional deployment override for the owner-managed LIVE configuration.
+ * The public PRELAUNCH projection always uses the canonical public destination
+ * from `lib/cpu-access/config.ts`, independent of these staged values.
  */
 export function environmentCpuDestination(): { contractAddress: string; clankTradeUrl: string } {
   const rawAddress = env("CPU_CONTRACT_ADDRESS")?.trim() ?? "";
@@ -216,17 +211,17 @@ export async function getWalletProductConfig(): Promise<PublicWalletConfig> {
   return { ...complete.data, cpu: normalizeCpu(complete.data.cpu) };
 }
 
-/** Public projection. Staged token destinations are not publication-ready and
- * must never leak through JSON, RSC payloads, or a prelaunch page. */
+/** Public projection. The fixed official $CPU contract and coin page remain
+ * visible before the app opens; owner-staged destinations and social links do not. */
 export function redactUnlaunchedCpu(config: PublicWalletConfig): PublicWalletConfig {
   if (config.cpu.launchStatus === "LIVE") return config;
   return {
     ...config,
     cpu: {
       ...config.cpu,
-      contractAddress: "",
-      chainId: null,
-      clankTradeUrl: "",
+      contractAddress: CPU_ACCESS_TOKEN_ADDRESS,
+      chainId: cpuAccessChain.id,
+      clankTradeUrl: CPU_ACCESS_BUY_URL,
       explorerUrl: "",
       xUrl: "",
       websiteUrl: "",

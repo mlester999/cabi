@@ -88,10 +88,12 @@ describe("no wealth in the progression model", () => {
     }
   });
 
-  it("defines exactly the eight documented achievements", () => {
+  it("defines the permanent chat, memory, image, progression and leaderboard achievements", () => {
     expect([...achievementCodes].sort()).toEqual([
-      "FIRST_CHAT", "FIRST_IMAGE", "HUNDRED_XP", "REACHED_ELITE",
-      "REACHED_LEGEND", "REACHED_MASTER", "TOP_100_WEEKLY", "TOP_10_WEEKLY",
+      "FIRST_CHAT", "HUNDRED_MESSAGES", "FIRST_MEMORY", "TEN_MEMORIES",
+      "HUNDRED_XP", "FIRST_IMAGE", "TWENTY_FIVE_IMAGES", "REACHED_FAMILIAR",
+      "REACHED_COMPANION", "TOP_100_WEEKLY", "TOP_10_WEEKLY", "WEEKLY_WINNER",
+      "TOP_10_MONTHLY", "MONTHLY_WINNER", "REACHED_ELITE", "REACHED_MASTER", "REACHED_LEGEND",
     ].sort());
   });
 });

@@ -9,7 +9,7 @@ import { tierByNumber } from "@/lib/ranking/tiers";
 type Season = { id: string; label: string; startsAt: string; endsAt: string; status: string } | null;
 type Summary = { participants: number; totalXp: number; topUsername: string | null; topXp: number | null } | null;
 type TopEntry = { placement: number; username: string; xp: number; tier: { tier: number } };
-type Reward = { id: string; placement: number; xp: number; username: string | null; walletAddress: string | null; status: string; note: string | null; seasonType: string | null; seasonLabel: string | null };
+type Reward = { id: string; placement: number; xp: number; username: string | null; walletAddress: string | null; status: string; rewardAmount: string | null; transactionHash: string | null; note: string | null; seasonType: string | null; seasonLabel: string | null };
 type Flagged = { wallet_account_id: string; username: string | null; ranking_status: string };
 type Suspicious = { wallet_account_id: string; username: string | null; message_events: number; duplicate_events: number; cap_hits: number; rapid_events: number; last_event_at: string };
 type RecentEvent = { id: number; walletAccountId: string; username: string | null; delta: number; eventType: string; reasonCode: string; qualityScore: number | null; createdAt: string };
@@ -44,6 +44,7 @@ export function AdminRankingPanel() {
   const [confirming, setConfirming] = useState<"WEEKLY" | "MONTHLY" | null>(null);
   const [busy, setBusy] = useState(false);
   const [adjust, setAdjust] = useState({ walletAccountId: "", delta: "", reason: "" });
+  const [rewardEdits, setRewardEdits] = useState<Record<string, { amount: string; hash: string; note: string }>>({});
   // Local mirror of the tuning form, seeded from the server on load.
   const [tuningForm, setTuning] = useState<{ FAMILIAR: string; COMPANION: string; ELITE: string; MASTER: string; LEGEND: string; dailyXpCap: string; imageXpPerDay: string; rewardPlacements: string } | null>(null);
 
@@ -90,6 +91,10 @@ export function AdminRankingPanel() {
       setBusy(false);
       setConfirming(null);
     }
+  };
+
+  const editReward = (id: string, field: "amount" | "hash" | "note", value: string) => {
+    setRewardEdits((current) => ({ ...current, [id]: { ...(current[id] ?? { amount: "", hash: "", note: "" }), [field]: value } }));
   };
 
   if (phase === "loading") return <p className="mt-8 text-sm text-[#a8a3b3]" role="status">Loading ranking...</p>;
@@ -229,21 +234,38 @@ export function AdminRankingPanel() {
           <p className="mt-4 text-[11px] text-[#625d6d]">No snapshots yet. They appear when a period closes.</p>
         ) : (
           <ol className="mt-4 divide-y divide-white/[0.05] rounded-2xl border border-white/[0.05]">
-            {data.rewards.map((reward) => (
-              <li key={reward.id} className="flex flex-wrap items-center gap-3 px-3 py-3">
-                <span className="w-8 font-mono text-[11px] text-[#777180]">#{reward.placement}</span>
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-[13px] text-white">{reward.username ?? "unknown"}</span>
-                  <span className="block truncate font-mono text-[10px] text-[#625d6d]">{reward.walletAddress ?? "-"} - {reward.seasonLabel ?? ""}</span>
-                </span>
-                <span className="font-mono text-[12px] text-violet-200">{reward.xp.toLocaleString()}</span>
-                <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[.1em] ${reward.status === "REWARDED" ? "bg-emerald-300/[0.12] text-emerald-200" : reward.status === "SKIPPED" ? "bg-white/[0.06] text-[#8e889b]" : "bg-amber-200/[0.12] text-amber-100"}`}>{reward.status}</span>
-                <span className="flex gap-1.5">
-                  <button type="button" disabled={busy} onClick={() => void act({ action: "reward", id: Number(reward.id), status: "REWARDED" }, "Marked rewarded.")} className="focus-ring h-8 rounded-lg border border-emerald-300/[0.24] px-2.5 text-[10px] font-semibold text-emerald-200 disabled:opacity-40">Rewarded</button>
-                  <button type="button" disabled={busy} onClick={() => void act({ action: "reward", id: Number(reward.id), status: "SKIPPED" }, "Marked skipped.")} className="focus-ring h-8 rounded-lg border border-white/[0.1] px-2.5 text-[10px] font-semibold text-[#8e889b] disabled:opacity-40">Skip</button>
-                </span>
-              </li>
-            ))}
+            {data.rewards.map((reward) => {
+              const edit = rewardEdits[reward.id] ?? { amount: reward.rewardAmount ?? "", hash: reward.transactionHash ?? "", note: reward.note ?? "" };
+              const save = (status: "PENDING" | "REWARDED" | "SKIPPED", success: string) => void act({
+                action: "reward", id: Number(reward.id), status,
+                rewardAmount: edit.amount.trim() || null,
+                transactionHash: edit.hash.trim() || null,
+                note: edit.note.trim() || null,
+              }, success);
+              return (
+                <li key={reward.id} className="space-y-3 px-3 py-3">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <span className="w-8 font-mono text-[11px] text-[#777180]">#{reward.placement}</span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-[13px] text-white">{reward.username ?? "unknown"}</span>
+                      <span className="block truncate font-mono text-[10px] text-[#625d6d]">{reward.walletAddress ?? "-"} - {reward.seasonLabel ?? ""}</span>
+                    </span>
+                    <span className="font-mono text-[12px] text-violet-200">{reward.xp.toLocaleString()} XP</span>
+                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[.1em] ${reward.status === "REWARDED" ? "bg-emerald-300/[0.12] text-emerald-200" : reward.status === "SKIPPED" ? "bg-white/[0.06] text-[#8e889b]" : "bg-amber-200/[0.12] text-amber-100"}`}>{reward.status === "REWARDED" ? "Distributed" : reward.status === "SKIPPED" ? "Skipped" : "Pending"}</span>
+                  </div>
+                  <div className="grid gap-2 sm:grid-cols-3">
+                    <label className="text-[10px] text-[#8e889b]">Amount in $CPU<input inputMode="decimal" value={edit.amount} onChange={(event) => editReward(reward.id, "amount", event.target.value)} placeholder="Not assigned" className="field mt-1 h-9 w-full text-xs" /></label>
+                    <label className="text-[10px] text-[#8e889b]">Transaction hash<input value={edit.hash} onChange={(event) => editReward(reward.id, "hash", event.target.value)} placeholder="0x…" className="field mt-1 h-9 w-full font-mono text-[10px]" /></label>
+                    <label className="text-[10px] text-[#8e889b]">Admin note<input value={edit.note} onChange={(event) => editReward(reward.id, "note", event.target.value)} placeholder="Optional" className="field mt-1 h-9 w-full text-xs" /></label>
+                  </div>
+                  <div className="flex justify-end gap-2">
+                    <button type="button" disabled={busy} onClick={() => save("PENDING", "Reward details saved as pending.")} className="focus-ring h-8 rounded-lg border border-white/[0.1] px-2.5 text-[10px] font-semibold text-[#d5d0de] disabled:opacity-40">Save pending</button>
+                    <button type="button" disabled={busy} onClick={() => save("REWARDED", "Marked distributed.")} className="focus-ring h-8 rounded-lg border border-emerald-300/[0.24] px-2.5 text-[10px] font-semibold text-emerald-200 disabled:opacity-40">Mark distributed</button>
+                    <button type="button" disabled={busy} onClick={() => save("SKIPPED", "Marked skipped.")} className="focus-ring h-8 rounded-lg border border-white/[0.1] px-2.5 text-[10px] font-semibold text-[#8e889b] disabled:opacity-40">Skip</button>
+                  </div>
+                </li>
+              );
+            })}
           </ol>
         )}
       </section>

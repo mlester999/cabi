@@ -1,6 +1,7 @@
 "use client";
 
 import { explorerAddressUrl } from "@/lib/wallet/client";
+import { cpuAccessChain } from "@/lib/cpu-access/config";
 import { fallbackCpuDescription } from "@/lib/wallet/public-defaults";
 import { ArrowUpRight, Check, Clock3, Copy, Network, ShieldCheck } from "lucide-react";
 import { useState } from "react";
@@ -13,13 +14,9 @@ import type { PublicWalletConfig } from "@/lib/wallet/config";
  * The token and the application have independent launch states, so the token
  * block can be complete while the application itself is still PRELAUNCH.
  *
- * The values come from the same owner-managed configuration every other $CPU
- * surface uses, which is already redacted by `redactUnlaunchedCpu`: while the
- * admin record is not LIVE, the contract, network, and trade URL arrive empty and
- * this block states plainly that nothing is published. No contract address is
- * hardcoded here, so an unverified token destination can never be presented as
- * official. Network-specific wallet controls stay gated until the admin record
- * has a verified enabled chain.
+ * The public wallet projection keeps the verified contract, chain and Clank
+ * destination visible before the app opens. Owner-staged metadata stays private;
+ * wallet and explorer controls remain gated until the token settings are LIVE.
  */
 export function CupStage({ settings, wallet }: { settings: { cpuStatus: "PRELAUNCH" | "LIVE" }; wallet: PublicWalletConfig }) {
   const [copied, setCopied] = useState(false);
@@ -28,6 +25,7 @@ export function CupStage({ settings, wallet }: { settings: { cpuStatus: "PRELAUN
   const contractAddress = cpu.contractAddress;
   const clankTradeUrl = cpu.clankTradeUrl;
   const chain = cpu.chainId == null ? undefined : wallet.chains.find((candidate) => candidate.id === cpu.chainId && candidate.enabled);
+  const chainName = chain?.name ?? (cpu.chainId === cpuAccessChain.id ? cpuAccessChain.name : undefined);
   const published = Boolean(contractAddress && clankTradeUrl);
   const live = settings.cpuStatus === "LIVE" && cpu.launchStatus === "LIVE" && Boolean(contractAddress && chain && clankTradeUrl);
   const explorerUrl = live && contractAddress && chain
@@ -80,7 +78,7 @@ export function CupStage({ settings, wallet }: { settings: { cpuStatus: "PRELAUN
             <span className="rounded-full border border-violet-200/[0.12] bg-violet-300/[0.06] px-2.5 py-1 text-[10px] font-medium text-violet-100">Companion project</span>
             <span className="rounded-full border border-emerald-300/[0.12] bg-emerald-300/[0.05] px-2.5 py-1 text-[10px] font-medium text-emerald-100">Prelaunch mode</span>
           </div>
-          <p className="mt-3 text-[11px] leading-5 text-[#777180]">Official token details are published by the owner.</p>
+          <p className="mt-3 text-[11px] leading-5 text-[#777180]">The public app remains in prelaunch while the official token page is available.</p>
         </div>
       </div>
 
@@ -114,7 +112,7 @@ export function CupStage({ settings, wallet }: { settings: { cpuStatus: "PRELAUN
             <p className="flex items-center gap-2 text-[10px] uppercase tracking-[.16em] text-[#706a7d]">
               <Network size={12} aria-hidden="true" /> Network
             </p>
-            <p className="mt-2 text-sm font-medium">{chain.name}</p>
+            <p className="mt-2 text-sm font-medium">{chainName}</p>
           </div>
 
           {clankTradeUrl ? (
@@ -149,14 +147,17 @@ export function CupStage({ settings, wallet }: { settings: { cpuStatus: "PRELAUN
             </div>
             <p role="status" className="mt-1 min-h-[14px] text-[10px] text-emerald-300">{copied ? "Copied" : ""}</p>
           </div>
-          <a
-            href={clankTradeUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="focus-ring flex h-11 items-center justify-center gap-2 rounded-[22px] bg-violet-200 px-4 text-sm font-semibold text-[#160f27] transition hover:brightness-105"
-          >
-            View $CPU on Clank.trade <ArrowUpRight size={15} aria-hidden="true" />
-          </a>
+          <div className="flex flex-col gap-3 sm:flex-row">
+            {chainName ? <p className="flex min-h-11 flex-1 items-center gap-2 rounded-[22px] border border-white/[0.06] bg-white/[0.02] px-4 text-xs text-[#a8a3b3]"><Network size={13} aria-hidden="true" /> {chainName}</p> : null}
+            <a
+              href={clankTradeUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="focus-ring flex min-h-11 flex-1 items-center justify-center gap-2 rounded-[22px] bg-violet-200 px-4 text-sm font-semibold text-[#160f27] transition hover:brightness-105"
+            >
+              View $CPU on Clank.trade <ArrowUpRight size={15} aria-hidden="true" />
+            </a>
+          </div>
         </div>
       ) : (
         <div className="mt-6 flex items-start gap-3 rounded-[22px] border border-white/[0.06] bg-white/[0.02] p-4">
@@ -175,7 +176,7 @@ export function CupStage({ settings, wallet }: { settings: { cpuStatus: "PRELAUN
 
       <p className="mt-5 flex items-start gap-2.5 text-[11px] leading-5 text-[#777180]">
         <ShieldCheck size={14} className="mt-0.5 shrink-0 text-violet-300" aria-hidden="true" />
-        {published ? "The contract and Clank.trade page above are owner-provided. No price or market data is shown here. " : "No contract address, price, market data, or buy link is invented before launch. "}
+        {published ? "The contract and Clank.trade page above are the official $CPU destinations. No price or market data is shown here. " : "Official token details are not available here yet. "}
         Cabi never asks for a seed phrase or private key.
       </p>
     </section>

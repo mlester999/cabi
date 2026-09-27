@@ -33,7 +33,7 @@ describe("wallet product configuration", () => {
     expect(result.cpu.clankTradeUrl).toBe("");
   });
 
-  it("redacts owner-staged launch destinations from the public prelaunch projection", () => {
+  it("publishes only the verified $CPU destination and redacts owner-staged details", () => {
     const staged = parseWalletProductConfig({
       chains: [chain],
       primaryChainId: chain.id,
@@ -50,9 +50,9 @@ describe("wallet product configuration", () => {
     const result = redactUnlaunchedCpu(staged);
     expect(result.cpu).toMatchObject({
       launchStatus: "PRELAUNCH",
-      contractAddress: "",
-      chainId: null,
-      clankTradeUrl: "",
+      contractAddress: "0x1a421a5065316d9b4062939e9959ddece6630528",
+      chainId: 4663,
+      clankTradeUrl: "https://clank.trade/coin/0x1a421a5065316d9b4062939e9959ddece6630528",
       explorerUrl: "",
       xUrl: "",
       websiteUrl: "",

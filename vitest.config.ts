@@ -15,6 +15,10 @@ export default defineConfig({
     restoreMocks: true,
     clearMocks: true,
     globals: true,
+    // This app's suites are memory heavy. A single worker keeps `npm test`
+    // reliable on the production build host instead of multiplying Node heaps.
+    maxWorkers: 1,
+    fileParallelism: false,
     // Vitest 5 removed `environmentMatchGlobs`; projects replace it. Server-plane
     // suites keep the fast Node environment, and the rendered-component suites
     // opt into jsdom by location.

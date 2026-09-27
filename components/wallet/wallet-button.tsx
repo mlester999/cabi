@@ -4,7 +4,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { explorerAddressUrl, shortenAddress } from "@/lib/wallet/client";
 import { useWallet } from "@/components/wallet/wallet-provider";
 import { WalletLogo } from "@/components/wallet/wallet-logo";
-import { Check, Copy, ExternalLink, FlaskConical, LogOut, Network, Settings, UserRound } from "lucide-react";
+import { Award, Bell, Brain, BriefcaseBusiness, Check, Copy, ExternalLink, FlaskConical, Gift, Images, LogOut, Network, Settings, Trophy, UserRound } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 
@@ -66,7 +66,7 @@ export function WalletButton({ compact = false, requiredChainId = null }: { comp
         </button>
       </PopoverTrigger>
 
-      <PopoverContent align="end" sideOffset={10} className="cabi-glass w-[min(336px,calc(100vw-24px))] p-4 text-white">
+      <PopoverContent align="end" sideOffset={10} className="cabi-glass max-h-[80dvh] w-[min(336px,calc(100vw-24px))] overflow-y-auto p-4 text-white">
         <div className="flex items-start gap-3">
           <WalletLogo wallet={wallet.activeWallet} size="md" />
           <div className="min-w-0 flex-1">
@@ -94,6 +94,14 @@ export function WalletButton({ compact = false, requiredChainId = null }: { comp
 
         <div className="mt-3 grid gap-1">
           <MenuRow href="/profile" external={false} icon={<UserRound size={15} />}>Profile</MenuRow>
+          <MenuRow href="/portfolio" external={false} icon={<BriefcaseBusiness size={15} />}>Wallet portfolio</MenuRow>
+          <MenuRow href="/settings/memory" external={false} icon={<Brain size={15} />}>Memory</MenuRow>
+          <MenuRow href="/images" external={false} icon={<Images size={15} />}>My Cabi images</MenuRow>
+          <MenuRow href="/leaderboard" external={false} icon={<Trophy size={15} />}>Leaderboard</MenuRow>
+          <MenuRow href="/achievements" external={false} icon={<Award size={15} />}>Achievements</MenuRow>
+          <MenuRow href="/rewards" external={false} icon={<Gift size={15} />}>Rewards</MenuRow>
+          <MenuRow href="/activity" external={false} icon={<Bell size={15} />}>Activity</MenuRow>
+          <MenuRow href="/cpu" external={false} icon={<span className="font-mono text-[11px] font-bold">$</span>}>$CPU</MenuRow>
           <MenuRow href="/lab" external={false} icon={<FlaskConical size={15} />}>Cabi Lab</MenuRow>
           <MenuRow href="/settings" external={false} icon={<Settings size={15} />}>Settings</MenuRow>
           <MenuRow onClick={() => void copyAddress()} icon={copied ? <Check size={15} className="text-[var(--cabi-success)]" /> : <Copy size={15} />}>

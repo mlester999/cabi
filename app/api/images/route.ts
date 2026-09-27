@@ -18,6 +18,7 @@ import { readWalletAuth } from "@/lib/wallet/session";
 import { cabiImageFailureReply } from "@/lib/cabi/status-messages";
 import { initialsFor } from "@/lib/profiles/username";
 import { readProfile } from "@/lib/profiles/service";
+import { refreshAchievements } from "@/lib/ranking/achievements";
 
 export const dynamic = "force-dynamic";
 
@@ -198,6 +199,9 @@ export async function POST(request: Request) {
     // Counted from the ledger, so only the first image of the day earns XP.
     ? await awardImageXp({ walletAccountId, imagesRewardedToday: await countImageXpToday(walletAccountId), conversationId: parsed.data.conversationId ?? null }).catch(() => null)
     : null;
+  const achievements = wallet
+    ? await refreshAchievements(walletAccountId).catch(() => [])
+    : [];
   const profile = wallet ? await readProfile(walletAccountId) : null;
 
   return Response.json(
@@ -207,6 +211,7 @@ export async function POST(request: Request) {
       remaining: Math.max(0, (quota?.remaining ?? settings.dailyLimit) - 1),
       // Only surfaced when the award actually happened.
       xp: xp?.xpAwarded ? xp.xpAwarded : null,
+      achievements,
       canUseAsAvatar: Boolean(profile?.profileCompletedAt),
       initials: profile?.username ? initialsFor(profile.username) : null,
     },

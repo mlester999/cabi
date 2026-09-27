@@ -88,8 +88,8 @@ describe("holder gate copy", () => {
  * The holder gate resolves its own trusted configuration, so it does not need -
  * and must not cause - the public JSON to publish an unlaunched destination.
  */
-describe("public CPU projection stays redacted", () => {
-  it("never publishes a staged contract through redactUnlaunchedCpu", async () => {
+describe("public CPU projection", () => {
+  it("publishes the official token destination without exposing staged social details", async () => {
     const { redactUnlaunchedCpu } = await import("@/lib/wallet/config");
     const staged = parseWalletProductConfig({
       chains: [{
@@ -116,9 +116,11 @@ describe("public CPU projection stays redacted", () => {
       },
     });
     const projected = redactUnlaunchedCpu(staged);
-    expect(projected.cpu.contractAddress).toBe("");
-    expect(projected.cpu.clankTradeUrl).toBe("");
-    // The gate is unaffected: it resolves the official contract from server-side
-    // configuration (`lib/cpu-access/config.ts`), not from this projection.
+    expect(projected.cpu.contractAddress).toBe("0x1a421a5065316d9b4062939e9959ddece6630528");
+    expect(projected.cpu.chainId).toBe(4663);
+    expect(projected.cpu.clankTradeUrl).toBe("https://clank.trade/coin/0x1a421a5065316d9b4062939e9959ddece6630528");
+    expect(projected.cpu.xUrl).toBe("");
+    expect(projected.cpu.websiteUrl).toBe("");
+    // Only canonical facts are public; staged social destinations remain private.
   });
 });

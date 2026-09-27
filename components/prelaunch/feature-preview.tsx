@@ -25,7 +25,7 @@ const features = [
     key: "clank",
     icon: Sparkles,
     title: "Clank.trade awareness",
-    body: "Learn about Clank.trade and open the exact owner-verified $CPU page after launch.",
+    body: "Open the official $CPU coin page on Clank.trade.",
   },
 ] as const;
 

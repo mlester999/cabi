@@ -21,10 +21,10 @@ export type PrelaunchSettings = {
 
 export const defaultPrelaunchSettings: PrelaunchSettings = {
   headline: "Cabi is getting ready.",
-  subheadline: "Your Cat Partner Unit is still working on the tech.",
+  subheadline: "The public Cabi experience is still in prelaunch.",
   description:
-    "Soon you'll be able to talk with Cabi, build your friendship, save your memories, connect your wallet, and learn about Clank.trade and $CPU.",
-  statusLabel: "CABI SYSTEM",
+    "I'm getting the room ready. My public chat, images, memory, and wallet features will open when the owner launches Cabi. The official $CPU coin page is available below.",
+  statusLabel: "CAT PARTNER UNIT",
   announcement: "",
   xUrl: "",
   communityUrl: "",

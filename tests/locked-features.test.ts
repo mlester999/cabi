@@ -19,16 +19,16 @@ const read = (path: string) => readFileSync(join(root, path), "utf8");
 /**
  * The locked-feature system.
  *
- * This phase ships five surfaces and presents everything else as intentionally
- * unreleased. These tests hold the two promises that matter: nothing unfinished
+ * This phase ships the server-backed product surfaces and keeps unverified
+ * direct trading disabled. These tests hold the two promises that matter: nothing unfinished
  * is reachable, and nothing unfinished is described as working.
  */
 
-const activeFlags = ["chat_enabled", "image_generation_enabled", "wallet_auth_enabled", "memory_enabled", "profile_enabled", "ranking_enabled", "leaderboard_enabled"] as const;
-const lockedFlags = ["portfolio_enabled", "direct_trading_enabled", "rewards_enabled", "achievements_enabled", "gallery_enabled"] as const;
+const activeFlags = ["chat_enabled", "image_generation_enabled", "wallet_auth_enabled", "memory_enabled", "profile_enabled", "ranking_enabled", "leaderboard_enabled", "portfolio_enabled", "rewards_enabled", "achievements_enabled", "gallery_enabled", "contest_enabled"] as const;
+const lockedFlags = ["direct_trading_enabled"] as const;
 
 describe("default flags match what this phase ships", () => {
-  it("enables the core experience, ranks, and leaderboards", () => {
+  it("enables the core experience, progression, wallet, rewards and image history", () => {
     for (const key of activeFlags) expect(defaultFeatureFlags[key]).toBe(true);
   });
 
@@ -52,9 +52,9 @@ describe("flags cannot be turned on by malformed settings", () => {
 
   it("ignores null, numbers and objects", () => {
     const flags = parseFeatureFlags({ portfolio_enabled: 1, rewards_enabled: null, gallery_enabled: {} });
-    expect(flags.portfolio_enabled).toBe(false);
-    expect(flags.rewards_enabled).toBe(false);
-    expect(flags.gallery_enabled).toBe(false);
+    expect(flags.portfolio_enabled).toBe(true);
+    expect(flags.rewards_enabled).toBe(true);
+    expect(flags.gallery_enabled).toBe(true);
   });
 
   it("accepts a real boolean in both directions", () => {
@@ -72,6 +72,9 @@ describe("locked routes cannot be bypassed", () => {
   const gated: Array<[string, string]> = [
     ["app/portfolio/page.tsx", "portfolio_enabled"],
     ["app/gallery/page.tsx", "gallery_enabled"],
+    ["app/achievements/page.tsx", "achievements_enabled"],
+    ["app/rewards/page.tsx", "rewards_enabled"],
+    ["app/contest/page.tsx", "contest_enabled"],
   ];
 
   it.each(gated)("%s is closed on its flag before anything else", (file, flag) => {
@@ -85,7 +88,7 @@ describe("locked routes cannot be bypassed", () => {
     for (const [file] of gated) {
       const source = read(file);
       // A LIVE deployment must not be enough to open an unfinished route.
-      expect(source.indexOf(`flags.`)).toBeLessThan(source.indexOf("getAppAccess()"));
+      expect(source.indexOf(`flags.`)).toBeLessThan(source.indexOf("cpuGatedPage("));
     }
   });
 
@@ -108,6 +111,9 @@ describe("locked APIs are closed too, not just the pages", () => {
     ["app/api/leaderboard/route.ts", "leaderboard_enabled"],
     ["app/api/portfolio/route.ts", "portfolio_enabled"],
     ["app/api/gallery/route.ts", "gallery_enabled"],
+    ["app/api/achievements/route.ts", "achievements_enabled"],
+    ["app/api/rewards/route.ts", "rewards_enabled"],
+    ["app/api/contest/route.ts", "contest_enabled"],
     ["app/api/cabi/route.ts", "leaderboard_enabled"],
   ];
 
@@ -225,14 +231,9 @@ describe("the app passes resolved flags to the chat shell", () => {
     expect(lab).toContain("In the works");
   });
 
-  it("keeps the four remaining future cards in one canonical registry", () => {
-    expect(cabiRoadmapFeatures).toHaveLength(4);
-    expect(cabiRoadmapFeatures.map((feature) => feature.label)).toEqual([
-      "Portfolio",
-      "Automated Trading",
-      "Rewards",
-      "Achievements",
-    ]);
+  it("keeps unverified direct trading as the only future card", () => {
+    expect(cabiRoadmapFeatures).toHaveLength(1);
+    expect(cabiRoadmapFeatures.map((feature) => feature.label)).toEqual(["Automated Trading"]);
     expect(CABI_FEATURES.filter((feature) => feature.surface === "roadmap")).toEqual(cabiRoadmapFeatures);
   });
 
@@ -247,7 +248,7 @@ describe("the app passes resolved flags to the chat shell", () => {
   });
 
   it("shows only future work in Cabi Lab and updates the sidebar count from the registry", () => {
-    expect(roadmapFeatureCount).toBe(4);
+    expect(roadmapFeatureCount).toBe(1);
     const shell = read("components/cabi/cabi-experience.tsx");
     expect(shell).toContain("{roadmapFeatureCount} things in the works");
     expect(shell).toContain('href="/leaderboard"');

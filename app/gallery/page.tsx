@@ -6,7 +6,7 @@ import { GalleryExperience } from "@/components/gallery/gallery-experience";
 import { renderPrelaunchFallback } from "@/components/prelaunch/render-fallback";
 import { LockedFeatureScreen } from "@/components/features/locked-feature-screen";
 import { readFeatureFlags } from "@/lib/config/feature-flags.server";
-import { getAppAccess } from "@/lib/site/guard";
+import { cpuGatedPage } from "@/lib/cpu-access/page";
 import { walletAuthOrResponse } from "@/lib/wallet/session";
 
 export const dynamic = "force-dynamic";
@@ -23,8 +23,9 @@ export default async function GalleryPage() {
   const flags = await readFeatureFlags();
   if (!flags.gallery_enabled) return <LockedFeatureScreen flagKey="gallery_enabled" />;
 
-  const access = await getAppAccess();
-  if (!access.live) return renderPrelaunchFallback();
+  const gated = await cpuGatedPage(() => null);
+  if (!gated.allowed && !gated.gated) return renderPrelaunchFallback();
+  if (gated.gated) return <>{gated.element}</>;
   const auth = await walletAuthOrResponse();
 
   return (

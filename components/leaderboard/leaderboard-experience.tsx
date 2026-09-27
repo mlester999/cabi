@@ -10,7 +10,8 @@ import { rankTiers, type RankTier } from "@/lib/ranking/tiers";
 type Entry = { placement: number; username: string; avatarPath: string | null; xp: number; tier: RankTier; isCurrentUser: boolean };
 type Season = { id: string; label: string; startsAt: string; endsAt: string; msRemaining: number } | null;
 type Standing = { placement: number | null; xp: number; participants: number; tier: RankTier } | null;
-type Payload = { type: "WEEKLY" | "MONTHLY"; season: Season; available: boolean; entries: Entry[]; standing: Standing; you: Entry | null; currentUser?: { username: string | null; displayName: string | null } | null };
+type Period = "WEEKLY" | "MONTHLY" | "ALL_TIME";
+type Payload = { type: Period; season: Season; available: boolean; entries: Entry[]; standing: Standing; you: Entry | null; currentUser?: { username: string | null; displayName: string | null } | null };
 
 /**
  * Weekly and monthly leaderboards.
@@ -19,12 +20,12 @@ type Payload = { type: "WEEKLY" | "MONTHLY"; season: Season; available: boolean;
  * component: an empty board means nobody has earned XP yet, and it says so.
  */
 export function LeaderboardExperience({ wallet }: { wallet: { authenticated: boolean } }) {
-  const [tab, setTab] = useState<"WEEKLY" | "MONTHLY">("WEEKLY");
+  const [tab, setTab] = useState<Period>("WEEKLY");
   const [data, setData] = useState<Payload | null>(null);
   const [phase, setPhase] = useState<"loading" | "ready" | "error">("loading");
   const [message, setMessage] = useState("");
 
-  const load = useCallback(async (type: "WEEKLY" | "MONTHLY") => {
+  const load = useCallback(async (type: Period) => {
     setPhase((current) => current === "ready" ? "ready" : "loading");
     try {
       const response = await fetch(`/api/leaderboard?type=${type}`, { cache: "no-store" });
@@ -60,7 +61,7 @@ export function LeaderboardExperience({ wallet }: { wallet: { authenticated: boo
       <div className="glass rounded-[26px] p-4 sm:p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex rounded-xl border border-white/[0.07] bg-white/[0.02] p-1" role="tablist" aria-label="Leaderboard period">
-            {(["WEEKLY", "MONTHLY"] as const).map((value) => (
+            {(["WEEKLY", "MONTHLY", "ALL_TIME"] as const).map((value) => (
               <button
                 key={value}
                 type="button"
@@ -69,7 +70,7 @@ export function LeaderboardExperience({ wallet }: { wallet: { authenticated: boo
                 onClick={() => setTab(value)}
                 className={`focus-ring rounded-lg px-3.5 py-1.5 text-[12px] font-semibold uppercase tracking-[.1em] transition ${tab === value ? "bg-violet-300/[0.14] text-white" : "text-[#a8a3b3] hover:text-white"}`}
               >
-                {value === "WEEKLY" ? "Weekly" : "Monthly"}
+                {value === "WEEKLY" ? "Weekly" : value === "MONTHLY" ? "Monthly" : "All time"}
               </button>
             ))}
           </div>

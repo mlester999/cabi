@@ -8,7 +8,6 @@ import { InitialsAvatar, RankBadge, RankProgressBar } from "@/components/ranking
 import { LockedFeatureCard } from "@/components/features/locked-feature";
 import { MyCabiImages } from "@/components/profile/my-cabi-images";
 import { ShareRankCard } from "@/components/ranking/share-rank-card";
-import { cabiRoadmapFeatures } from "@/lib/config/feature-flags";
 import type { RankTier } from "@/lib/ranking/tiers";
 
 type Progress = { current: RankTier; next: RankTier | null; xp: number; toNext: number; percent: number };
@@ -46,10 +45,7 @@ export function ProfileExperience({ rankingEnabled = true, achievementsEnabled =
   const [data, setData] = useState<Payload | null>(null);
   const [profileOnly, setProfileOnly] = useState<ProfileOnlyPayload["profile"]>(null);
   const [phase, setPhase] = useState<"loading" | "ready" | "error">("loading");
-  const profileRoadmapPreviews = cabiRoadmapFeatures
-    .filter((feature) => feature.id === "achievements" && !achievementsEnabled)
-    .map((feature) => feature.flag)
-    .filter((flag): flag is Exclude<typeof flag, null> => flag !== null);
+  const profileRoadmapPreviews = achievementsEnabled ? [] : ["achievements_enabled" as const];
 
   const load = useCallback(async () => {
     try {

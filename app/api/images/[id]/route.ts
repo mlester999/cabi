@@ -82,6 +82,7 @@ export async function DELETE(request: Request, { params }: Params) {
   const result = await deleteGeneration(auth.identity.walletAccountId, id);
   if (!result.ok) {
     if (result.reason === "NOT_FOUND") return jsonError("That image doesn't exist.", 404, "NOT_FOUND");
+    if (result.reason === "IN_CONTEST") return jsonError("An image submitted to a contest cannot be deleted.", 409, "IMAGE_IN_CONTEST");
     return jsonError("I couldn't remove that image.", 503, "STORAGE_FAILED");
   }
 
