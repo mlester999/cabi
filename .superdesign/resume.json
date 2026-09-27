@@ -21,7 +21,7 @@
       },
       "contextFiles": [
         ".superdesign/design-system.md",
-        "components/cabi/cabi-experience.tsx:556:562",
+        "components/cabi/cabi-experience.tsx",
         "components/chat/chat-message.tsx",
         "components/cabi/mini-cabi.tsx",
         "components/ui/dialog.tsx",
@@ -33,17 +33,17 @@
         "lib/utils.ts"
       ],
       "fingerprints": {
-        ".superdesign/design-system.md": "61802782759ecae838d1beaecaa5a0ce5400dc3290071c3c93a32cb076fbdf86",
-        "components/cabi/cabi-experience.tsx": "b90b818c959831dbc113f399ea9d18a599147ee56ef5e1d18fc441e39df83ada",
-        "components/chat/chat-message.tsx": "24dc6816f0fe1d83f423d349cfbc118328e5e5bc407c2bd19553f5627d2bac3b",
-        "components/cabi/mini-cabi.tsx": "139d254d7c523d71e2b30f3f5d11a7ffb7bdcf56aa7d92db93f62b5aef51b95c",
-        "components/ui/dialog.tsx": "dce39c6adc47d997bd2567f8b7a72f466b0134715105cd42f9194007b8ecdb14",
+        "components/ui/dialog.tsx": "fa1e91ef73a2f59d221478c7cc108ab867dadad03c7a2e526e58e8fdda54b96c",
         "components/ui/popover.tsx": "31c350309ff5d3034e6ecf1b0eda75ba8855bdbf987fc7ad6d71f0ef07c5a447",
-        "components/ranking/rank-badge.tsx": "8a31afe4120492a40a8d23b182ed6db50b67ccf6016d507f47cd60c94efcee47",
-        "components/wallet/wallet-button.tsx": "54f0b986c6928af81e48c0c5d3c4d1d0fcb5adc1576f522da262f8ff3c8e56c8",
-        "app/globals.css": "2febb61a50a6cccf590d9097596165e6a0629ca850eb08579b565497ff2753f6",
+        "components/wallet/wallet-button.tsx": "6d1b4e0faabe2f5d6185aa3f3d04f26b35153f563688f4ca82bb62658f843cbc",
+        "lib/utils.ts": "53f3d3d070f0a9082934da25b875f9499855c2b0693868dd28be8c23d8730f68",
+        "components/cabi/mini-cabi.tsx": "42bca9e1246b7a712174bf06a04401f2c02173e8952adc0090a3e70dc05d6175",
+        ".superdesign/design-system.md": "61802782759ecae838d1beaecaa5a0ce5400dc3290071c3c93a32cb076fbdf86",
+        "components/ranking/rank-badge.tsx": "b8385a6b5521851ba662334c9f3e091917570d70cec9a5b552472afd3c03096b",
         "app/layout.tsx": "c9b1aff955abff3a4544f59ac68d8ccd5d0d03ad474316172756d4834b61b52f",
-        "lib/utils.ts": "53f3d3d070f0a9082934da25b875f9499855c2b0693868dd28be8c23d8730f68"
+        "components/chat/chat-message.tsx": "995a41801af14667694fa0fe4425da50faa07bf5876666b7af4303df5c9da6e7",
+        "components/cabi/cabi-experience.tsx": "6d70d18a17a4d5d8a9078bd7008bbbac0e729cd0a3ec5e577c87e93c8d2e6750",
+        "app/globals.css": "a6df3bf5e8c204754aeb7754486b68cb0dbc80b562130b75f7247d4b62f608e8"
       },
       "drafts": {
         "35c64f9e-7727-402e-8ef7-bc36c370f207": {
@@ -53,12 +53,12 @@
         },
         "94bf101b-15e2-4158-98a7-675f2aa031e0": {
           "title": "Cabi — Navbar Identity Refresh",
-          "visualDirection": "Intentional identity dock with segmented navigation, rank progression cue, and wallet network status",
+          "visualDirection": "Truthful first-use chat with official Cabi art, empty-state guidance, and live weekly rankings",
           "parentDraftId": "35c64f9e-7727-402e-8ef7-bc36c370f207",
-          "currentVersion": 2
+          "currentVersion": 5
         }
       },
-      "updatedAt": "2026-09-24T13:31:00.0000000+08:00"
+      "updatedAt": "2026-09-28T00:57:00.4843951+08:00"
     },
     "/cpu": {
       "targetKind": "new-ui",
@@ -90,7 +90,7 @@
           "currentVersion": 1
         }
       },
-      "updatedAt": "2026-09-23T04:22:48.000Z"
+      "updatedAt": "2026-09-23T04:22:48Z"
     },
     "/admin/images": {
       "targetKind": "existing-ui",
@@ -146,7 +146,7 @@
           "currentVersion": 2
         }
       },
-      "updatedAt": "2026-09-24T03:00:00.000Z"
+      "updatedAt": "2026-09-24T03:00:00Z"
     }
   }
 }

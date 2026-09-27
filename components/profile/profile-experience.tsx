@@ -8,11 +8,13 @@ import { InitialsAvatar, RankBadge, RankProgressBar } from "@/components/ranking
 import { LockedFeatureCard } from "@/components/features/locked-feature";
 import { MyCabiImages } from "@/components/profile/my-cabi-images";
 import { ShareRankCard } from "@/components/ranking/share-rank-card";
+import { ProfileBadgeChip } from "@/components/profile/profile-badge-chip";
 import type { RankTier } from "@/lib/ranking/tiers";
 
 type Progress = { current: RankTier; next: RankTier | null; xp: number; toNext: number; percent: number };
 type Standing = { xp: number; placement: number | null; participants: number; tier: RankTier; progress: Progress; seasonLabel?: string | null } | null;
 type History = { type: string; label: string; xp: number; tier: RankTier; placement: number | null; status: string };
+type ProfileBadge = { id: string; slug: string; label: string; description: string; icon: string; color: string; awardedAt: string; isShowcased: boolean };
 type Payload = {
   identity: { username: string | null; displayName: string | null; initials: string | null; avatarUrl: string | null; joinedAt: string | null; rankingStatus: string };
   monthly: Standing;
@@ -20,6 +22,8 @@ type Payload = {
   lifetime: { xp: number; messages: number; bestTier: number | null; bestPlacement: number | null; seasons: number };
   history: History[];
   achievements: Array<{ code: string; label: string; description: string; awardedAt: string }>;
+  profileBadges: ProfileBadge[];
+  profileBadgesAvailable: boolean;
   bond: { level: number; label: string; progress: number; conversationDays: number; memoryCount: number };
   progress: Progress;
 };
@@ -45,6 +49,10 @@ export function ProfileExperience({ rankingEnabled = true, achievementsEnabled =
   const [data, setData] = useState<Payload | null>(null);
   const [profileOnly, setProfileOnly] = useState<ProfileOnlyPayload["profile"]>(null);
   const [phase, setPhase] = useState<"loading" | "ready" | "error">("loading");
+  const [showcaseBadgeIds, setShowcaseBadgeIds] = useState<string[] | null>(null);
+  const [badgeNotice, setBadgeNotice] = useState<string | null>(null);
+  const [savingBadges, setSavingBadges] = useState(false);
+  const selectedBadgeIds = showcaseBadgeIds ?? data?.profileBadges?.filter((badge) => badge.isShowcased).map((badge) => badge.id) ?? [];
   const profileRoadmapPreviews = achievementsEnabled ? [] : ["achievements_enabled" as const];
 
   const load = useCallback(async () => {
@@ -70,6 +78,23 @@ export function ProfileExperience({ rankingEnabled = true, achievementsEnabled =
     return () => window.clearTimeout(timer);
   }, [load]);
 
+  const saveBadgeShowcase = async () => {
+    setSavingBadges(true);
+    setBadgeNotice(null);
+    try {
+      const response = await fetch("/api/profile/badges", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ badgeIds: selectedBadgeIds }) });
+      const payload = await response.json() as { error?: string };
+      if (!response.ok) { setBadgeNotice(payload.error ?? "I couldn't save your badge selection."); return; }
+      setShowcaseBadgeIds(selectedBadgeIds);
+      setData((current) => current ? { ...current, profileBadges: (current.profileBadges ?? []).map((badge) => ({ ...badge, isShowcased: selectedBadgeIds.includes(badge.id) })) } : current);
+      setBadgeNotice("Your profile badge selection is saved.");
+    } catch {
+      setBadgeNotice("I couldn't save your badge selection. Try again.");
+    } finally {
+      setSavingBadges(false);
+    }
+  };
+
   if (phase === "loading") return <p className="mt-10 text-center text-sm text-[#a8a3b3]" role="status">Loading your profile...</p>;
   if (phase === "error" || !data) {
     if (phase === "ready" && !rankingEnabled) {
@@ -94,7 +119,7 @@ export function ProfileExperience({ rankingEnabled = true, achievementsEnabled =
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
               {profileRoadmapPreviews.map((flag) => <LockedFeatureCard key={flag} flagKey={flag} />)}
             </div>
-            <Link href="/lab" className="focus-ring mt-4 inline-flex h-10 items-center rounded-xl border border-violet-200/[0.14] bg-violet-300/[0.05] px-4 text-xs font-semibold text-violet-100 hover:bg-violet-300/[0.09]">See everything in Cabi Lab</Link>
+            <Link href="/lab" className="focus-ring mt-4 inline-flex h-10 items-center rounded-xl border border-violet-200/[0.14] bg-violet-300/[0.05] px-4 text-xs font-semibold text-violet-100 hover:bg-violet-300/[0.09]">Explore Cabi</Link>
           </section>
 
           <section className="glass rounded-[22px] p-5">
@@ -113,6 +138,8 @@ export function ProfileExperience({ rankingEnabled = true, achievementsEnabled =
   }
 
   const { identity, monthly, weekly, lifetime, history, bond, progress, achievements } = data;
+  const profileBadges = data.profileBadges ?? [];
+  const profileBadgesAvailable = data.profileBadgesAvailable ?? false;
 
   return (
     <div className="mt-8 space-y-5">
@@ -191,6 +218,34 @@ export function ProfileExperience({ rankingEnabled = true, achievementsEnabled =
           {bond.conversationDays} day{bond.conversationDays === 1 ? "" : "s"} together - {bond.memoryCount} memories
         </p>
         <p className="mt-2 text-[11px] leading-5 text-[#625d6d]">Bond is separate from rank and never resets.</p>
+      </section>
+
+      <section className="glass rounded-[22px] p-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h3 className="text-[10px] font-semibold uppercase tracking-[.16em] text-[#777180]">Profile badges</h3>
+            <p className="mt-2 text-[11px] leading-5 text-[#8e889b]">Badges are awarded by the Cabi team and are separate from achievements. Showcase up to three.</p>
+          </div>
+          {profileBadgesAvailable && profileBadges.length > 0 ? <span className="text-[10px] text-[#777180]">{selectedBadgeIds.length} of 3 selected</span> : null}
+        </div>
+        {!profileBadgesAvailable ? <p className="mt-4 text-xs text-[#a8a3b3]">Profile badges are temporarily unavailable.</p> : null}
+        {profileBadgesAvailable && profileBadges.length === 0 ? <p className="mt-4 rounded-xl border border-dashed border-white/[0.08] px-4 py-5 text-center text-xs text-[#8e889b]">No profile badges have been awarded yet.</p> : null}
+        {profileBadgesAvailable && profileBadges.length > 0 ? <>
+          <div className="mt-4 grid gap-2 sm:grid-cols-2">
+            {profileBadges.map((badge) => {
+              const selected = selectedBadgeIds.includes(badge.id);
+              const disabled = !selected && selectedBadgeIds.length >= 3;
+              return <button key={badge.id} type="button" aria-pressed={selected} disabled={disabled} onClick={() => setShowcaseBadgeIds((current) => { const ids = current ?? profileBadges.filter((item) => item.isShowcased).map((item) => item.id); return selected ? ids.filter((id) => id !== badge.id) : [...ids, badge.id]; })} className={`focus-ring flex min-h-[68px] items-start gap-3 rounded-2xl border p-3 text-left transition disabled:cursor-not-allowed disabled:opacity-45 ${selected ? "border-violet-200/[0.18] bg-violet-300/[0.06]" : "border-white/[0.06] bg-white/[0.015] hover:bg-white/[0.04]"}`}>
+                <span className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-md border border-white/[0.12] text-[10px] text-violet-100">{selected ? "✓" : ""}</span>
+                <span className="min-w-0"><ProfileBadgeChip badge={badge} /><span className="mt-1.5 block text-[10px] leading-4 text-[#8e889b]">{badge.description || "A badge awarded by the Cabi team."}</span></span>
+              </button>;
+            })}
+          </div>
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+            {badgeNotice ? <p role="status" className="text-[11px] text-violet-100">{badgeNotice}</p> : <span />}
+            <button type="button" onClick={() => void saveBadgeShowcase()} disabled={savingBadges} className="focus-ring h-9 rounded-xl border border-violet-200/[0.14] bg-violet-300/[0.06] px-3 text-[11px] font-semibold text-violet-100 hover:bg-violet-300/[0.1] disabled:opacity-40">{savingBadges ? "Saving…" : "Save showcase"}</button>
+          </div>
+        </> : null}
       </section>
 
       {achievementsEnabled && achievements.length > 0 ? (

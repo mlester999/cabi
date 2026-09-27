@@ -124,6 +124,8 @@ export async function readStanding(walletAccountId: string, type: "WEEKLY" | "MO
 }
 
 export type LeaderboardEntry = {
+  /** Internal join key. API routes must not serialize this account ID. */
+  walletAccountId: string;
   placement: number;
   username: string;
   avatarPath: string | null;
@@ -146,11 +148,12 @@ export async function readLeaderboard(
     readSeason(type),
   ]);
   if (error || !data) return { season, entries: [], available: false };
-  const rows = data as Array<{ placement: number; username: string; avatar_path: string | null; xp: number | string; rank_tier: number; is_current_user: boolean }>;
+  const rows = data as Array<{ placement: number; wallet_account_id: string; username: string; avatar_path: string | null; xp: number | string; rank_tier: number; is_current_user: boolean }>;
   return {
     season,
     available: true,
     entries: rows.map((row) => ({
+      walletAccountId: String(row.wallet_account_id),
       placement: Number(row.placement),
       username: row.username,
       avatarPath: row.avatar_path,
@@ -172,10 +175,11 @@ export async function readAllTimeLeaderboard(
     p_wallet_account_id: options.walletAccountId ?? null,
   });
   if (error || !data) return { entries: [], available: false };
-  const rows = data as Array<{ placement: number; username: string; avatar_path: string | null; xp: number | string; rank_tier: number; is_current_user: boolean }>;
+  const rows = data as Array<{ placement: number; wallet_account_id: string; username: string; avatar_path: string | null; xp: number | string; rank_tier: number; is_current_user: boolean }>;
   return {
     available: true,
     entries: rows.map((row) => ({
+      walletAccountId: String(row.wallet_account_id),
       placement: Number(row.placement),
       username: row.username,
       avatarPath: row.avatar_path,

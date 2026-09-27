@@ -12,6 +12,7 @@ import { InitialsAvatar } from "@/components/ranking/rank-badge";
 import { ProfileSetupModal } from "@/components/profile/profile-setup-modal";
 import { RankUpCelebration } from "@/components/ranking/rank-up-celebration";
 import { WeeklyCompactLeaderboard } from "@/components/leaderboard/weekly-compact-leaderboard";
+import { ActivityNotificationMenu } from "@/components/activity/activity-notification-menu";
 import { tierByNumber, type RankTier } from "@/lib/ranking/tiers";
 import { celebrationFor } from "@/lib/ranking/progression-frame";
 import { readEventStream } from "@/lib/client/sse";
@@ -20,12 +21,11 @@ import { shouldImportGuestChat } from "@/lib/wallet/persistence";
 import {
   ImagePlus,
   ArrowUp,
-  Bell,
   Check,
   ChevronLeft,
   Clock3,
+  Compass,
   Download,
-  FlaskConical,
   Lock,
   Menu,
   MessageCircleMore,
@@ -226,7 +226,6 @@ export function CabiExperience({ flags = defaultFeatureFlags, viewport = "full",
   const [search, setSearch] = useState("");
   const [sending, setSending] = useState(false);
   const [replyComplete, setReplyComplete] = useState(false);
-  const [status, setStatus] = useState("Ready when you are");
   const [notice, setNotice] = useState<string>();
   const [onboardingName, setOnboardingName] = useState(false);
   const [shareMessage, setShareMessage] = useState<ChatMessageModel>();
@@ -392,7 +391,6 @@ export function CabiExperience({ flags = defaultFeatureFlags, viewport = "full",
     setComposer("");
     setSending(true);
     setReplyComplete(false);
-    setStatus("Cabi is thinking…");
     setNotice(undefined);
     const controller = new AbortController();
     controllerRef.current = controller;
@@ -439,7 +437,6 @@ export function CabiExperience({ flags = defaultFeatureFlags, viewport = "full",
         if (item.event === "action" && data.card) setMessages((current) => current.map((entry) => (entry.id === assistantId || entry.id === assistantServerIdRef.current || entry.id === data.assistantMessageId) && entry.role === "assistant" ? { ...entry, actionCard: data.card } : entry));
         if (item.event === "reply_complete") {
           setReplyComplete(true);
-          setStatus("Ready when you are");
           setMessages((current) => current.map((entry) => (entry.id === assistantId || entry.id === assistantServerIdRef.current) && entry.role === "assistant" && entry.status === "streaming" ? { ...entry, status: "complete" } : entry));
         }
         if (item.event === "done") {
@@ -466,7 +463,6 @@ export function CabiExperience({ flags = defaultFeatureFlags, viewport = "full",
       }
       if (!doneReceived) throw new Error("Cabi's reply ended before it was finished.");
       if (persistent) await refreshConversations();
-      setStatus("Ready when you are");
       setOnboardingName(false);
     } catch (error) {
       if (controller.signal.aborted) {
@@ -479,7 +475,6 @@ export function CabiExperience({ flags = defaultFeatureFlags, viewport = "full",
         setMessages((current) => current.map((entry) => (entry.id === assistantId || entry.id === assistantServerIdRef.current) && entry.role === "assistant" && entry.status !== "failed" && entry.status !== "cancelled" ? { ...entry, status: "failed", content: entry.content || (entry.actionCard?.kind === "NOTICE" && /(?:couldn't make that image|tiny image hiccup)/iu.test(entry.actionCard.title) ? cabiImageFailureReply : "Looks like my brain needs a second.") } : entry));
         setNotice(message);
       }
-      setStatus("ready to chat");
     } finally {
       setMessages((current) => current.map((entry) => (entry.id === assistantId || entry.id === assistantServerIdRef.current) && entry.role === "assistant" && entry.status === "streaming" ? { ...entry, status: controller.signal.aborted ? "cancelled" : "failed", content: entry.content || "Looks like my brain needs a second." } : entry));
       setSending(false);
@@ -585,9 +580,8 @@ export function CabiExperience({ flags = defaultFeatureFlags, viewport = "full",
           </Link>
 
           <Link href="/lab" className="focus-ring mt-1 flex min-h-11 items-center gap-3 rounded-xl border border-violet-200/[0.08] bg-violet-300/[0.035] px-3 text-left transition hover:border-violet-200/[0.18] hover:bg-violet-300/[0.06]">
-            <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-violet-300/[0.08] text-violet-200"><FlaskConical size={14} aria-hidden="true" /></span>
-            <span className="min-w-0 flex-1"><span className="block text-xs font-semibold text-[#d5d0de]">Cabi Lab</span><span className="mt-0.5 block text-[10px] text-[#777180]">{roadmapFeatureCount} things in the works</span></span>
-            <Lock size={13} className="shrink-0 text-[#777180]" aria-hidden="true" />
+            <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-violet-300/[0.08] text-violet-200"><Compass size={14} aria-hidden="true" /></span>
+            <span className="min-w-0 flex-1"><span className="block text-xs font-semibold text-[#d5d0de]">Explore Cabi</span><span className="mt-0.5 block text-[10px] text-[#777180]">{roadmapFeatureCount} {roadmapFeatureCount === 1 ? "thing" : "things"} in the works</span></span>
           </Link>
 
           <div className="mt-2 flex items-center gap-2"><button onClick={wallet.authenticated ? undefined : wallet.openConnect} className="focus-ring flex h-11 min-w-0 flex-1 items-center gap-3 rounded-xl px-3 text-left hover:bg-white/[0.035]">{rank?.initials ? <InitialsAvatar initials={rank.initials} src={rank.avatarUrl} size={28} label="Your avatar" /> : <span className="grid h-7 w-7 place-items-center rounded-full bg-white/[0.06]"><UserRound size={14} /></span>}<span className="min-w-0 flex-1 truncate text-xs text-[#a8a3b3]">{rank?.username ?? (wallet.authenticated && wallet.address ? `${wallet.address.slice(0, 6)}…${wallet.address.slice(-4)}` : "Guest")}</span></button><Link href="/profile" className="focus-ring grid h-11 w-11 place-items-center rounded-xl text-[#706a7d] hover:bg-white/[0.035] hover:text-white" aria-label="Your profile"><UserRound size={17} /></Link><Link href="/settings" className="focus-ring grid h-11 w-11 place-items-center rounded-xl text-[#706a7d] hover:bg-white/[0.035] hover:text-white" aria-label="Settings"><Settings size={17} /></Link></div>
@@ -604,8 +598,8 @@ export function CabiExperience({ flags = defaultFeatureFlags, viewport = "full",
           <header className="flex h-[68px] shrink-0 items-center border-b border-white/[0.06] px-4 max-sm:h-[60px] max-sm:px-3">
             <button onClick={() => { setSidebarOpen(true); setProfileOpen(false); }} className="focus-ring mr-2 hidden h-11 w-11 place-items-center rounded-xl text-white/60 hover:bg-white/[0.04] max-md:grid" aria-label="Open menu"><Menu size={20} /></button>
             <button onClick={() => setProfileOpen(true)} className="focus-ring mr-3 hidden rounded-lg max-lg:block" aria-label="Open Cabi profile"><MiniCabi className="h-9 w-9" /></button>
-            <div className="min-w-0 flex-1"><div className="flex items-center gap-2"><h1 className="font-semibold">Cabi</h1><span className="relative h-2 w-2 rounded-full bg-emerald-300"><span className="absolute inset-0 animate-ping rounded-full bg-emerald-300/50" /></span></div><p className="truncate text-xs text-white/45">{sending && !replyComplete ? "" : `${status}${temporaryChat && wallet.authenticated ? " · temporary chat" : ""}`}</p></div>
-            <nav className="mr-2 flex items-center gap-1" aria-label="Primary"><Link href="/cpu" className="focus-ring hidden rounded-xl px-3 py-2 text-xs font-semibold text-white/55 hover:bg-white/[0.04] hover:text-white md:block">$CPU</Link><Link href="/activity" className="focus-ring grid h-10 w-10 place-items-center rounded-xl text-white/55 hover:bg-white/[0.04] hover:text-white" aria-label="Activity"><Bell size={17} aria-hidden="true" /></Link></nav>
+            <div className="min-w-0 flex-1"><div className="flex items-center gap-2"><h1 className="font-semibold">Cabi</h1><span className="relative h-2 w-2 rounded-full bg-emerald-300"><span className="absolute inset-0 animate-ping rounded-full bg-emerald-300/50" /></span></div>{temporaryChat && wallet.authenticated ? <p className="truncate text-xs text-white/45">Temporary chat</p> : null}</div>
+            <nav className="mr-2 flex items-center gap-1" aria-label="Primary"><Link href="/cpu" className="focus-ring hidden rounded-xl px-3 py-2 text-xs font-semibold text-white/55 hover:bg-white/[0.04] hover:text-white md:block">$CPU</Link><ActivityNotificationMenu authenticated={wallet.authenticated} /></nav>
             <WalletButton compact />
           </header>
           <div className={`scrollbar-cabi flex min-h-0 flex-1 flex-col px-5 max-sm:px-3 ${hasMessages ? "overflow-y-auto pb-6 pt-8" : "overflow-hidden py-3"}`}>

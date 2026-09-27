@@ -9,6 +9,7 @@ import { avatarBucket, signedImageUrl } from "@/lib/image-generation/storage";
 import { guardAppApiCpu } from "@/lib/site/guard";
 import { walletAuthOrResponse } from "@/lib/wallet/session";
 import { featureGate } from "@/lib/config/feature-gate";
+import { readProfileBadges } from "@/lib/profile-badges/service";
 
 export const dynamic = "force-dynamic";
 
@@ -29,7 +30,7 @@ export async function GET() {
   if (!auth.identity) return auth.response;
 
   const walletAccountId = auth.identity.walletAccountId;
-  const [profile, weekly, monthly, history, bond, achievements, monthlySeason, thresholds] = await Promise.all([
+  const [profile, weekly, monthly, history, bond, achievements, monthlySeason, thresholds, badges] = await Promise.all([
     readProfile(walletAccountId),
     readStanding(walletAccountId, "WEEKLY"),
     readStanding(walletAccountId, "MONTHLY"),
@@ -38,6 +39,7 @@ export async function GET() {
     readAchievements(walletAccountId),
     readSeason("MONTHLY"),
     readRankThresholds(),
+    readProfileBadges(walletAccountId),
   ]);
 
   // Message totals are a lifetime stat. Ownership lives on `conversations`, so
@@ -74,6 +76,9 @@ export async function GET() {
       history,
       // Permanent, unlike rank which resets with the season.
       achievements,
+      // These are admin-awarded identity badges, separate from achievements.
+      profileBadges: badges.badges,
+      profileBadgesAvailable: badges.available,
       bond: { level: bond.level, label: bond.label, progress: bond.progress, conversationDays: bond.conversationDays, memoryCount: bond.memoryCount },
       // Lifetime XP drives rank. Period XP is shown only on the boards.
       progress: rankProgress(profile?.lifetimeXp ?? 0, thresholds),

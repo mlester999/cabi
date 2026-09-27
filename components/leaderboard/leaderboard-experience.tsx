@@ -6,8 +6,9 @@ import { InitialsAvatar, RankBadge, RankProgressBar } from "@/components/ranking
 import { SeasonCountdown } from "@/components/ranking/season-countdown";
 import { initialsFor } from "@/lib/profiles/username";
 import { rankTiers, type RankTier } from "@/lib/ranking/tiers";
+import { ProfileBadgeChip } from "@/components/profile/profile-badge-chip";
 
-type Entry = { placement: number; username: string; avatarPath: string | null; xp: number; tier: RankTier; isCurrentUser: boolean };
+type Entry = { placement: number; username: string; avatarPath: string | null; xp: number; tier: RankTier; isCurrentUser: boolean; profileBadge?: { label: string; icon: string; color: string } | null };
 type Season = { id: string; label: string; startsAt: string; endsAt: string; msRemaining: number } | null;
 type Standing = { placement: number | null; xp: number; participants: number; tier: RankTier } | null;
 type Period = "WEEKLY" | "MONTHLY" | "ALL_TIME";
@@ -141,6 +142,7 @@ export function LeaderboardExperience({ wallet }: { wallet: { authenticated: boo
               </div>
               <p className="mt-3 truncate text-sm font-semibold text-white">{entry.username}</p>
               <div className="mt-2 flex justify-center"><RankBadge tier={entry.tier} size="sm" /></div>
+              {entry.profileBadge ? <div className="mt-2 flex justify-center"><ProfileBadgeChip badge={entry.profileBadge} compact /></div> : null}
               <p className="mt-3 font-mono text-[13px] font-semibold text-violet-200">{entry.xp.toLocaleString()} XP</p>
             </li>
           ))}
@@ -157,6 +159,7 @@ export function LeaderboardExperience({ wallet }: { wallet: { authenticated: boo
               <span className="w-9 shrink-0 font-mono text-[12px] text-[#777180]">#{entry.placement}</span>
               <InitialsAvatar initials={initialsFor(entry.username)} size={30} label={`${entry.username} avatar`} />
               <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-white">{entry.username}</span>
+              {entry.profileBadge ? <ProfileBadgeChip badge={entry.profileBadge} compact /> : null}
               <RankBadge tier={entry.tier} size="sm" showLabel={false} />
               <span className="w-20 shrink-0 text-right font-mono text-[12px] text-violet-200">{entry.xp.toLocaleString()}</span>
             </li>
@@ -169,6 +172,7 @@ export function LeaderboardExperience({ wallet }: { wallet: { authenticated: boo
           <span className="w-9 shrink-0 font-mono text-[12px] text-violet-200">#{you.placement}</span>
           <InitialsAvatar initials={initialsFor(you.username)} size={30} label={`${you.username} avatar`} />
           <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-white">{you.username}</span>
+          {you.profileBadge ? <ProfileBadgeChip badge={you.profileBadge} compact /> : null}
           <span className="w-20 shrink-0 text-right font-mono text-[12px] text-violet-200">{you.xp.toLocaleString()}</span>
         </div>
       ) : null}

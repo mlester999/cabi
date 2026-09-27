@@ -102,7 +102,7 @@ export function WalletButton({ compact = false, requiredChainId = null }: { comp
           <MenuRow href="/rewards" external={false} icon={<Gift size={15} />}>Rewards</MenuRow>
           <MenuRow href="/activity" external={false} icon={<Bell size={15} />}>Activity</MenuRow>
           <MenuRow href="/cpu" external={false} icon={<span className="font-mono text-[11px] font-bold">$</span>}>$CPU</MenuRow>
-          <MenuRow href="/lab" external={false} icon={<FlaskConical size={15} />}>Cabi Lab</MenuRow>
+          <MenuRow href="/lab" external={false} icon={<FlaskConical size={15} />}>Explore Cabi</MenuRow>
           <MenuRow href="/settings" external={false} icon={<Settings size={15} />}>Settings</MenuRow>
           <MenuRow onClick={() => void copyAddress()} icon={copied ? <Check size={15} className="text-[var(--cabi-success)]" /> : <Copy size={15} />}>
             {copied ? "Copied" : "Copy address"}

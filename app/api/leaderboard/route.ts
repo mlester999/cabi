@@ -3,6 +3,7 @@ import { featureGate } from "@/lib/config/feature-gate";
 import { guardAppApiCpu } from "@/lib/site/guard";
 import { readWalletAuth } from "@/lib/wallet/session";
 import { readProfile } from "@/lib/profiles/service";
+import { readLeaderboardBadgeMap } from "@/lib/profile-badges/service";
 
 export const dynamic = "force-dynamic";
 
@@ -36,6 +37,12 @@ export async function GET(request: Request) {
     wallet ? readProfile(wallet.walletAccountId) : Promise.resolve(null),
   ]);
 
+  const badgeMap = await readLeaderboardBadgeMap(entries.map((entry) => entry.walletAccountId));
+  const publicEntries = entries.map(({ walletAccountId, ...entry }) => ({
+    ...entry,
+    profileBadge: badgeMap.get(walletAccountId) ?? null,
+  }));
+
   return Response.json(
     {
       type,
@@ -43,11 +50,12 @@ export async function GET(request: Request) {
       // False when the ranking store could not be read, so the client can tell
       // "nobody has earned XP yet" apart from "the board is unavailable".
       available,
-      entries,
+      // Account IDs stay server-side; one showcased badge may be shown beside a name.
+      entries: publicEntries,
       standing,
       currentUser: wallet ? { username: profile?.username ?? null, displayName: profile?.displayName ?? null } : null,
       // The signed-in user is always included, even outside the top 100.
-      you: entries.find((entry) => entry.isCurrentUser) ?? null,
+      you: publicEntries.find((entry) => entry.isCurrentUser) ?? null,
     },
     { headers: { "Cache-Control": "private, no-store" } },
   );

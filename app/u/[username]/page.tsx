@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 
 import { InitialsAvatar, RankBadge, RankProgressBar } from "@/components/ranking/rank-badge";
+import { ProfileBadgeChip } from "@/components/profile/profile-badge-chip";
 import { LockedFeatureScreen } from "@/components/features/locked-feature-screen";
 import { renderPrelaunchFallback } from "@/components/prelaunch/render-fallback";
 import { achievementCopy, type AchievementCode } from "@/lib/ranking/achievements";
@@ -113,6 +114,13 @@ export default async function PublicProfilePage({ params }: Params) {
             ) : null}
           </div>
         </section>
+
+        {profile.badges.length > 0 ? (
+          <section className="glass mt-4 rounded-[22px] p-5">
+            <h2 className="text-[10px] font-semibold uppercase tracking-[.16em] text-[#777180]">Profile badges</h2>
+            <ul className="mt-3 flex flex-wrap gap-2">{profile.badges.map((badge) => <li key={badge.id}><ProfileBadgeChip badge={badge} /></li>)}</ul>
+          </section>
+        ) : null}
 
         {profile.achievements.length > 0 ? (
           <section className="glass mt-4 rounded-[22px] p-5">

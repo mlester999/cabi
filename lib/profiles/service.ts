@@ -2,6 +2,7 @@ import "server-only";
 
 import { getServiceClient } from "@/lib/db/supabase";
 import { initialsFor, normalizeUsername, validateUsername } from "@/lib/profiles/username";
+import { readPublicProfileBadges } from "@/lib/profile-badges/service";
 
 /**
  * Profile service.
@@ -174,5 +175,6 @@ export async function readPublicProfile(username: string) {
     // The bond badge is only published when the owner opted in.
     showBondPublicly: Boolean(row.show_bond_publicly),
     achievements: Array.isArray(row.achievements) ? (row.achievements as string[]).map(String) : [],
+    badges: await readPublicProfileBadges(String(row.username)),
   };
 }

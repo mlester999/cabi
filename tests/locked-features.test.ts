@@ -247,11 +247,14 @@ describe("the app passes resolved flags to the chat shell", () => {
     expect(primary).not.toContain('href="/portfolio"');
   });
 
-  it("shows only future work in Cabi Lab and updates the sidebar count from the registry", () => {
+  it("keeps Explore Cabi links live and reflects the roadmap count in the sidebar", () => {
     expect(roadmapFeatureCount).toBe(1);
     const shell = read("components/cabi/cabi-experience.tsx");
-    expect(shell).toContain("{roadmapFeatureCount} things in the works");
+    expect(shell).toContain('{roadmapFeatureCount} {roadmapFeatureCount === 1 ? "thing" : "things"} in the works');
     expect(shell).toContain('href="/leaderboard"');
     expect(shell).toContain("<Trophy");
+    const explore = read("app/lab/page.tsx");
+    expect(explore).toContain("ExploreCabiLinks");
+    expect(explore).toContain('id="lab-heading"');
   });
 });

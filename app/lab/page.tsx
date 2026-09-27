@@ -1,30 +1,26 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowLeft, FlaskConical } from "lucide-react";
+import { ArrowLeft, Compass } from "lucide-react";
 
 import { CabiLabGrid } from "@/components/features/cabi-lab-grid";
+import { ExploreCabiLinks } from "@/components/features/explore-cabi-links";
 import { cabiRoadmapFeatures, roadmapFeatureCount } from "@/lib/config/feature-flags";
-import { readFeatureFlags } from "@/lib/config/feature-flags.server";
 
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Cabi Lab — Cat Partner Unit",
-  description: "Things Cabi is still working on.",
+  title: "Explore Cabi — Cat Partner Unit",
+  description: "Explore Cabi's live community, image, portfolio, and reward surfaces.",
   robots: { index: false, follow: false },
 };
 
 /**
- * Future work belongs here, away from the conversation. The cards are honest:
- * they describe what is planned without pretending that an unfinished surface
- * is usable.
+ * An index for existing product surfaces, with an honest roadmap below it.
  */
-export default async function CabiLabPage() {
-  const flags = await readFeatureFlags();
+export default function CabiLabPage() {
   const roadmap = cabiRoadmapFeatures.map((feature) => ({
     ...feature,
     flag: feature.flag!,
-    enabled: flags[feature.flag!],
   }));
 
   return (
@@ -35,18 +31,23 @@ export default async function CabiLabPage() {
             <ArrowLeft size={18} />
           </Link>
           <div className="min-w-0 flex-1">
-            <p className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[.16em] text-violet-200"><FlaskConical size={13} /> Cabi Lab</p>
-            <h1 className="mt-2 text-2xl font-semibold tracking-[-0.03em] sm:text-3xl">Cabi Lab</h1>
-            <p className="mt-2 max-w-xl text-sm leading-6 text-[#a8a3b3]">Things I&apos;m still working on.</p>
-            <p className="mt-1 max-w-2xl text-sm leading-6 text-[#777180]">The chat stays focused. Future Cabi features live here until they&apos;re ready.</p>
+            <p className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[.16em] text-violet-200"><Compass size={13} /> Explore Cabi</p>
+            <h1 className="mt-2 text-2xl font-semibold tracking-[-0.03em] sm:text-3xl">Explore Cabi</h1>
+            <p className="mt-2 max-w-xl text-sm leading-6 text-[#a8a3b3]">A home for your Cabi community, creations, and progress.</p>
+            <p className="mt-1 max-w-2xl text-sm leading-6 text-[#777180]">Open a live surface below, or see what is still taking shape.</p>
           </div>
         </header>
+
+        <section className="mt-9" aria-labelledby="explore-heading">
+          <h2 id="explore-heading" className="text-sm font-semibold">Your Cabi spaces</h2>
+          <ExploreCabiLinks />
+        </section>
 
         <section className="mt-10" aria-labelledby="lab-heading">
           <div className="flex items-end justify-between gap-4">
             <div>
               <h2 id="lab-heading" className="text-sm font-semibold">In the works</h2>
-              <p className="mt-1 text-xs text-[#706a7d]">A quiet roadmap for the parts that are still taking shape.</p>
+              <p className="mt-1 text-xs text-[#706a7d]">Unfinished work stays here until it is ready to use.</p>
             </div>
             <span className="text-[10px] font-semibold uppercase tracking-[.14em] text-[#625d6d]">{roadmapFeatureCount} features</span>
           </div>

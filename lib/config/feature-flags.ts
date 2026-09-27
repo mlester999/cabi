@@ -69,7 +69,7 @@ export const CABI_FEATURES = [
 
   // Gallery remains a supporting route for the existing image history work. It
   // is intentionally not part of the six-card public roadmap brief.
-  { id: "gallery", label: "Gallery", description: "Every image Cabi has made for you.", icon: "images", flag: "gallery_enabled", surface: "supporting", route: "/gallery" },
+  { id: "gallery", label: "Images", description: "Recent images, favorites, and contest entries.", icon: "images", flag: "gallery_enabled", surface: "supporting", route: "/images" },
 ] as const satisfies ReadonlyArray<CabiFeatureDefinition>;
 
 export const cabiRoadmapFeatures = CABI_FEATURES.filter((feature) => feature.surface === "roadmap");
@@ -83,7 +83,7 @@ export function cabiFeatureForFlag(flag: FeatureFlagKey): CabiFeatureDefinition 
  * What ships in this phase.
  *
  * The core Cabi experience, rank progression, and leaderboards are on.
- * Future wallet and reward surfaces remain off and are shown in Cabi Lab.
+ * Automated trading remains off and is shown under Explore Cabi's roadmap.
  */
 export const defaultFeatureFlags: FeatureFlags = {
   // Core experience.

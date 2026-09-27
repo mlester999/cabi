@@ -1,14 +1,47 @@
 import type { Metadata } from "next";
-import { redirect } from "next/navigation";
+import Link from "next/link";
+import { ArrowLeft, Images } from "lucide-react";
+
+import { GalleryExperience } from "@/components/gallery/gallery-experience";
+import { renderPrelaunchFallback } from "@/components/prelaunch/render-fallback";
+import { LockedFeatureScreen } from "@/components/features/locked-feature-screen";
+import { readFeatureFlags } from "@/lib/config/feature-flags.server";
+import { cpuGatedPage } from "@/lib/cpu-access/page";
+import { walletAuthOrResponse } from "@/lib/wallet/session";
 
 export const dynamic = "force-dynamic";
+export const metadata: Metadata = { title: "Images - Cabi", robots: { index: false, follow: false } };
 
-export const metadata: Metadata = {
-  title: "Images - Cabi",
-  robots: { index: false, follow: false },
-};
+/** Private, wallet-scoped Cabi image collection and contest entries. */
+export default async function ImagesPage() {
+  const flags = await readFeatureFlags();
+  if (!flags.gallery_enabled) return <LockedFeatureScreen flagKey="gallery_enabled" />;
 
-/** Keep `/images` as a short, durable entry point for the private gallery. */
-export default function ImagesPage() {
-  redirect("/gallery");
+  const gated = await cpuGatedPage(() => null);
+  if (!gated.allowed && !gated.gated) return renderPrelaunchFallback();
+  if (gated.gated) return <>{gated.element}</>;
+  const auth = await walletAuthOrResponse();
+
+  return (
+    <main className="cabi-noise min-h-[100dvh] overflow-x-hidden bg-transparent text-white">
+      <div className="mx-auto w-full max-w-[1100px] px-4 py-6 sm:px-7 sm:py-9">
+        <header className="flex items-center gap-3 sm:gap-4">
+          <Link href="/" className="focus-ring grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-white/[0.07] bg-white/[0.03] text-[#a8a3b3] hover:text-white" aria-label="Back to Cabi">
+            <ArrowLeft size={18} />
+          </Link>
+          <div className="min-w-0 flex-1">
+            <h1 className="flex items-center gap-2 text-xl font-bold tracking-[-0.02em] sm:text-2xl"><Images size={20} className="text-violet-300" aria-hidden="true" /> Cabi images</h1>
+            <p className="mt-1 text-xs text-[#a8a3b3]">Your private collection, favorites, and contest entries.</p>
+          </div>
+        </header>
+
+        {auth.identity ? <GalleryExperience /> : (
+          <div className="glass mt-10 rounded-[26px] p-8 text-center">
+            <p className="text-sm font-semibold text-white">Connect your wallet first.</p>
+            <p className="mx-auto mt-2 max-w-sm text-xs leading-6 text-[#a8a3b3]">Generated images are saved to your wallet so only you can see them.</p>
+          </div>
+        )}
+      </div>
+    </main>
+  );
 }

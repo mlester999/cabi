@@ -2,9 +2,10 @@
 
 import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
-import { Download, RefreshCw, Trash2, UserRound } from "lucide-react";
+import { Download, Heart, RefreshCw, Trash2, Trophy, UserRound } from "lucide-react";
 
-type Generation = { id: string; prompt: string; aspectRatio: string; model: string | null; createdAt: string; url: string };
+type Generation = { id: string; prompt: string; aspectRatio: string; model: string | null; createdAt: string; url: string; isFavorite: boolean; isContestEntry: boolean };
+type GalleryFilter = "RECENT" | "FAVORITES" | "CONTEST";
 
 /**
  * The signed-in user's generated Cabi images.
@@ -19,12 +20,14 @@ export function GalleryExperience() {
   const [busy, setBusy] = useState<string | null>(null);
   const [avatarNotice, setAvatarNotice] = useState<string | null>(null);
   const [deleteNotice, setDeleteNotice] = useState<string | null>(null);
+  const [filter, setFilter] = useState<GalleryFilter>("RECENT");
+  const [favoriteNotice, setFavoriteNotice] = useState<string | null>(null);
   const router = useRouter();
   const pathname = usePathname();
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (selected: GalleryFilter) => {
     try {
-      const response = await fetch("/api/gallery", { cache: "no-store" });
+      const response = await fetch(`/api/gallery?filter=${selected}`, { cache: "no-store" });
       if (!response.ok) { setPhase("error"); return; }
       const payload = await response.json() as { images?: Generation[] };
       setImages(payload.images ?? []);
@@ -35,9 +38,9 @@ export function GalleryExperience() {
   }, []);
 
   useEffect(() => {
-    const timer = window.setTimeout(() => { void load(); }, 0);
+    const timer = window.setTimeout(() => { void load(filter); }, 0);
     return () => window.clearTimeout(timer);
-  }, [load]);
+  }, [filter, load]);
 
   /** Adopts a generated Cabi image as the profile picture. */
   const adoptAsAvatar = async (id: string) => {
@@ -73,31 +76,70 @@ export function GalleryExperience() {
     }
   };
 
-  if (phase === "loading") return <p className="mt-10 text-center text-sm text-[#a8a3b3]" role="status">Loading your images...</p>;
+  const toggleFavorite = async (image: Generation) => {
+    setBusy(`favorite:${image.id}`);
+    setFavoriteNotice(null);
+    try {
+      const response = await fetch("/api/gallery", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: image.id, favorite: !image.isFavorite }),
+      });
+      const payload = await response.json().catch(() => ({})) as { error?: string };
+      if (!response.ok) {
+        setFavoriteNotice(payload.error ?? "I couldn't update that favorite.");
+        return;
+      }
+      setImages((current) => current.flatMap((entry) => entry.id !== image.id ? [entry] : filter === "FAVORITES" && image.isFavorite ? [] : [{ ...entry, isFavorite: !image.isFavorite }]));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const filterNav = (
+    <div className="mt-7 flex flex-wrap gap-2" role="tablist" aria-label="Filter images">
+      {([
+        ["RECENT", "Recent"],
+        ["FAVORITES", "Favorites"],
+        ["CONTEST", "Contest entries"],
+      ] as const).map(([value, label]) => (
+        <button key={value} type="button" role="tab" aria-selected={filter === value} onClick={() => setFilter(value)} className={`focus-ring min-h-10 rounded-xl border px-4 text-xs font-semibold transition ${filter === value ? "border-violet-200/[0.2] bg-violet-300/[0.1] text-violet-100" : "border-white/[0.08] bg-white/[0.02] text-[#a8a3b3] hover:bg-white/[0.05] hover:text-white"}`}>
+          {label}
+        </button>
+      ))}
+    </div>
+  );
+
+  if (phase === "loading") return <>{filterNav}<p className="mt-10 text-center text-sm text-[#a8a3b3]" role="status">Loading your images...</p></>;
 
   if (phase === "error") {
     return (
-      <div className="glass mt-10 rounded-[26px] p-8 text-center">
+      <>{filterNav}<div className="glass mt-10 rounded-[26px] p-8 text-center">
         <p className="text-sm text-[#d5d0de]">I could not load your gallery just now.</p>
-        <button type="button" onClick={() => void load()} className="focus-ring mt-5 inline-flex h-10 items-center rounded-xl border border-white/[0.08] bg-white/[0.03] px-4 text-xs font-semibold">Try again</button>
-      </div>
+        <button type="button" onClick={() => void load(filter)} className="focus-ring mt-5 inline-flex h-10 items-center rounded-xl border border-white/[0.08] bg-white/[0.03] px-4 text-xs font-semibold">Try again</button>
+      </div></>
     );
   }
 
   if (images.length === 0) {
+    const emptyCopy = filter === "FAVORITES"
+      ? { title: "No favorites yet.", detail: "Tap the heart on an image to keep it close." }
+      : filter === "CONTEST"
+        ? { title: "No contest entries yet.", detail: "Images you submit to a Cabi contest will appear here." }
+        : { title: "No images yet.", detail: "Ask me for a picture in chat and your saved Cabi images will appear here." };
     return (
-      <div className="glass mt-10 rounded-[26px] p-8 text-center">
-        <p className="text-sm font-semibold text-white">No images yet.</p>
-        <p className="mx-auto mt-2 max-w-sm text-xs leading-6 text-[#a8a3b3]">
-          Ask me for a picture in chat, like &ldquo;make an image of you drinking coffee&rdquo;, and it will appear here.
-        </p>
-      </div>
+      <>{filterNav}<div className="glass mt-10 rounded-[26px] p-8 text-center">
+        <p className="text-sm font-semibold text-white">{emptyCopy.title}</p>
+        <p className="mx-auto mt-2 max-w-sm text-xs leading-6 text-[#a8a3b3]">{emptyCopy.detail}</p>
+      </div></>
     );
   }
 
   return (
     <>
+    {filterNav}
     {deleteNotice ? <p role="status" className="mt-5 rounded-xl bg-amber-200/[0.08] px-4 py-3 text-xs text-amber-100">{deleteNotice}</p> : null}
+    {favoriteNotice ? <p role="status" className="mt-3 rounded-xl bg-amber-200/[0.08] px-4 py-3 text-xs text-amber-100">{favoriteNotice}</p> : null}
     <ul className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
       {images.map((image) => (
         <li key={image.id} className="glass overflow-hidden rounded-[22px]">
@@ -109,6 +151,16 @@ export function GalleryExperience() {
               {image.aspectRatio} - {new Date(image.createdAt).toLocaleDateString()}
             </p>
             <div className="mt-3 flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => void toggleFavorite(image)}
+                disabled={busy === `favorite:${image.id}`}
+                aria-pressed={image.isFavorite}
+                aria-label={image.isFavorite ? `Remove favorite: ${image.prompt}` : `Add favorite: ${image.prompt}`}
+                className={`focus-ring grid h-9 w-9 place-items-center rounded-xl border border-white/[0.08] transition disabled:opacity-40 ${image.isFavorite ? "bg-rose-300/[0.1] text-rose-200" : "bg-white/[0.03] text-[#8e889b] hover:text-rose-200"}`}
+              >
+                <Heart size={13} fill={image.isFavorite ? "currentColor" : "none"} aria-hidden="true" />
+              </button>
               <a
                 href={image.url}
                 download={`cabi-${image.id}.png`}
@@ -128,6 +180,7 @@ export function GalleryExperience() {
             </div>
 
             <div className="mt-2 flex flex-wrap items-center gap-2">
+              {image.isContestEntry ? <span className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-amber-200/[0.12] bg-amber-200/[0.045] px-2.5 text-[10px] font-semibold text-amber-100"><Trophy size={11} aria-hidden="true" /> Contest entry</span> : null}
               {/* Re-asks with the same scene through the normal chat path, so it
                   is subject to the same daily allowance as any other request. */}
               <button
