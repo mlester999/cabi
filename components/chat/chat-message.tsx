@@ -37,11 +37,8 @@ type Props = {
   onEdit?: () => void;
   onShare?: () => void;
   onReact?: (reaction: ChatMessageModel["reaction"]) => void;
-  /** Re-asks for an image with the same prompt. Subject to the normal quota. */
-  onRegenerateImage?: (prompt: string) => void;
   /** Retries a persisted card request and keeps its generation lineage. */
   onRetryPrompt?: (prompt: string, parentGenerationId?: string) => void;
-  onUseImageAsAvatar?: (card: Extract<ActionCard, { kind: "IMAGE" }>) => Promise<boolean>;
   /** Owner-added chat-thinking copy, resolved from the server-side status settings. */
   statusMessages?: CabiStatusOverrides | null;
 };
@@ -57,7 +54,7 @@ type Props = {
  * Image generation failures arrive as a normal Cabi reply with a retry action;
  * failed text replies keep their compact shared failure line and retry button.
  */
-export function ChatMessage({ message, onRetry, onDelete, onEdit, onShare, onReact, onRegenerateImage, onRetryPrompt, onUseImageAsAvatar, statusMessages }: Props) {
+export function ChatMessage({ message, onRetry, onDelete, onEdit, onShare, onReact, onRetryPrompt, statusMessages }: Props) {
   const [copied, setCopied] = useState(false);
   const isCabi = message.role === "assistant";
   const legacyTitle = message.actionCard?.kind === "NOTICE" ? message.actionCard.title.trim().replace(/[.!]+$/u, "").toLowerCase() : "";
@@ -74,6 +71,7 @@ export function ChatMessage({ message, onRetry, onDelete, onEdit, onShare, onRea
       }
     : message.actionCard;
   const hasCardRetry = Boolean(displayActionCard?.retry);
+  const hasImageCard = displayActionCard?.kind === "IMAGE";
   const copy = async () => {
     await navigator.clipboard.writeText(displayContent);
     setCopied(true);
@@ -153,9 +151,9 @@ export function ChatMessage({ message, onRetry, onDelete, onEdit, onShare, onRea
           </div>
         ) : null}
 
-        {displayActionCard ? <ActionCardView card={displayActionCard} onRegenerate={onRegenerateImage} onRetry={onRetryPrompt} onUseAsAvatar={onUseImageAsAvatar} /> : null}
+        {displayActionCard ? <ActionCardView card={displayActionCard} onRetry={onRetryPrompt} /> : null}
 
-        <div className={`mt-1.5 flex min-h-8 flex-wrap items-center gap-1 transition-opacity duration-200 ${isCabi ? "justify-start" : "justify-end"} opacity-100 md:opacity-0 md:group-hover/message:opacity-100 md:group-focus-within/message:opacity-100`}>
+        {!hasImageCard ? <div className={`mt-1.5 flex min-h-8 flex-wrap items-center gap-1 transition-opacity duration-200 ${isCabi ? "justify-start" : "justify-end"} opacity-100 md:opacity-0 md:group-hover/message:opacity-100 md:group-focus-within/message:opacity-100`}>
           {isCabi && !hasCardRetry ? (
             <>
               <MessageAction label={copied ? "Copied" : "Copy"} onClick={copy}>{copied ? <Check size={13} /> : <Copy size={13} />}</MessageAction>
@@ -177,7 +175,7 @@ export function ChatMessage({ message, onRetry, onDelete, onEdit, onShare, onRea
           <time className="ml-1 text-[10px] text-[#5f5a67]" dateTime={message.createdAt}>
             {message.createdAt ? new Date(message.createdAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "Now"}
           </time>
-        </div>
+        </div> : null}
       </div>
     </article>
   );

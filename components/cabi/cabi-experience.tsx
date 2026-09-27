@@ -226,33 +226,6 @@ export function CabiExperience({ flags = defaultFeatureFlags, viewport = "full",
       // A rank read failing must never block chat.
     }
   }, [flags.profile_enabled, flags.ranking_enabled, wallet.authenticated]);
-  // Re-asks for an image with the same scene. This goes through the normal send
-  // path, so it consumes the daily allowance exactly like any other request
-  // rather than being a free extra provider call.
-  const regenerateImage = useCallback((prompt: string) => {
-    setComposer(`Generate an image of ${prompt}`);
-    composerRef.current?.focus();
-  }, []);
-
-  // Adopts a generated Cabi image as the profile picture.
-  const adoptImageAsAvatar = useCallback(async (card: { generationId: string }): Promise<boolean> => {
-    try {
-      const response = await fetch("/api/profile/avatar", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ generationId: card.generationId }),
-      });
-      const result = await response.json().catch(() => null) as { ok?: boolean } | null;
-      if (response.ok && result?.ok === true) {
-        void refreshRank();
-        return true;
-      } else {
-        return false;
-      }
-    } catch {
-      return false;
-    }
-  }, [refreshRank]);
   // A gallery "Regenerate" link arrives as ?regenerate=<scene>. It only prefills
   // the composer; the user still sends it, so a re-run is a deliberate request
   // that counts against the daily image allowance rather than a silent repeat.
@@ -585,7 +558,7 @@ export function CabiExperience({ flags = defaultFeatureFlags, viewport = "full",
           </header>
           <div className={`scrollbar-cabi flex min-h-0 flex-1 flex-col px-5 max-sm:px-3 ${hasMessages ? "overflow-y-auto pb-6 pt-8" : "overflow-hidden py-3"}`}>
             <div className={`mx-auto flex w-full max-w-[820px] flex-1 flex-col ${hasMessages ? "justify-start" : "justify-center"}`}>
-              {!hasMessages ? <><motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .55 }} className="mx-auto max-w-xl text-center"><div className="relative mx-auto mb-4 grid h-[clamp(4.5rem,12vh,6rem)] w-[clamp(4.5rem,12vh,6rem)]"><div className="absolute inset-0 rounded-2xl bg-violet-400/15 blur-2xl" /><MiniCabi className="relative h-full w-full rounded-2xl" priority /></div><span className="inline-flex items-center gap-2 rounded-full border border-violet-200/[0.12] bg-violet-200/[0.05] px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[.13em] text-violet-200"><Sparkles size={13} /> Cabi</span><h2 className="mt-3 text-balance text-[clamp(2rem,4vw,3.15rem)] font-semibold leading-[1.02] tracking-[-0.055em]">Hey, I&apos;m Cabi.</h2><p className="mx-auto mt-3 max-w-md text-pretty text-sm leading-6 text-[#a8a3b3]">Ask me anything, make an image, or pick up where we left off.</p><button onClick={beginOnboarding} className="focus-ring mt-5 inline-flex h-11 items-center gap-2 rounded-xl bg-violet-200 px-5 text-sm font-semibold text-[#160f27] shadow-[0_10px_30px_rgba(139,92,246,.16)] hover:bg-violet-100">Start chatting <ArrowUp size={16} className="rotate-45" /></button><p className="mt-2 text-[11px] text-[#625d6d]">No wallet needed to start chatting.</p></motion.div><div className="cabi-welcome-prompts mt-6 flex flex-wrap justify-center gap-2">{quickPrompts.map((prompt) => <button key={prompt} onClick={() => { setComposer(prompt); composerRef.current?.focus(); }} className="focus-ring rounded-full border border-white/[0.07] bg-white/[0.025] px-3.5 py-2 text-xs text-[#9a95a5] transition hover:border-violet-300/20 hover:bg-violet-300/[0.06] hover:text-white">{prompt}</button>)}</div></> : <ol className="space-y-6" aria-label="Conversation messages">{messages.map((message, index) => <li key={message.id}><ChatMessage message={message} statusMessages={statusMessages} onRegenerateImage={regenerateImage} onUseImageAsAvatar={adoptImageAsAvatar} onRetryPrompt={(prompt, parentGenerationId) => void send(prompt, message.id, parentGenerationId)} onRetry={() => retry(index)} onDelete={() => void deleteMessage(message)} onEdit={() => void editMessage(message)} onShare={() => setShareMessage(message)} onReact={(reaction) => void reactToMessage(message, reaction)} /></li>)}</ol>}
+              {!hasMessages ? <><motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .55 }} className="mx-auto max-w-xl text-center"><div className="relative mx-auto mb-4 grid h-[clamp(4.5rem,12vh,6rem)] w-[clamp(4.5rem,12vh,6rem)]"><div className="absolute inset-0 rounded-2xl bg-violet-400/15 blur-2xl" /><MiniCabi className="relative h-full w-full rounded-2xl" priority /></div><span className="inline-flex items-center gap-2 rounded-full border border-violet-200/[0.12] bg-violet-200/[0.05] px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[.13em] text-violet-200"><Sparkles size={13} /> Cabi</span><h2 className="mt-3 text-balance text-[clamp(2rem,4vw,3.15rem)] font-semibold leading-[1.02] tracking-[-0.055em]">Hey, I&apos;m Cabi.</h2><p className="mx-auto mt-3 max-w-md text-pretty text-sm leading-6 text-[#a8a3b3]">Ask me anything, make an image, or pick up where we left off.</p><button onClick={beginOnboarding} className="focus-ring mt-5 inline-flex h-11 items-center gap-2 rounded-xl bg-violet-200 px-5 text-sm font-semibold text-[#160f27] shadow-[0_10px_30px_rgba(139,92,246,.16)] hover:bg-violet-100">Start chatting <ArrowUp size={16} className="rotate-45" /></button><p className="mt-2 text-[11px] text-[#625d6d]">No wallet needed to start chatting.</p></motion.div><div className="cabi-welcome-prompts mt-6 flex flex-wrap justify-center gap-2">{quickPrompts.map((prompt) => <button key={prompt} onClick={() => { setComposer(prompt); composerRef.current?.focus(); }} className="focus-ring rounded-full border border-white/[0.07] bg-white/[0.025] px-3.5 py-2 text-xs text-[#9a95a5] transition hover:border-violet-300/20 hover:bg-violet-300/[0.06] hover:text-white">{prompt}</button>)}</div></> : <ol className="space-y-6" aria-label="Conversation messages">{messages.map((message, index) => <li key={message.id}><ChatMessage message={message} statusMessages={statusMessages} onRetryPrompt={(prompt, parentGenerationId) => void send(prompt, message.id, parentGenerationId)} onRetry={() => retry(index)} onDelete={() => void deleteMessage(message)} onEdit={() => void editMessage(message)} onShare={() => setShareMessage(message)} onReact={(reaction) => void reactToMessage(message, reaction)} /></li>)}</ol>}
               {notice && <div role="alert" className="mx-auto mt-4 flex max-w-xl items-center gap-3 rounded-xl border border-rose-300/15 bg-rose-300/[0.05] px-3 py-2 text-xs text-rose-200"><span className="flex-1">{notice}</span><button className="focus-ring grid h-8 w-8 place-items-center rounded-lg hover:bg-[var(--cabi-surface-3)]" onClick={() => setNotice(undefined)} aria-label="Dismiss"><X size={14} /></button></div>}
               <div ref={endRef} />
             </div>

@@ -20,11 +20,9 @@ import type { ActionCard as ActionCardModel } from "@/lib/actions/types";
  * - Rows come straight from the server. The component never computes a price, a
  *   quote, a fee, or a receive amount.
  */
-export function ActionCardView({ card, className = "", onRegenerate, onUseAsAvatar, onRetry }: {
+export function ActionCardView({ card, className = "", onRetry }: {
   card: ActionCardModel;
   className?: string;
-  onRegenerate?: (prompt: string) => void;
-  onUseAsAvatar?: (card: Extract<ActionCardModel, { kind: "IMAGE" }>) => Promise<boolean>;
   onRetry?: (prompt: string, parentGenerationId?: string) => void;
 }) {
   const [copied, setCopied] = useState<string | null>(null);
@@ -59,7 +57,7 @@ export function ActionCardView({ card, className = "", onRegenerate, onUseAsAvat
   if (card.kind === "IMAGE") {
     return (
       <div className={className}>
-        <ImageCardView card={card} onRegenerate={onRegenerate} onUseAsAvatar={onUseAsAvatar} />
+        <ImageCardView card={card} />
       </div>
     );
   }
