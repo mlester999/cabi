@@ -11,7 +11,8 @@ import {
 } from "@/lib/cabi/image-identity";
 import { cabiIdentityLayers, readCabiCharacterBible } from "@/lib/cabi/character-bible.server";
 import { resolveCabiReference } from "@/lib/cabi/reference/resolve.server";
-import { cabiReferenceUnavailable, type ResolvedCabiReference } from "@/lib/cabi/reference/types";
+import { cabiFallbackReferenceAsset, cabiReferenceUnavailable, type ResolvedCabiReference } from "@/lib/cabi/reference/types";
+import { siteOrigin } from "@/lib/site/origin";
 import type { AspectRatio } from "@/lib/image-generation/types";
 
 /**
@@ -81,20 +82,24 @@ export type CabiGenerationPlanResult =
 /**
  * The server-controlled image reference for the selected model.
  *
- * Together's reference-image endpoints fetch a URL on the provider side. Only a
- * fresh HTTPS signed URL for an active admin upload is valid here. The bundled
- * local asset remains the identity fallback in the prompt, but it is not sent as
- * a provider reference because localhost/deployment-private URLs are not
- * guaranteed to be reachable by Together.
+ * Together's reference-image endpoints fetch a URL on the provider side. Admin
+ * uploads use their fresh signed URL; the shipped reference uses the app's
+ * canonical public origin. Local and plain-HTTP origins are rejected because the
+ * provider cannot safely fetch them.
  */
 export function referenceImageFor(reference: ResolvedCabiReference, modelSupportsReferenceImages: boolean): string[] | undefined {
-  if (!modelSupportsReferenceImages || !reference.conditionable || !reference.signedUrl) return undefined;
+  if (!modelSupportsReferenceImages) return undefined;
   try {
-    const url = new URL(reference.signedUrl);
+    const candidate = reference.source === "BUNDLED"
+      ? new URL(cabiFallbackReferenceAsset, siteOrigin()).toString()
+      : reference.conditionable ? reference.signedUrl : null;
+    if (!candidate) return undefined;
+    const url = new URL(candidate);
     // Never hand Together a data URL, localhost URL, or plain HTTP URL. The
     // adapter performs the same validation as a final defense-in-depth check.
     if (url.protocol !== "https:") return undefined;
-    if (["localhost", "127.0.0.1", "::1"].includes(url.hostname.toLowerCase())) return undefined;
+    const hostname = url.hostname.toLowerCase().replace(/^\[|\]$/gu, "");
+    if (hostname === "localhost" || hostname.endsWith(".localhost") || hostname === "::1" || hostname.startsWith("127.")) return undefined;
     return [url.toString()];
   } catch {
     return undefined;
@@ -167,7 +172,9 @@ export async function buildCabiGenerationPlan(input: {
       identityLockApplied: true,
       normalizedPromptApplied: true,
       compositionType: parts.compositionType,
-      referenceActive: reference.source === "ADMIN_UPLOAD",
+      // Either source is the active official reference: an admin upload wins,
+      // and the shipped Cabi render is the fallback.
+      referenceActive: true,
       modelReferenceSupport: input.modelSupportsReferenceImages,
       expression: input.expression ?? null,
       outfit: input.outfit ?? null,

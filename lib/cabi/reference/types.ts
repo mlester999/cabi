@@ -64,7 +64,7 @@ export type ResolvedCabiReference = {
   bytes: Uint8Array | null;
   /** Present for an admin upload: a short-lived signed URL. */
   signedUrl: string | null;
-  /** True when this reference can be sent to a reference-capable model. */
+  /** True when an admin upload has a signed provider URL; bundled URLs use the app origin. */
   conditionable: boolean;
 };
 

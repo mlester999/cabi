@@ -42,8 +42,9 @@ import {
   X,
 } from "lucide-react";
 import { motion } from "motion/react";
+import Image from "next/image";
 import Link from "@/components/prelaunch/preview-link";
-import { FormEvent, KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, KeyboardEvent, PointerEvent as ReactPointerEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 type ConversationGroup = "Today" | "Yesterday" | "Previous 7 Days" | "Older";
 type Conversation = { id: string; title: string; pinned: boolean; updated_at: string; group?: ConversationGroup };
@@ -68,21 +69,71 @@ const groupOrder = ["Pinned", "Today", "Yesterday", "Previous 7 Days", "Older"] 
 
 function PresenceArt({ mood, speaking = false, authenticated, className = "" }: { mood: string; speaking?: boolean; authenticated: boolean; className?: string }) {
   const [failed, setFailed] = useState(false);
+  const trackPointer = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (event.pointerType === "touch" || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+
+    const bounds = event.currentTarget.getBoundingClientRect();
+    if (!bounds.width || !bounds.height) return;
+
+    const x = Math.max(-1, Math.min(1, ((event.clientX - bounds.left) / bounds.width - 0.5) * 2));
+    const y = Math.max(-1, Math.min(1, ((event.clientY - bounds.top) / bounds.height - 0.5) * 2));
+    event.currentTarget.style.setProperty("--cabi-tilt-x", `${(x * 8).toFixed(2)}deg`);
+    event.currentTarget.style.setProperty("--cabi-tilt-y", `${(-y * 5).toFixed(2)}deg`);
+    event.currentTarget.style.setProperty("--cabi-shift-x", `${(x * 4).toFixed(2)}px`);
+    event.currentTarget.style.setProperty("--cabi-shift-y", `${(y * 3).toFixed(2)}px`);
+    event.currentTarget.style.setProperty("--cabi-head-x", `${(x * 5).toFixed(2)}px`);
+    event.currentTarget.style.setProperty("--cabi-head-y", `${(y * 4).toFixed(2)}px`);
+  };
+  const resetPointer = (event: ReactPointerEvent<HTMLDivElement>) => {
+    event.currentTarget.style.setProperty("--cabi-tilt-x", "0deg");
+    event.currentTarget.style.setProperty("--cabi-tilt-y", "0deg");
+    event.currentTarget.style.setProperty("--cabi-shift-x", "0px");
+    event.currentTarget.style.setProperty("--cabi-shift-y", "0px");
+    event.currentTarget.style.setProperty("--cabi-head-x", "0px");
+    event.currentTarget.style.setProperty("--cabi-head-y", "0px");
+  };
+
   return (
-    <div className={`relative flex min-h-0 ${className || "h-[clamp(220px,32vh,380px)]"} flex-none items-end justify-center overflow-hidden rounded-2xl border border-violet-200/[0.10] bg-[#0d0b15]`}>
+    <div
+      onPointerMove={trackPointer}
+      onPointerLeave={resetPointer}
+      onPointerCancel={resetPointer}
+      className={`cabi-presence-card relative isolate flex min-h-0 ${className || "h-[clamp(310px,42vh,430px)]"} flex-none flex-col overflow-hidden rounded-2xl border border-violet-200/[0.10] bg-[#0d0b15]`}
+    >
       <div className={`absolute left-1/2 top-[43%] h-[420px] w-[420px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-violet-500/[0.15] blur-[75px] transition duration-700 ${speaking ? "scale-110 opacity-100" : "scale-100 opacity-70"}`} />
       <div className="cabi-orbit absolute left-1/2 top-[42%] h-[330px] w-[330px] -translate-x-1/2 -translate-y-1/2 rounded-full border border-dashed border-violet-300/[0.14]" />
       <div className="absolute left-1/2 top-[42%] h-[250px] w-[250px] -translate-x-1/2 -translate-y-1/2 rounded-full border border-violet-300/[0.10] shadow-[0_0_80px_rgba(167,139,250,.1)]" />
       <span className="absolute left-8 top-8 h-1.5 w-1.5 rounded-full bg-[var(--cabi-primary)]/70 shadow-[42px_80px_0_rgba(196,181,253,.36),250px_42px_0_rgba(196,181,253,.4),215px_190px_0_rgba(196,181,253,.25)]" />
       {!failed ? (
-        // eslint-disable-next-line @next/next/no-img-element
-         <img src="/assets/cabi-cpu-model.png" alt="Cabi wearing her purple CPU shirt" className={`cabi-breathe relative z-10 max-h-[91%] w-full object-contain object-bottom drop-shadow-[0_28px_45px_rgba(0,0,0,.55)] ${speaking ? "brightness-110" : ""}`} onError={() => setFailed(true)} />
+        <div className="relative z-10 flex min-h-0 w-full flex-1 items-end justify-center overflow-hidden px-2 pt-3">
+          <div className="cabi-presence-parallax relative h-full w-full max-w-[360px]">
+            <div className="cabi-presence-breathe absolute inset-0">
+              <Image
+                src="/assets/cabi-avatar-3d.png"
+                alt="Cabi, a cat-eared companion wearing a lavender CPU sweatshirt"
+                fill
+                sizes="(min-width: 1024px) 320px, 90vw"
+                priority
+                onError={() => setFailed(true)}
+                className={`cabi-presence-body object-contain object-bottom drop-shadow-[0_20px_34px_rgba(0,0,0,.48)] ${speaking ? "brightness-110" : ""}`}
+              />
+              <Image
+                src="/assets/cabi-avatar-3d.png"
+                alt=""
+                aria-hidden="true"
+                fill
+                sizes="(min-width: 1024px) 320px, 90vw"
+                className="cabi-presence-head object-contain object-bottom"
+              />
+            </div>
+          </div>
+        </div>
       ) : (
-        <div className="cabi-breathe relative z-10 mb-24 grid h-64 w-64 place-items-center rounded-full border border-violet-200/10 bg-gradient-to-b from-violet-300/10 to-transparent text-center shadow-[0_0_100px_rgba(139,92,246,.12)]">
+        <div className="relative z-10 grid min-h-0 w-full flex-1 place-items-center p-6 text-center">
           <div><MiniCabi className="mx-auto h-28 w-28 rounded-2xl" priority /><div className="mt-3 text-xs font-semibold uppercase tracking-[0.28em] text-[var(--cabi-primary)]/60">Cat Partner Unit</div></div>
         </div>
       )}
-      <div className="absolute inset-x-4 bottom-4 z-20 rounded-xl border border-white/[0.07] bg-[#0c0914]/75 px-3 py-2.5 shadow-xl backdrop-blur-xl">
+      <div className="relative z-20 mx-3 mb-3 shrink-0 rounded-xl border border-white/[0.07] bg-[#0c0914]/80 px-3 py-2.5 shadow-xl backdrop-blur-xl">
         <div className="flex items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-2 text-xs font-semibold"><span>Cabi</span><span className="text-white/35">/</span><span className="text-[11px] font-normal text-violet-200/80">{mood}</span></div>
           <span className="flex shrink-0 items-center gap-1.5 text-[10px] text-white/55"><span className={`h-1.5 w-1.5 rounded-full ${speaking ? "animate-pulse bg-violet-200" : "bg-emerald-300"}`} />{authenticated ? "Saved" : "Guest"}</span>

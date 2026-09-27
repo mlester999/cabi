@@ -167,7 +167,7 @@ export function AdminImagesPanel() {
   const [notice, setNotice] = useState<{ tone: "success" | "error" | "info"; message: string } | null>(null);
   const [connection, setConnection] = useState<ConnectionResult | null>(null);
   const [fullTest, setFullTest] = useState<FullTestResult | null>(null);
-  const [fullTestScene, setFullTestScene] = useState("Cabi standing in a park.");
+  const [fullTestScene, setFullTestScene] = useState("cutest face of Cabi");
   const [chatFullTest, setChatFullTest] = useState<ChatFullTestResult | null>(null);
   const [busy, setBusy] = useState<"save" | "test" | "test-full" | "test-chat-full" | null>(null);
 
@@ -501,7 +501,7 @@ export function AdminImagesPanel() {
                       </p>
                       <dl className="mt-2 grid gap-x-4 gap-y-1 text-[10px] text-[var(--cabi-text-muted)] sm:grid-cols-2" aria-label="Cabi identity checks">
                         <div><dt className="text-white/45">Reference image attached</dt><dd>{fullTest.diagnostics.referenceAttached ? "Yes" : "No"}</dd></div>
-                        <div><dt className="text-white/45">Saved reference active</dt><dd>{fullTest.diagnostics.referenceActive ? "Yes" : "No"}</dd></div>
+                        <div><dt className="text-white/45">Official reference active</dt><dd>{fullTest.diagnostics.referenceActive ? "Yes" : "No"}</dd></div>
                         <div><dt className="text-white/45">Model reference support</dt><dd>{fullTest.diagnostics.modelReferenceSupport ? "Yes" : "No"}</dd></div>
                         <div><dt className="text-white/45">Identity lock applied</dt><dd>{fullTest.diagnostics.identityLockApplied ? "Yes" : "No"}</dd></div>
                         <div><dt className="text-white/45">Normalized prompt applied</dt><dd>{fullTest.diagnostics.normalizedPromptApplied ? "Yes" : "No"}</dd></div>

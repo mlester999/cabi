@@ -59,6 +59,34 @@ select { color-scheme: dark; background-color:#12101c; color:#fff; }
 @keyframes cabi-orbit { to { transform:rotate(360deg); } }
 .cabi-breathe { animation:cabi-breathe 6.8s ease-in-out infinite; transform-origin:50% 80%; } .cabi-orbit { animation:cabi-orbit 28s linear infinite; }
 
+/* Right-rail Cabi portrait: a cursor-reactive layered illustration with a
+   softly floating body and a separately tracked head layer. */
+.cabi-presence-card {
+  --cabi-tilt-x:0deg; --cabi-tilt-y:0deg; --cabi-shift-x:0px; --cabi-shift-y:0px;
+  --cabi-head-x:0px; --cabi-head-y:0px;
+  perspective:1000px; perspective-origin:50% 42%;
+}
+.cabi-presence-parallax {
+  transform:translate3d(var(--cabi-shift-x),var(--cabi-shift-y),0) rotateY(var(--cabi-tilt-x)) rotateX(var(--cabi-tilt-y));
+  transform-style:preserve-3d; transition:transform .34s cubic-bezier(.2,.75,.25,1); will-change:transform;
+}
+.cabi-presence-breathe {
+  width:100%; height:100%; transform-style:preserve-3d;
+  animation:cabi-presence-float 7.2s ease-in-out infinite;
+}
+@keyframes cabi-presence-float { 0%,100% { transform:translate3d(0,0,0); } 50% { transform:translate3d(0,-4px,0); } }
+.cabi-presence-body {
+  transform:translateZ(0); backface-visibility:hidden; transition:filter .3s ease,transform .3s ease;
+  mask-image:linear-gradient(to bottom,#000 0%,#000 82%,rgba(0,0,0,.86) 88%,rgba(0,0,0,.42) 95%,transparent 100%);
+  -webkit-mask-image:linear-gradient(to bottom,#000 0%,#000 82%,rgba(0,0,0,.86) 88%,rgba(0,0,0,.42) 95%,transparent 100%);
+}
+.cabi-presence-head {
+  z-index:1; pointer-events:none; transform:translate3d(var(--cabi-head-x),var(--cabi-head-y),22px);
+  backface-visibility:hidden; transition:transform .28s cubic-bezier(.2,.75,.25,1);
+  mask-image:radial-gradient(ellipse 39% 35% at 50% 28%,#000 57%,transparent 100%);
+  -webkit-mask-image:radial-gradient(ellipse 39% 35% at 50% 28%,#000 57%,transparent 100%);
+}
+
 /* ---------------------------------------------------------------------------
    Prelaunch experience
    Restrained, presentation-layer motion only. Every effect here is decorative,
@@ -166,6 +194,8 @@ html[data-cabi-veil] .cabi-veil { display:grid; }
   .cabi-atmosphere,.cabi-float,.cabi-breathe-slow,.cabi-glow,.cabi-sweep,.cabi-sparkle,
   .cabi-dot-pulse,.cabi-mascot-bob,.cabi-mascot-ear,.cabi-mascot-eyelid,
   .cabi-mascot-tail,.cabi-hairline-breathe,.cabi-mascot-breathe,.cabi-activity-slide { animation:none !important; }
+  .cabi-presence-breathe { animation:none !important; }
+  .cabi-presence-parallax,.cabi-presence-body,.cabi-presence-head { transition:none !important; transform:none !important; }
   .cabi-model-sheen { display:none; }
   .cabi-indeterminate::after,.cabi-caret::after { animation:none !important; transform:none; opacity:.55; }
   .cabi-sparkle { opacity:.26; }

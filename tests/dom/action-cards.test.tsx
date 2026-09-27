@@ -112,13 +112,10 @@ describe("action card rendering", () => {
 
     render(<ChatMessage message={{ id: "image-message", role: "assistant", content: "Here you go.", status: "complete", actionCard: card }} />);
 
-    expect(screen.getByRole("img", { name: "Generated image: Cabi smiling in a garden" })).toHaveAttribute("src", card.url);
+    expect(screen.getByRole("img", { name: "Generated Cabi image" })).toHaveAttribute("src", card.url);
   });
 
-  it("waits for the avatar save before showing success", async () => {
-    let resolveSave!: (saved: boolean) => void;
-    const save = new Promise<boolean>((resolve) => { resolveSave = resolve; });
-    const onUseImageAsAvatar = vi.fn(() => save);
+  it("keeps image previews free of download, regenerate, and profile-picture buttons", () => {
     const card = imageCard({
       generationId: "generation-avatar",
       url: "https://storage.example.com/signed/generated.png?token=fresh",
@@ -129,34 +126,9 @@ describe("action card rendering", () => {
       initials: "DE",
     });
 
-    render(<ChatMessage message={{ id: "avatar-message", role: "assistant", content: "Here you go.", status: "complete", actionCard: card }} onUseImageAsAvatar={onUseImageAsAvatar} />);
-    const button = screen.getByRole("button", { name: /Use as profile picture/i });
-    fireEvent.click(button);
-
-    expect(button).toBeDisabled();
-    expect(screen.queryByText("Saved as your profile picture.")).toBeNull();
-    await act(async () => { resolveSave(true); await save; });
-
-    expect(await screen.findByText("Saved as your profile picture.")).toBeInTheDocument();
-    expect(onUseImageAsAvatar).toHaveBeenCalledWith(card);
-  });
-
-  it("shows an error instead of success when the avatar save fails", async () => {
-    const card = imageCard({
-      generationId: "generation-avatar-fail",
-      url: "https://storage.example.com/signed/generated.png?token=fresh",
-      prompt: "Cabi smiling in a garden",
-      aspectRatio: "1:1",
-      createdAt: "2026-09-25T00:00:00.000Z",
-      canUseAsAvatar: true,
-      initials: "DE",
-    });
-
-    render(<ChatMessage message={{ id: "avatar-message-fail", role: "assistant", content: "Here you go.", status: "complete", actionCard: card }} onUseImageAsAvatar={async () => false} />);
-    fireEvent.click(screen.getByRole("button", { name: /Use as profile picture/i }));
-
-    expect(await screen.findByText("I couldn't set that as your picture.")).toBeInTheDocument();
-    expect(screen.queryByText("Saved as your profile picture.")).toBeNull();
+    render(<ChatMessage message={{ id: "avatar-message", role: "assistant", content: "Here you go.", status: "complete", actionCard: card }} />);
+    expect(screen.getByRole("img", { name: "Generated Cabi image" })).toHaveAttribute("src", card.url);
+    expect(screen.queryByRole("button", { name: /Download|Regenerate|Use as profile picture/i })).toBeNull();
   });
 
   it("does not render a broken image before a fresh signed URL is available", () => {

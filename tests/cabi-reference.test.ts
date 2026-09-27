@@ -212,7 +212,7 @@ describe("reference resolution priority", () => {
     expect(resolved.version).toBe(0);
     expect(resolved.path).toBe(cabiFallbackReferenceAsset);
     expect(resolved.bytes).toBeNull();
-    // Nothing to condition on, so a capable model is driven by the bible instead.
+    // It has no storage signed URL; the generation plan resolves its public app URL.
     expect(resolved.conditionable).toBe(false);
   });
 

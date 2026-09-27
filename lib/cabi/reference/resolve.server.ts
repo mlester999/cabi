@@ -64,11 +64,11 @@ export async function resolveCabiReference(): Promise<ResolvedCabiReference | Ca
     mimeType: "image/png",
     width: 500,
     height: 500,
-    // No fetch: the fallback is served from this deployment's own /public.
+    // The fallback is served from this deployment's own /public. The generation
+    // plan turns this path into a canonical HTTPS URL for reference-capable models.
     bytes: null,
     signedUrl: null,
-    // Nothing to condition on, so a reference-capable model is driven by the
-    // character bible instead of an image.
+    // It has no storage signed URL; the plan resolves its public app URL instead.
     conditionable: false,
   };
 }

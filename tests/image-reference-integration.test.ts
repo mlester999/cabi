@@ -20,6 +20,8 @@ const mocks = vi.hoisted(() => ({
   bible: { artDirection: "", negative: "", customized: false },
   providerModel: "Qwen/Qwen-Image-2.0",
   providerId: "together",
+  supportsReferenceImages: true,
+  publicOrigin: "https://cabi.example.test",
 }));
 
 vi.mock("@/lib/db/supabase", () => ({
@@ -55,6 +57,10 @@ vi.mock("@/lib/db/supabase", () => ({
 }));
 
 vi.mock("@/lib/site/guard", () => ({ guardAppApiCpu: async () => null }));
+vi.mock("@/lib/site/origin", () => ({
+  siteOrigin: () => mocks.publicOrigin,
+  siteMetadataBase: () => new URL(mocks.publicOrigin),
+}));
 vi.mock("@/lib/security/rate-limit", () => ({ checkRateLimit: async () => ({ allowed: true, retryAfter: 0 }) }));
 vi.mock("@/lib/wallet/session", () => ({
   readWalletAuth: async () => ({
@@ -101,7 +107,7 @@ vi.mock("@/lib/image-generation/settings", async (importOriginal) => {
       apiKeySource: "admin",
       capabilities: {
         supportsTextToImage: true,
-        supportsReferenceImages: true,
+        supportsReferenceImages: mocks.supportsReferenceImages,
         supportsImageToImage: true,
         supportsSeed: true,
         supportsNegativePrompt: true,
@@ -155,6 +161,8 @@ beforeEach(() => {
   mocks.inserted.length = 0;
   mocks.providerModel = "Qwen/Qwen-Image-2.0";
   mocks.providerId = "together";
+  mocks.supportsReferenceImages = true;
+  mocks.publicOrigin = "https://cabi.example.test";
   mocks.reference = { source: "BUNDLED", version: 0, path: "/assets/cabi-cpu-model.png", mimeType: "image/png", width: 500, height: 500, bytes: null, signedUrl: null, conditionable: false };
   mocks.bible = { artDirection: "", negative: "", customized: false };
 });
@@ -261,12 +269,26 @@ describe("the official reference is used automatically", () => {
     expect(completed?.reference_conditioned).toBe(true);
   });
 
-  it("records the bundled fallback as version 0 without sending a local reference URL", async () => {
+  it("attaches the bundled Cabi reference through the public app origin", async () => {
     await POST(request({ prompt: "Cabi waving", aspectRatio: "1:1" }));
     const completed = mocks.inserted.find((row) => row.status === "COMPLETED");
     expect(completed?.reference_version).toBe(0);
+    expect(mocks.generated[0].referenceImages).toEqual(["https://cabi.example.test/assets/cabi-cpu-model.png"]);
+    expect(completed?.reference_conditioned).toBe(true);
+  });
+
+  it("does not send the bundled reference when the selected model lacks reference support", async () => {
+    mocks.supportsReferenceImages = false;
+    await POST(request({ prompt: "Cabi waving", aspectRatio: "1:1" }));
+    const completed = mocks.inserted.find((row) => row.status === "COMPLETED");
     expect(mocks.generated[0].referenceImages).toBeUndefined();
     expect(completed?.reference_conditioned).toBe(false);
+  });
+
+  it("does not send an unreachable local bundled URL to the provider", async () => {
+    mocks.publicOrigin = "http://localhost:5173";
+    await POST(request({ prompt: "Cabi waving", aspectRatio: "1:1" }));
+    expect(mocks.generated[0].referenceImages).toBeUndefined();
   });
 });
 
