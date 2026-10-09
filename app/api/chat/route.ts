@@ -4,6 +4,7 @@ import { buildSystemMessages } from "@/lib/ai/prompts";
 import type { ProviderConfig, TokenUsage } from "@/lib/ai/provider";
 import { runAction, type ActionRunResult } from "@/lib/actions/runtime";
 import { stripActionCardTransientData } from "@/lib/actions/guards";
+import { stripAdminActionLinks } from "@/lib/actions/links";
 import { bondFromPoints, recordConversationBond } from "@/lib/bond";
 import { getServiceClient } from "@/lib/db/supabase";
 import { getCabiRuntimeConfig } from "@/lib/config/runtime";
@@ -283,7 +284,8 @@ export async function POST(request: Request) {
       imageMessagePersisted = true;
     }
   }
-  const persistedCard = card ? stripActionCardTransientData(card) : null;
+  const chatCard = card ? stripAdminActionLinks(card) : null;
+  const persistedCard = chatCard ? stripActionCardTransientData(chatCard) : null;
   // An image request is fully answered by the pipeline: the reply is the short
   // deterministic line that accompanies the picture, so the model is not called.
   const deterministicReply = imageReply ?? (action.skipModel && action.reply ? action.reply : null);
@@ -312,7 +314,7 @@ export async function POST(request: Request) {
       controller.enqueue(encoder.encode(event("meta", { conversationId, userMessageId, assistantMessageId, sources: rag.sources, persistent, mood })));
       // The card was already chosen above (image card or action card), so it is
       // emitted before any text, exactly like an action card.
-      if (card) controller.enqueue(encoder.encode(event("action", { card })));
+      if (chatCard) controller.enqueue(encoder.encode(event("action", { card: chatCard })));
       try {
         if (isDeterministic) {
           text = deterministicReply ?? "";

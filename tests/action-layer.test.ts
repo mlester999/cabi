@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { interpretMessage } from "@/lib/actions/intent";
-import { parseActionCard, stripActionCardDebugDetails } from "@/lib/actions/guards";
+import { parseActionCard, stripActionCardDebugDetails, stripActionCardTransientData } from "@/lib/actions/guards";
 import { matchingSlashCommands, parseSlashCommand, slashCommands } from "@/lib/actions/slash-commands";
 import { clarifyCard, noticeCard, portfolioCard, safeLinks, tokenCard, tradeCard } from "@/lib/actions/cards";
 import type { ActionCard } from "@/lib/actions/types";
@@ -268,6 +268,21 @@ describe("stored card validation", () => {
     expect(parseActionCard({ ...valid, links: [{ label: "p", url: "/portfolio", kind: "INTERNAL" }] })).not.toBeNull();
     expect(parseActionCard({ ...valid, links: [{ label: "p", url: "//evil.test", kind: "INTERNAL" }] })).toBeNull();
     expect(parseActionCard({ ...valid, links: [{ label: "p", url: "/\\evil.test", kind: "INTERNAL" }] })).toBeNull();
+  });
+
+  it("strips admin-only links from stored and outgoing chat cards", () => {
+    const card = {
+      ...valid,
+      links: [
+        { label: "Open portfolio", url: "/portfolio", kind: "INTERNAL" },
+        { label: "View in Admin", url: "/admin/images#recent-generation-runs", kind: "INTERNAL" },
+        { label: "Preview", url: "/preview", kind: "INTERNAL" },
+        { label: "Admin API", url: "/api/admin/images", kind: "INTERNAL" },
+      ],
+    };
+    const expected = [{ label: "Open portfolio", url: "/portfolio", kind: "INTERNAL" }];
+    expect(parseActionCard(card)?.links).toEqual(expected);
+    expect(stripActionCardTransientData(card as ActionCard).links).toEqual(expected);
   });
 
   it("strips owner-preview diagnostics before card persistence", () => {

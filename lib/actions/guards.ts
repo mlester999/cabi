@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { stripAdminActionLinks } from "@/lib/actions/links";
 import type { ActionCard } from "@/lib/actions/types";
 
 /**
@@ -111,7 +112,7 @@ export function isActionCard(value: unknown): value is ActionCard {
 
 export function parseActionCard(value: unknown): ActionCard | null {
   const parsed = actionCardSchema.safeParse(value);
-  return parsed.success ? (parsed.data as ActionCard) : null;
+  return parsed.success ? stripAdminActionLinks(parsed.data as ActionCard) : null;
 }
 
 /**
@@ -126,6 +127,6 @@ export function stripActionCardDebugDetails(card: ActionCard): ActionCard {
 
 /** Store image identity, not a temporary signed URL; the URL is minted on read. */
 export function stripActionCardTransientData(card: ActionCard): ActionCard {
-  const safe = stripActionCardDebugDetails(card);
+  const safe = stripAdminActionLinks(stripActionCardDebugDetails(card));
   return safe.kind === "IMAGE" ? { ...safe, url: "" } : safe;
 }

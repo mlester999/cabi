@@ -361,7 +361,7 @@ describe("provider failure", () => {
     expect((result.card as Record<string, unknown>).debugDetails).toBeUndefined();
   });
 
-  it("keeps diagnostics and admin links out of owner-preview chat", async () => {
+  it("omits diagnostics and admin links from image failure cards", async () => {
     mocks.providerOk = false;
     const result = await generateChatImage("Generate a picture of you at the beach", wallet);
     expect(result.handled).toBe(true);

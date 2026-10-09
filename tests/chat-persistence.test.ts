@@ -6,7 +6,6 @@ const mocks = vi.hoisted(() => ({
   writes: [] as Array<{ table: string; operation: string; value: unknown }>,
   imageCalls: [] as Array<{ message: string; options: unknown }>,
   modelCalls: 0,
-  previewActive: false,
   imageMode: "notice" as "notice" | "image",
 }));
 
@@ -47,7 +46,7 @@ vi.mock("@/lib/image-generation/chat", () => ({
         id: "notice-image-failure",
         title: "I could not draw that one",
         rows: [],
-        links: [],
+        links: [{ label: "View in Admin", url: "/admin/images#recent-generation-runs", kind: "INTERNAL" }],
         tone: "error",
         message: "I couldn't make that image right now.",
         retry: { label: "Try Again", prompt: message },
@@ -73,7 +72,6 @@ vi.mock("@/lib/security/rate-limit", () => ({ checkRateLimit: vi.fn(async () => 
 // The route now enforces the site mode and the $CPU holder gate; both are
 // covered by their own suites, so this one focuses on the persistence boundary.
 vi.mock("@/lib/site/guard", () => ({ guardAppApi: vi.fn(async () => null), guardAppApiCpu: vi.fn(async () => null) }));
-vi.mock("@/lib/site/preview", () => ({ isPreviewActive: vi.fn(async () => mocks.previewActive) }));
 vi.mock("@/lib/site/owner-preview", () => ({ readOwnerPreviewAuth: vi.fn(async () => null) }));
 vi.mock("@/lib/wallet/session", () => ({ readWalletAuth: mocks.wallet }));
 
@@ -161,7 +159,6 @@ describe("chat persistence boundary", () => {
     mocks.writes.length = 0;
     mocks.imageCalls.length = 0;
     mocks.modelCalls = 0;
-    mocks.previewActive = false;
     mocks.imageMode = "notice";
   });
 
@@ -223,8 +220,7 @@ describe("chat persistence boundary", () => {
     expect(mocks.imageCalls[0]?.options).toMatchObject({ messageId: "user-original" });
   });
 
-  it("keeps owner-preview diagnostics and admin links out of chat", async () => {
-    mocks.previewActive = true;
+  it("strips legacy admin links and diagnostics from live and persisted chat cards", async () => {
     mocks.wallet.mockResolvedValue({ walletAccountId: "wallet-a", profileId: "profile-a", walletAddress: "0x00000000000000000000000000000000000000A1" });
     mocks.database.mockReturnValue(databaseDouble());
     const response = await chat(request(true, "Generate an image of you at the beach"));
@@ -234,6 +230,7 @@ describe("chat persistence boundary", () => {
     expect(body).not.toContain("owner-preview-trace");
     const assistantUpdate = mocks.writes.find((write) => write.table === "messages" && write.operation === "update" && typeof write.value === "object" && write.value !== null && "metadata_json" in write.value) as { value?: { metadata_json?: { actionCard?: Record<string, unknown> } } } | undefined;
     expect(assistantUpdate?.value?.metadata_json?.actionCard).not.toHaveProperty("debugDetails");
+    expect(assistantUpdate?.value?.metadata_json?.actionCard?.links).toEqual([]);
   });
 
   it("downgrades to the friendly failure card when the durable generation/message link fails", async () => {

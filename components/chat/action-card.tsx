@@ -4,6 +4,7 @@ import { Check, Copy, ExternalLink, Info, ShieldAlert, Sparkles, TrendingUp, Wal
 import { useState } from "react";
 
 import { ImageCardView } from "@/components/chat/image-card";
+import { isAdminOnlyActionLink } from "@/lib/actions/links";
 import type { ActionCard as ActionCardModel } from "@/lib/actions/types";
 
 /**
@@ -51,6 +52,7 @@ export function ActionCardView({ card, className = "", onRetry }: {
 
   // Only token-shaped cards carry a copyable contract address.
   const copyableAddress = "tokenAddress" in card ? card.tokenAddress : undefined;
+  const visibleLinks = card.links.filter((link) => !isAdminOnlyActionLink(link));
 
   // A generated image is the content, so it gets its own presentation rather
   // than being squeezed into the rows-and-links layout built for token data.
@@ -104,7 +106,7 @@ export function ActionCardView({ card, className = "", onRetry }: {
 
       {card.message && <p className="mt-3 text-[11px] leading-5 text-[var(--cabi-text-secondary)]">{card.message}</p>}
 
-      {(card.links.length > 0 || copyableAddress) && (
+      {(visibleLinks.length > 0 || copyableAddress) && (
         <div className="mt-3 flex flex-wrap items-center gap-2">
           {copyableAddress && (
             <button
@@ -116,7 +118,7 @@ export function ActionCardView({ card, className = "", onRetry }: {
               {copied === "contract" ? "Copied" : "Copy contract"}
             </button>
           )}
-          {card.links.map((link) => (
+          {visibleLinks.map((link) => (
             link.kind === "INTERNAL" ? (
               <a key={link.url} href={link.url} className="focus-ring inline-flex h-9 items-center gap-1.5 rounded-xl border border-[var(--cabi-hairline)] bg-[var(--cabi-surface-2)] px-3 text-[11px] font-semibold text-[var(--cabi-text-secondary)] transition hover:bg-[var(--cabi-surface-3)]">
                 {link.label}

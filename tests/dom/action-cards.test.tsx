@@ -157,12 +157,16 @@ describe("action card rendering", () => {
         title: "A tiny image hiccup",
         message: "Want to retry, try a different idea, or simplify the scene with fewer details?",
         tone: "neutral",
-        links: [{ label: "Open image gallery", url: "/images", kind: "INTERNAL" }],
+        links: [
+          { label: "Open image gallery", url: "/images", kind: "INTERNAL" },
+          { label: "View in Admin", url: "/admin/images#recent-generation-runs", kind: "INTERNAL" },
+        ],
       }),
       debugDetails: { requestId: "private-trace-id", httpStatus: 403, provider: "Together AI" },
     } as unknown as ActionCardModel;
     render(<ActionCardView card={card} />);
     expect(screen.getByRole("link", { name: "Open image gallery" })).toHaveAttribute("href", "/images");
+    expect(screen.queryByRole("link", { name: "View in Admin" })).toBeNull();
     expect(screen.queryByText(/private-trace-id|403|Together AI|Owner preview details/i)).toBeNull();
   });
 
