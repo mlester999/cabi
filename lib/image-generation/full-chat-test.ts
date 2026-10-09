@@ -157,7 +157,6 @@ export async function runFullChatImageTest(input: {
       conversationId,
       messageId: userMessageId,
       conversationContext: [],
-      ownerPreview: true,
       adminPipelineTest: true,
       trace,
     });

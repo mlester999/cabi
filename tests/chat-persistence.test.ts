@@ -23,7 +23,6 @@ vi.mock("@/lib/image-generation/chat", () => ({
   generateChatImage: vi.fn(async (message: string, options: unknown) => {
     if (!message.startsWith("Generate an image")) return { handled: false as const };
     mocks.imageCalls.push({ message, options });
-    const ownerPreview = Boolean((options as { ownerPreview?: boolean }).ownerPreview);
     const imageCard = {
       kind: "IMAGE" as const,
       id: "image-card",
@@ -52,7 +51,6 @@ vi.mock("@/lib/image-generation/chat", () => ({
         tone: "error",
         message: "I couldn't make that image right now.",
         retry: { label: "Try Again", prompt: message },
-        ...(ownerPreview ? { links: [{ label: "View in Admin", url: "/admin/images#recent-generation-runs", kind: "INTERNAL" }] } : {}),
       },
     };
   }),
@@ -225,13 +223,14 @@ describe("chat persistence boundary", () => {
     expect(mocks.imageCalls[0]?.options).toMatchObject({ messageId: "user-original" });
   });
 
-  it("keeps owner-preview diagnostics out of chat and points to Admin", async () => {
+  it("keeps owner-preview diagnostics and admin links out of chat", async () => {
     mocks.previewActive = true;
     mocks.wallet.mockResolvedValue({ walletAccountId: "wallet-a", profileId: "profile-a", walletAddress: "0x00000000000000000000000000000000000000A1" });
     mocks.database.mockReturnValue(databaseDouble());
     const response = await chat(request(true, "Generate an image of you at the beach"));
     const body = await response.text();
-    expect(body).toContain("View in Admin");
+    expect(body).not.toContain("View in Admin");
+    expect(body).not.toContain("/admin/");
     expect(body).not.toContain("owner-preview-trace");
     const assistantUpdate = mocks.writes.find((write) => write.table === "messages" && write.operation === "update" && typeof write.value === "object" && write.value !== null && "metadata_json" in write.value) as { value?: { metadata_json?: { actionCard?: Record<string, unknown> } } } | undefined;
     expect(assistantUpdate?.value?.metadata_json?.actionCard).not.toHaveProperty("debugDetails");

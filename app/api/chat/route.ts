@@ -20,8 +20,6 @@ import { chatRequestSchema } from "@/lib/validation/api";
 import { readWalletAuth } from "@/lib/wallet/session";
 import { shouldPersistChat } from "@/lib/wallet/persistence";
 import { guardAppApiCpu } from "@/lib/site/guard";
-import { isPreviewActive } from "@/lib/site/preview";
-import { readOwnerPreviewAuth } from "@/lib/site/owner-preview";
 import { recordChatTurnSocial } from "@/lib/chat/social";
 import { achievementCopy } from "@/lib/ranking/achievements";
 import { noticeCard } from "@/lib/actions/cards";
@@ -68,14 +66,6 @@ export async function POST(request: Request) {
   const parsed = chatRequestSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return jsonError("That message doesn't look right.", 400, "INVALID_MESSAGE");
   const imageRequested = isImageRequest(parsed.data.message);
-  // Owner preview is used only for an Admin shortcut on safe image failures;
-  // pipeline traces stay in server logs and the Admin activity surface.
-  const ownerPreview = imageRequested
-    ? await Promise.all([
-      isPreviewActive().catch(() => false),
-      readOwnerPreviewAuth().catch(() => null),
-    ]).then(([adminPreview, ownerWalletPreview]) => adminPreview || Boolean(ownerWalletPreview))
-    : false;
   const imageTrace = imageRequested
     ? createImagePipelineTrace({ source: "CHAT_GENERATION", conversationId: parsed.data.conversationId ?? null })
     : null;
@@ -217,7 +207,6 @@ export async function POST(request: Request) {
         ? await readLatestGenerationContext(walletAccountId, conversationId).catch(() => null)
         : null,
       trace: imageTrace ?? undefined,
-      ownerPreview,
     }),
   ]);
   const mood: CabiMood = inferMood({
@@ -282,16 +271,13 @@ export async function POST(request: Request) {
         message: "The image could not be saved.",
         diagnostics: imageTrace ? imagePipelineDatabaseFields(imageTrace) : undefined,
       });
-      const retryLink = ownerPreview
-        ? [{ label: "View in Admin", url: "/admin/images#recent-generation-runs", kind: "INTERNAL" as const }]
-        : [];
       imageReply = cabiImageFailureReply;
       card = noticeCard({
         title: cabiImageFailureCardTitle,
         message: cabiImageFailureCardMessage,
         tone: "neutral",
         retry: { label: "Try Again", prompt: parsed.data.message, parentGenerationId: card.generationId },
-        links: retryLink,
+        links: [],
       });
     } else {
       imageMessagePersisted = true;

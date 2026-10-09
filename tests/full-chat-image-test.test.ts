@@ -145,7 +145,7 @@ describe("full chat image pipeline admin test", () => {
     ]));
     expect(mocks.generatedCalls[0]).toMatchObject({
       prompt: "Please generate the cutest image of you.",
-      options: { walletAccountId: "wallet-owner", adminPipelineTest: true, ownerPreview: true },
+      options: { walletAccountId: "wallet-owner", adminPipelineTest: true },
     });
     expect(mocks.events.indexOf("assistant_message_insert")).toBeLessThan(mocks.events.indexOf("chat_generate"));
     expect(mocks.events.indexOf("object_remove")).toBeLessThan(mocks.events.indexOf("generation_delete"));

@@ -52,8 +52,6 @@ export type ChatImageOptions = {
   messageId: string | null;
   /** Shared with the chat route so message creation and image stages have one ID. */
   trace?: ImagePipelineTrace;
-  /** True only for an explicitly authorized owner/admin preview request. */
-  ownerPreview?: boolean;
   /** Internal owner-admin test only: avoid charging normal user quota or XP. */
   adminPipelineTest?: boolean;
 };
@@ -67,13 +65,13 @@ export function isImageRequest(message: string): boolean {
   return looksLikeImageRequest(message);
 }
 
-function imageFailureCard(message: string, ownerPreview: boolean, parentGenerationId?: string): ActionCard {
+function imageFailureCard(message: string, parentGenerationId?: string): ActionCard {
   return noticeCard({
     title: cabiImageFailureCardTitle,
     message: cabiImageFailureCardMessage,
     tone: "neutral",
     retry: { label: "Try Again", prompt: message, ...(parentGenerationId ? { parentGenerationId } : {}) },
-    links: ownerPreview ? [{ label: "View in Admin", url: "/admin/images#recent-generation-runs", kind: "INTERNAL" }] : [],
+    links: [],
   });
 }
 
@@ -99,7 +97,7 @@ export async function generateChatImage(message: string, options: ChatImageOptio
       handled: true,
       usedProvider: false,
       reply: cabiImageFailureReply,
-      card: imageFailureCard(message, Boolean(options.ownerPreview)),
+      card: imageFailureCard(message),
     };
   }
 }
@@ -308,21 +306,21 @@ async function generateChatImageInternal(message: string, options: ChatImageOpti
       trace.record("GENERATION_ROW_CREATED", { error: "DATABASE_INSERT_FAILED" });
       logImageDatabaseFailure({ requestId: trace.requestId, operation: "insert", error: insertResult.error });
       await persistImageDatabaseFailure({ requestId: trace.requestId, operation: "insert", error: insertResult.error, walletAccountId: options.walletAccountId });
-      return { handled: true, usedProvider: false, reply: cabiImageFailureReply, card: imageFailureCard(message, Boolean(options.ownerPreview)) };
+      return { handled: true, usedProvider: false, reply: cabiImageFailureReply, card: imageFailureCard(message) };
     }
     trace.record("GENERATION_ROW_CREATED");
   } catch (error) {
     trace.record("GENERATION_ROW_CREATED", { error: "DATABASE_INSERT_FAILED" });
     logImageDatabaseFailure({ requestId: trace.requestId, operation: "insert", error });
     await persistImageDatabaseFailure({ requestId: trace.requestId, operation: "insert", error, walletAccountId: options.walletAccountId });
-    return { handled: true, usedProvider: false, reply: cabiImageFailureReply, card: imageFailureCard(message, Boolean(options.ownerPreview)) };
+    return { handled: true, usedProvider: false, reply: cabiImageFailureReply, card: imageFailureCard(message) };
   }
   // QUEUED -> GENERATING, recorded before the request leaves the process so a
   // refresh mid-flight recovers to "still working" rather than to a placeholder.
   const markedGenerating = await markGenerating(generationId);
   if (!markedGenerating) {
     trace.record("GENERATION_ROW_UPDATED", { error: "DATABASE_UPDATE_FAILED" });
-    return { handled: true, usedProvider: false, reply: cabiImageFailureReply, card: imageFailureCard(message, Boolean(options.ownerPreview)) };
+    return { handled: true, usedProvider: false, reply: cabiImageFailureReply, card: imageFailureCard(message) };
   }
   trace.record("GENERATION_ROW_UPDATED");
   const pipeline = await runCabiImagePipeline({
@@ -349,7 +347,7 @@ async function generateChatImageInternal(message: string, options: ChatImageOpti
       handled: true,
       usedProvider: true,
       reply: cabiImageFailureReply,
-      card: imageFailureCard(message, Boolean(options.ownerPreview), generationId),
+      card: imageFailureCard(message, generationId),
     };
   }
 
@@ -375,7 +373,7 @@ async function generateChatImageInternal(message: string, options: ChatImageOpti
       message: "The image could not be saved.",
       diagnostics: imagePipelineDatabaseFields(trace),
     });
-    return { handled: true, usedProvider: true, reply: cabiImageFailureReply, card: imageFailureCard(message, Boolean(options.ownerPreview), generationId) };
+    return { handled: true, usedProvider: true, reply: cabiImageFailureReply, card: imageFailureCard(message, generationId) };
   }
   trace.record("GENERATION_ROW_UPDATED");
   const row = { id: generationId, created_at: queuedAt };

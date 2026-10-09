@@ -361,13 +361,13 @@ describe("provider failure", () => {
     expect((result.card as Record<string, unknown>).debugDetails).toBeUndefined();
   });
 
-  it("keeps diagnostics out of owner-preview chat and links the owner to Admin", async () => {
+  it("keeps diagnostics and admin links out of owner-preview chat", async () => {
     mocks.providerOk = false;
-    const result = await generateChatImage("Generate a picture of you at the beach", { ...wallet, ownerPreview: true });
+    const result = await generateChatImage("Generate a picture of you at the beach", wallet);
     expect(result.handled).toBe(true);
     if (!result.handled) return;
     expect(result.card).not.toHaveProperty("debugDetails");
-    expect(result.card.links).toContainEqual({ label: "View in Admin", url: "/admin/images#recent-generation-runs", kind: "INTERNAL" });
+    expect(result.card.links).toEqual([]);
     expect(JSON.stringify(result.card)).not.toMatch(/requestId|wallet|provider|model|httpStatus|latency|UNSAFE_PROMPT/u);
   });
 
@@ -438,7 +438,7 @@ describe("successful generation", () => {
   });
 
   it("keeps the admin full-chat test out of user quota and XP accounting", async () => {
-    await generateChatImage("Generate a picture of you drinking coffee.", { ...wallet, adminPipelineTest: true, ownerPreview: true });
+    await generateChatImage("Generate a picture of you drinking coffee.", { ...wallet, adminPipelineTest: true });
     expect(mocks.quotaCalls).toBe(0);
     expect(mocks.xpCountCalls).toBe(0);
     expect(mocks.xpAwards).toBe(0);
